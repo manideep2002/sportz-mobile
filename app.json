@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "SPORTZ",
+    "slug": "sportz",
+    "scheme": "sportz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sportz.mobile",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "SPORTZ uses your camera to add profile photos, stories, posts, and event media.",
+        "NSPhotoLibraryUsageDescription": "SPORTZ lets you choose media for posts, stories, profiles, and event covers.",
+        "NSLocationWhenInUseUsageDescription": "SPORTZ uses location to show nearby courts and local events."
+      }
+    },
+    "android": {
+      "package": "com.sportz.mobile",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-apple-authentication",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SPORTZ uses location to recommend courts and events near you."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF5A1F",
+          "sounds": []
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/replace-with-eas-project-id"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
