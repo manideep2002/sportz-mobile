@@ -42,8 +42,8 @@ export function MainTabs() {
           }}
           options={{
             title: '',
-            tabBarButton: (props) => (
-              <Pressable {...props} style={styles.createButton}>
+            tabBarButton: ({ onPress, accessibilityState }) => (
+              <Pressable accessibilityRole="button" accessibilityState={accessibilityState} onPress={onPress} style={styles.createButton}>
                 <Plus size={25} color={colors.light[0]} strokeWidth={2.5} />
               </Pressable>
             )

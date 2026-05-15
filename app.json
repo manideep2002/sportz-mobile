@@ -32,8 +32,6 @@
     },
     "plugins": [
       "expo-apple-authentication",
-      "expo-secure-store",
-      "expo-font",
       [
         "expo-location",
         {
@@ -50,11 +48,8 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "replace-with-eas-project-id"
+        "projectId": ""
       }
-    },
-    "updates": {
-      "url": "https://u.expo.dev/replace-with-eas-project-id"
     },
     "runtimeVersion": {
       "policy": "appVersion"

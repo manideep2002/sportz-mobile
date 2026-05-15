@@ -135,7 +135,7 @@ eas build --platform ios --profile production
 
 ```text
 sportz-mobile/
-  src/app/                 app bootstrap and providers
+  src/bootstrap/           app bootstrap and providers
   src/components/ui/        design-system primitives
   src/components/feed/      stories, posts, live cards, court artwork
   src/components/events/    event cards

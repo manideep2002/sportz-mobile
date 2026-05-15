@@ -117,7 +117,7 @@ export const authService = {
       displayName: data.display_name,
       initials: data.display_name
         .split(' ')
-        .map((part) => part[0])
+        .map((part: string) => part[0])
         .join('')
         .slice(0, 2)
         .toUpperCase(),

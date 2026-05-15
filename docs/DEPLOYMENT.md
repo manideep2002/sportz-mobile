@@ -25,6 +25,23 @@ eas init
 
 Copy the generated EAS project id into `app.json`.
 
+After `eas init`, add the updates URL back to `app.json`:
+
+```json
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-eas-project-id"
+    }
+  }
+}
+```
+
 ## Production builds
 
 ```bash

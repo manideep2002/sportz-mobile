@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type DimensionValue } from 'react-native';
 
 import { colors, radii } from '@/design/tokens';
 
@@ -10,7 +10,7 @@ interface ProgressBarProps {
 }
 
 export function ProgressBar({ value, max = 100, color = colors.orange[500], height = 4 }: ProgressBarProps) {
-  const width = `${Math.max(0, Math.min(100, (value / max) * 100))}%`;
+  const width = `${Math.max(0, Math.min(100, (value / max) * 100))}%` as DimensionValue;
   return (
     <View style={[styles.track, { height, borderRadius: height / 2 }]}>
       <View style={[styles.fill, { width, backgroundColor: color, borderRadius: height / 2 }]} />

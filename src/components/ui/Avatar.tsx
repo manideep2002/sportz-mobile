@@ -13,7 +13,7 @@ interface AvatarProps {
   online?: boolean;
 }
 
-const gradients: Record<AvatarTone, readonly [string, string]> = {
+const gradients: Record<AvatarTone, [string, string]> = {
   orange: [colors.orange[500], colors.orange[600]],
   green: [colors.semantic.success, colors.semantic.successDark],
   blue: [colors.semantic.info, '#1D4ED8'],
