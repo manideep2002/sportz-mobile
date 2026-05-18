@@ -12,6 +12,8 @@ export type Sport =
 
 export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro';
 
+export type Gender = 'Female' | 'Male' | 'Prefer not to say';
+
 export interface UserProfile {
   id: ID;
   username: string;

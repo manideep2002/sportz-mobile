@@ -29,6 +29,9 @@ create table public.profiles (
   avatar_url text,
   cover_url text,
   bio text default '',
+  mobile_number text,
+  date_of_birth date,
+  gender text check (gender in ('Female', 'Male', 'Prefer not to say') or gender is null),
   city text,
   country text default 'IN',
   primary_sport text,
@@ -52,14 +55,35 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, username, display_name, city, primary_sport, sports)
+  insert into public.profiles (
+    id,
+    username,
+    display_name,
+    mobile_number,
+    date_of_birth,
+    gender,
+    city,
+    primary_sport,
+    sports,
+    skill_level
+  )
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'username', 'athlete_' || substring(new.id::text from 1 for 8)),
     coalesce(new.raw_user_meta_data->>'display_name', 'SPORTZ Athlete'),
+    nullif(new.raw_user_meta_data->>'mobile_number', ''),
+    nullif(new.raw_user_meta_data->>'date_of_birth', '')::date,
+    nullif(new.raw_user_meta_data->>'gender', ''),
     new.raw_user_meta_data->>'city',
     new.raw_user_meta_data->>'primary_sport',
-    array_remove(array[new.raw_user_meta_data->>'primary_sport'], null)
+    array_remove(
+      array_cat(
+        array[new.raw_user_meta_data->>'primary_sport'],
+        array(select jsonb_array_elements_text(coalesce(new.raw_user_meta_data->'secondary_sports', '[]'::jsonb)))
+      ),
+      null
+    ),
+    coalesce((new.raw_user_meta_data->>'primary_sport_experience_level')::public.sportz_skill_level, 'Intermediate')
   )
   on conflict (id) do nothing;
   return new;

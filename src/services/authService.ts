@@ -3,7 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { currentUser } from '@/data/mockData';
-import type { UserProfile } from '@/types/domain';
+import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
 
 export interface AuthResult {
   session: Session | null;
@@ -17,7 +17,13 @@ export interface RegisterInput {
   lastName: string;
   username: string;
   city: string;
-  primarySport: string;
+  mobileNumber: string;
+  mobileOtp?: string;
+  dateOfBirth: string;
+  gender: Gender;
+  primarySport: Sport;
+  primarySportExperienceLevel: SkillLevel;
+  secondarySports: Sport[];
 }
 
 export const authService = {
@@ -49,6 +55,8 @@ export const authService = {
       return { session: null, user: null };
     }
 
+    const sports = Array.from(new Set([input.primarySport, ...input.secondarySports]));
+
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
@@ -57,12 +65,36 @@ export const authService = {
           display_name: `${input.firstName} ${input.lastName}`,
           username: input.username.replace('@', ''),
           city: input.city,
-          primary_sport: input.primarySport
+          mobile_number: input.mobileNumber.trim(),
+          mobile_otp_verified: Boolean(input.mobileOtp?.trim()),
+          date_of_birth: input.dateOfBirth,
+          gender: input.gender,
+          primary_sport: input.primarySport,
+          primary_sport_experience_level: input.primarySportExperienceLevel,
+          secondary_sports: input.secondarySports,
+          sports,
+          skill_level: input.primarySportExperienceLevel
         }
       }
     });
     if (error) throw error;
     return { session: data.session, user: data.user };
+  },
+
+  async generateMobileOtp(mobileNumber: string): Promise<{ demoCode?: string }> {
+    const phone = mobileNumber.trim();
+
+    if (!phone) {
+      throw new Error('Enter a mobile number before generating an OTP.');
+    }
+
+    if (!env.isSupabaseConfigured) {
+      return { demoCode: '123456' };
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    if (error) throw error;
+    return {};
   },
 
   async signInWithIdToken(provider: 'google' | 'apple', idToken: string): Promise<AuthResult> {
