@@ -1,6 +1,6 @@
 export type ID = string;
 
-export type Sport =
+export type KnownSport =
   | 'Basketball'
   | 'Football'
   | 'Tennis'
@@ -10,9 +10,11 @@ export type Sport =
   | 'Running'
   | 'Multi-sport';
 
+export type Sport = KnownSport | (string & {});
+
 export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro';
 
-export type Gender = 'Female' | 'Male' | 'Prefer not to say';
+export type Gender = 'Female' | 'Male' | 'Non-binary' | 'Prefer not to say';
 
 export interface UserProfile {
   id: ID;
