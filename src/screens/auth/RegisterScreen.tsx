@@ -731,12 +731,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12
   },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm
-  },
   flexInput: {
     flex: 1
   },
@@ -749,27 +743,6 @@ const styles = StyleSheet.create({
   },
   passwordHintError: {
     color: colors.semantic.danger
-  },
-  passwordPanel: {
-    gap: 4,
-    backgroundColor: colors.dark[900],
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.dark[700],
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: -8
-  },
-  passwordTitle: {
-    color: colors.text.secondary,
-    fontFamily: typography.bodyBold,
-    fontSize: 12,
-    marginBottom: 2
-  },
-  passwordRule: {
-    color: colors.text.tertiary
-  },
-  passwordRuleValid: {
-    color: colors.semantic.success
   },
   helperText: {
     color: colors.text.tertiary
@@ -791,20 +764,6 @@ const styles = StyleSheet.create({
   },
   successText: {
     color: colors.semantic.success
-  },
-  selectedLocation: {
-    borderRadius: radii.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.overlays.orangeBorder,
-    backgroundColor: colors.overlays.orangeSoft,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 2
-  },
-  selectedLocationText: {
-    color: colors.text.primary,
-    fontFamily: typography.bodyBold,
-    fontSize: 14
   },
   selectInput: {
     minHeight: 48,

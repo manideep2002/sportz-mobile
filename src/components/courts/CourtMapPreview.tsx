@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { AppText } from '@/components/ui';
-import { colors, radii, spacing, typography } from '@/design/tokens';
+import { colors, radii, typography } from '@/design/tokens';
 
 export function CourtMapPreview() {
   return (

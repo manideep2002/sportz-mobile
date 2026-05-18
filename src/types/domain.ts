@@ -1,16 +1,6 @@
 export type ID = string;
 
-export type KnownSport =
-  | 'Basketball'
-  | 'Football'
-  | 'Tennis'
-  | 'Cricket'
-  | 'Badminton'
-  | 'Swimming'
-  | 'Running'
-  | 'Multi-sport';
-
-export type Sport = KnownSport | (string & {});
+export type Sport = string;
 
 export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro';
 

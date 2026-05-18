@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Avatar, Badge, Button, IconButton, Screen } from '@/components/ui';
+import { AppText, Avatar, Badge, IconButton, Screen } from '@/components/ui';
 import { communities, posts, users } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';

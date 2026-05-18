@@ -1,6 +1,6 @@
 import { StyleSheet, View, type DimensionValue } from 'react-native';
 
-import { colors, radii } from '@/design/tokens';
+import { colors } from '@/design/tokens';
 
 interface ProgressBarProps {
   value: number;
