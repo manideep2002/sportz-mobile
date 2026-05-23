@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
+import { messageService } from '@/services/messageService';
 import { profileService } from '@/services/profileService';
 import type { Sport, UserProfile } from '@/types/domain';
 
@@ -68,7 +69,20 @@ export function FindPlayersScreen() {
           </View>
           <View style={styles.actions}>
             <Button style={styles.actionButton} size="sm" onPress={() => navigation.navigate('UserProfile', { userId: player.id })}>View Profile</Button>
-            <Button style={styles.actionButton} size="sm" variant="ghost" onPress={() => navigation.navigate('Chat', { conversationId: 'conversation-arjun' })}>Message</Button>
+            <Button
+              style={styles.actionButton}
+              size="sm"
+              variant="ghost"
+              disabled={!messageService.getConversationIdForUser(player.id)}
+              onPress={() => {
+                const conversationId = messageService.getConversationIdForUser(player.id);
+                if (conversationId) {
+                  navigation.navigate('Chat', { conversationId });
+                }
+              }}
+            >
+              Message
+            </Button>
           </View>
         </View>
       ))}

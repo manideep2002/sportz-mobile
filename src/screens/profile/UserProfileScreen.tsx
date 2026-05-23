@@ -8,6 +8,7 @@ import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, S
 import { users } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
+import { messageService } from '@/services/messageService';
 import { compactNumber } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -17,6 +18,12 @@ export function UserProfileScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const profile = users.find((user) => user.id === route.params.userId) ?? users[1];
+  const conversationId = messageService.getConversationIdForUser(profile.id);
+
+  const openChat = () => {
+    if (!conversationId) return;
+    navigation.navigate('Chat', { conversationId });
+  };
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -43,8 +50,10 @@ export function UserProfileScreen() {
           <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
         </View>
         <View style={styles.actions}>
-          <Button style={styles.actionButton} onPress={() => navigation.navigate('Chat', { conversationId: 'conversation-arjun' })}>Follow</Button>
-          <Button style={styles.actionButton} variant="ghost" onPress={() => navigation.navigate('Chat', { conversationId: 'conversation-arjun' })}>Message</Button>
+          <Button style={styles.actionButton} onPress={openChat}>Follow</Button>
+          <Button style={styles.actionButton} variant="ghost" onPress={openChat} disabled={!conversationId}>
+            Message
+          </Button>
           <IconButton icon={MoreHorizontal} />
         </View>
         <SegmentedControl value="Posts" options={['Posts', 'Stats', 'Highlights']} onChange={() => undefined} />

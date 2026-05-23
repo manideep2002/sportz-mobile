@@ -54,7 +54,7 @@ function AppNavigator() {
       <App.Screen name="EventDetail" component={EventDetailScreen} />
       <App.Screen name="CreateEvent" component={CreateEventScreen} />
       <App.Screen name="UserProfile" component={UserProfileScreen} />
-      <App.Screen name="Chat" component={ChatScreen} />
+      <App.Screen name="Chat" component={ChatScreen} getId={({ params }) => params.conversationId} />
       <App.Screen name="FindPlayers" component={FindPlayersScreen} />
       <App.Screen name="CreatePost" component={CreatePostScreen} />
       <App.Screen name="PostDetail" component={PostDetailScreen} />

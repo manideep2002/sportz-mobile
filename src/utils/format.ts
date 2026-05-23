@@ -12,6 +12,8 @@ export const eventDate = (iso: string) => format(new Date(iso), 'EEE, MMM d');
 
 export const eventTime = (iso: string) => format(new Date(iso), 'h:mm a');
 
+export const messageTime = (iso: string) => format(new Date(iso), 'h:mm a');
+
 export const currency = (amount: number, code: string) => {
   if (code === 'INR') return `INR ${amount}`;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(amount);

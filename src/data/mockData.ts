@@ -437,6 +437,62 @@ export const messages: Message[] = [
     body: 'Count me in. I will bring Vikram too.',
     createdAt: hoursAgo(0.1),
     readBy: [currentUser.id]
+  },
+  {
+    id: 'message-sneha-1',
+    conversationId: 'conversation-sneha',
+    senderId: users[2].id,
+    body: 'Are you free for a mixed doubles session Saturday morning?',
+    createdAt: hoursAgo(0.5),
+    readBy: [users[2].id, currentUser.id]
+  },
+  {
+    id: 'message-sneha-2',
+    conversationId: 'conversation-sneha',
+    senderId: currentUser.id,
+    body: 'Count me in for Saturday!',
+    createdAt: hoursAgo(0.25),
+    readBy: [currentUser.id, users[2].id]
+  },
+  {
+    id: 'message-blr-1',
+    conversationId: 'conversation-blr',
+    senderId: users[1].id,
+    body: 'See you all at 6.',
+    createdAt: hoursAgo(1.1),
+    readBy: [users[1].id, currentUser.id, users[2].id, users[3].id]
+  },
+  {
+    id: 'message-blr-2',
+    conversationId: 'conversation-blr',
+    senderId: currentUser.id,
+    body: 'I will bring an extra ball.',
+    createdAt: hoursAgo(1),
+    readBy: [currentUser.id, users[1].id]
+  },
+  {
+    id: 'message-blr-3',
+    conversationId: 'conversation-blr',
+    senderId: users[2].id,
+    body: 'Court 3 is booked.',
+    createdAt: hoursAgo(0.95),
+    readBy: [users[2].id, currentUser.id]
+  },
+  {
+    id: 'message-vikram-1',
+    conversationId: 'conversation-vikram',
+    senderId: users[3].id,
+    body: 'Can you cover the 7 PM tennis slot tomorrow?',
+    createdAt: hoursAgo(4),
+    readBy: [users[3].id, currentUser.id]
+  },
+  {
+    id: 'message-vikram-2',
+    conversationId: 'conversation-vikram',
+    senderId: currentUser.id,
+    body: 'Sounds good mate.',
+    createdAt: hoursAgo(3),
+    readBy: [currentUser.id]
   }
 ];
 
