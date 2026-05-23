@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { messageKeys } from './useMessages';
+import { messageKeys, updateConversationPreviewInCache } from './useMessages';
 import { realtimeService } from '@/services/realtimeService';
 import type { Message } from '@/types/domain';
 
@@ -14,6 +14,7 @@ export const useRealtimeMessages = (conversationId: string) => {
         if (old.some((item) => item.id === message.id)) return old;
         return [...old, message];
       });
+      updateConversationPreviewInCache(queryClient, conversationId, message);
     });
 
     return () => realtimeService.unsubscribe(channel);

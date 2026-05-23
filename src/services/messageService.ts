@@ -3,8 +3,19 @@ import { supabase } from '@/lib/supabase';
 import { conversations, currentUser, messages } from '@/data/mockData';
 import type { Conversation, ID, Message } from '@/types/domain';
 import { getConversationIdForUser } from '@/utils/conversation';
+import { formatConversationPreview } from '@/utils/messages';
 
 const readConversationIds = new Set<string>();
+
+interface ConversationPreview {
+  lastMessage: string;
+  lastMessageAt: string;
+}
+
+const conversationPreviews = new Map<string, ConversationPreview>();
+
+const sortConversations = (items: Conversation[]) =>
+  [...items].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
 
 const withReadState = (items: Conversation[]): Conversation[] =>
   items.map((conversation) => ({
@@ -12,15 +23,39 @@ const withReadState = (items: Conversation[]): Conversation[] =>
     unreadCount: readConversationIds.has(conversation.id) ? 0 : conversation.unreadCount
   }));
 
+const withPreviewState = (items: Conversation[]): Conversation[] => {
+  const merged = items.map((conversation) => {
+    const preview = conversationPreviews.get(conversation.id);
+    return preview ? { ...conversation, ...preview } : conversation;
+  });
+
+  return sortConversations(merged);
+};
+
+const applyConversationListState = (items: Conversation[]) => withPreviewState(withReadState(items));
+
 export const messageService = {
   getConversationIdForUser(userId: ID): string | undefined {
     return getConversationIdForUser(conversations, userId);
   },
 
+  recordConversationPreview(conversationId: string, body: string, senderId: ID, createdAt: string) {
+    const lastMessage = formatConversationPreview(body, senderId, currentUser.id);
+    conversationPreviews.set(conversationId, { lastMessage, lastMessageAt: createdAt });
+    return { lastMessage, lastMessageAt: createdAt };
+  },
+
+  clearConversationPreview(conversationId: string) {
+    conversationPreviews.set(conversationId, {
+      lastMessage: 'No messages yet',
+      lastMessageAt: new Date().toISOString()
+    });
+  },
+
   async getConversation(conversationId: string): Promise<Conversation | null> {
     if (!env.isSupabaseConfigured) {
       const conversation = conversations.find((item) => item.id === conversationId) ?? null;
-      return conversation ? withReadState([conversation])[0] : null;
+      return conversation ? applyConversationListState([conversation])[0] : null;
     }
 
     const { data, error } = await supabase
@@ -31,7 +66,7 @@ export const messageService = {
 
     if (error || !data) {
       const conversation = conversations.find((item) => item.id === conversationId) ?? null;
-      return conversation ? withReadState([conversation])[0] : null;
+      return conversation ? applyConversationListState([conversation])[0] : null;
     }
 
     const { data: members, error: membersError } = await supabase
@@ -82,11 +117,11 @@ export const messageService = {
   },
 
   async listConversations(): Promise<Conversation[]> {
-    if (!env.isSupabaseConfigured) return withReadState(conversations);
+    if (!env.isSupabaseConfigured) return applyConversationListState(conversations);
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
-    if (!authData.user) return withReadState(conversations);
+    if (!authData.user) return applyConversationListState(conversations);
 
     const { data, error } = await supabase
       .from('conversation_members')
@@ -94,7 +129,7 @@ export const messageService = {
       .eq('user_id', authData.user.id)
       .order('conversation_id');
 
-    if (error || !data) return withReadState(conversations);
+    if (error || !data) return applyConversationListState(conversations);
 
     const mapped = await Promise.all(
       data.map(async (row: any) => {
@@ -118,7 +153,7 @@ export const messageService = {
       })
     );
 
-    return withReadState(mapped);
+    return applyConversationListState(mapped);
   },
 
   async listMessages(conversationId: string): Promise<Message[]> {
@@ -188,12 +223,15 @@ export const messageService = {
 
   async sendMessage(conversationId: string, body: string): Promise<Message> {
     if (!env.isSupabaseConfigured) {
+      const createdAt = new Date().toISOString();
+      messageService.recordConversationPreview(conversationId, body, currentUser.id, createdAt);
+
       return {
         id: `local-message-${Date.now()}`,
         conversationId,
         senderId: currentUser.id,
         body,
-        createdAt: new Date().toISOString(),
+        createdAt,
         readBy: [currentUser.id],
         pending: true
       };
@@ -215,6 +253,21 @@ export const messageService = {
 
     if (error) throw error;
 
+    const preview = messageService.recordConversationPreview(
+      conversationId,
+      data.body,
+      data.sender_id,
+      data.created_at
+    );
+
+    await supabase
+      .from('conversations')
+      .update({
+        last_message: preview.lastMessage,
+        updated_at: data.created_at
+      })
+      .eq('id', conversationId);
+
     return {
       id: data.id,
       conversationId: data.conversation_id,
@@ -226,10 +279,20 @@ export const messageService = {
   },
 
   async clearConversation(conversationId: string): Promise<void> {
+    messageService.clearConversationPreview(conversationId);
+
     if (!env.isSupabaseConfigured) return;
 
     const { error } = await supabase.from('messages').delete().eq('conversation_id', conversationId);
     if (error) throw error;
+
+    await supabase
+      .from('conversations')
+      .update({
+        last_message: 'No messages yet',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', conversationId);
   },
 
   async setTyping(conversationId: string, isTyping: boolean): Promise<void> {

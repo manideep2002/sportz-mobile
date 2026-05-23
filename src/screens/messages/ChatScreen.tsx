@@ -57,6 +57,7 @@ export function ChatScreen() {
     void (async () => {
       await messageService.clearConversation(conversationId);
       queryClient.setQueryData(messageKeys.messages(conversationId), []);
+      await queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
     })();
   };
 

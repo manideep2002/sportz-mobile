@@ -5,6 +5,26 @@ import { currentUser } from '@/data/mockData';
 import { env } from '@/lib/env';
 import { messageService } from '@/services/messageService';
 import type { Conversation, Message } from '@/types/domain';
+import { formatConversationPreview } from '@/utils/messages';
+
+const sortConversations = (items: Conversation[]) =>
+  [...items].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
+
+export const updateConversationPreviewInCache = (
+  queryClient: QueryClient,
+  conversationId: string,
+  message: Pick<Message, 'body' | 'createdAt' | 'senderId'>
+) => {
+  const lastMessage = formatConversationPreview(message.body, message.senderId, currentUser.id);
+
+  queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (old = []) =>
+    sortConversations(
+      old.map((conversation) =>
+        conversation.id === conversationId ? { ...conversation, lastMessage, lastMessageAt: message.createdAt } : conversation
+      )
+    )
+  );
+};
 
 const clearConversationUnread = (queryClient: QueryClient, conversationId: string) => {
   queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (old = []) =>
@@ -87,17 +107,20 @@ export const useSendMessage = (conversationId: string) => {
       };
       await queryClient.cancelQueries({ queryKey: messageKeys.messages(conversationId) });
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) => [...old, optimistic]);
+      updateConversationPreviewInCache(queryClient, conversationId, optimistic);
       return { optimisticId: optimistic.id };
     },
     onSuccess: (message, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
         old.map((item) => (item.id === context?.optimisticId ? message : item))
       );
+      updateConversationPreviewInCache(queryClient, conversationId, message);
     },
     onError: (_error, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
         old.filter((item) => item.id !== context?.optimisticId)
       );
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
     }
   });
 };
