@@ -2,8 +2,8 @@ import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { conversations, currentUser, messages } from '@/data/mockData';
 import type { Conversation, ID, Message } from '@/types/domain';
-import { getConversationIdForUser } from '@/utils/conversation';
-import { formatConversationPreview } from '@/utils/messages';
+import { getConversationIdForUser, sortConversations } from '@/utils/conversation';
+import { buildConversationPreview } from '@/utils/messages';
 
 const readConversationIds = new Set<string>();
 
@@ -13,9 +13,6 @@ interface ConversationPreview {
 }
 
 const conversationPreviews = new Map<string, ConversationPreview>();
-
-const sortConversations = (items: Conversation[]) =>
-  [...items].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
 
 const withReadState = (items: Conversation[]): Conversation[] =>
   items.map((conversation) => ({
@@ -40,9 +37,9 @@ export const messageService = {
   },
 
   recordConversationPreview(conversationId: string, body: string, senderId: ID, createdAt: string) {
-    const lastMessage = formatConversationPreview(body, senderId, currentUser.id);
-    conversationPreviews.set(conversationId, { lastMessage, lastMessageAt: createdAt });
-    return { lastMessage, lastMessageAt: createdAt };
+    const preview = buildConversationPreview({ body, senderId, createdAt }, currentUser.id);
+    conversationPreviews.set(conversationId, preview);
+    return preview;
   },
 
   clearConversationPreview(conversationId: string) {
@@ -295,9 +292,4 @@ export const messageService = {
       .eq('id', conversationId);
   },
 
-  async setTyping(conversationId: string, isTyping: boolean): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
-    const channel = supabase.channel(`typing:${conversationId}`);
-    await channel.track({ typing: isTyping, at: new Date().toISOString() });
-  }
 };

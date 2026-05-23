@@ -2,7 +2,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, MoreHorizontal } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { users } from '@/data/mockData';
@@ -23,6 +23,10 @@ export function UserProfileScreen() {
   const openChat = () => {
     if (!conversationId) return;
     navigation.navigate('Chat', { conversationId });
+  };
+
+  const handleFollow = () => {
+    Alert.alert('Follow', `You are now following ${profile.displayName}.`);
   };
 
   return (
@@ -50,7 +54,7 @@ export function UserProfileScreen() {
           <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
         </View>
         <View style={styles.actions}>
-          <Button style={styles.actionButton} onPress={openChat}>Follow</Button>
+          <Button style={styles.actionButton} onPress={handleFollow}>Follow</Button>
           <Button style={styles.actionButton} variant="ghost" onPress={openChat} disabled={!conversationId}>
             Message
           </Button>

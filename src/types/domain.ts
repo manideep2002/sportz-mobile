@@ -125,6 +125,7 @@ export interface Conversation {
   lastMessageAt: string;
   unreadCount: number;
   pinned?: boolean;
+  communityId?: ID;
 }
 
 export interface Message {

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { SportEvent } from '@/types/domain';
-import { eventDate, eventTime } from '@/utils/format';
+import { eventDate, formatTime } from '@/utils/format';
 
 interface EventCardProps {
   event: SportEvent;
@@ -24,7 +24,7 @@ export function EventCard({ event, onPress, onJoin }: EventCardProps) {
               <AppText style={styles.title}>{event.title}</AppText>
               <AppText variant="small">{event.locationName}</AppText>
               <AppText variant="small">
-                {eventDate(event.startsAt)} - {eventTime(event.startsAt)}
+                {eventDate(event.startsAt)} - {formatTime(event.startsAt)}
               </AppText>
             </View>
             <View style={styles.count}>

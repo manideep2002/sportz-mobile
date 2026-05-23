@@ -3,6 +3,7 @@ import { CalendarDays, Grid2X2, MessageCircle, Plus, UserRound, type LucideIcon 
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { colors, layout, radii, shadows, typography } from '@/design/tokens';
+import { useConversations } from '@/hooks/useMessages';
 import { useUiStore } from '@/store/uiStore';
 import type { MainTabParamList } from './routes';
 import { FeedScreen } from '@/screens/feed/FeedScreen';
@@ -15,6 +16,8 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabs() {
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
+  const { data: conversations = [] } = useConversations();
+  const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
 
   return (
     <>
@@ -55,7 +58,7 @@ export function MainTabs() {
           options={{
             title: 'Messages',
             tabBarIcon: tabIcon(MessageCircle),
-            tabBarBadge: 2,
+            tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
             tabBarBadgeStyle: styles.badge
           }}
         />

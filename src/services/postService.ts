@@ -17,45 +17,6 @@ export interface FeedPage {
 }
 
 export const postService = {
-  async listFeed(): Promise<Post[]> {
-    if (!env.isSupabaseConfigured) return posts;
-
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles:author_id(*)')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error || !data) return posts;
-
-    return data.map((row: any) => ({
-      id: row.id,
-      author: {
-        ...currentUser,
-        id: row.profiles?.id ?? row.author_id,
-        displayName: row.profiles?.display_name ?? 'Athlete',
-        username: row.profiles?.username ?? 'athlete',
-        initials: (row.profiles?.display_name ?? 'AT')
-          .split(' ')
-          .map((part: string) => part[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
-      },
-      kind: row.kind,
-      sport: row.sport ?? 'Basketball',
-      body: row.body,
-      mediaUrl: row.media_url,
-      mediaKind: row.media_kind ?? 'none',
-      statsLine: row.stats_line,
-      likedByMe: false,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      createdAt: row.created_at
-    }));
-  },
-
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
     if (!env.isSupabaseConfigured) {
       const start = cursor ? Number(cursor) : 0;

@@ -1,4 +1,4 @@
-import { getMessageReadStatus } from '@/components/messages/MessageBubble';
+import { getMessageReadStatus } from '@/utils/messages';
 import type { Message } from '@/types/domain';
 
 const baseMessage: Message = {

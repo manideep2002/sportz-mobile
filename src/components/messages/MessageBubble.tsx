@@ -4,21 +4,14 @@ import { StyleSheet, View } from 'react-native';
 import { AppText, Avatar } from '@/components/ui';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { Message, UserProfile } from '@/types/domain';
-import { messageTime } from '@/utils/format';
-
-export type MessageReadStatus = 'pending' | 'sent' | 'read';
+import { formatTime } from '@/utils/format';
+import { getMessageReadStatus, type MessageReadStatus } from '@/utils/messages';
 
 interface MessageBubbleProps {
   message: Message;
   currentUserId: string;
   recipientId: string;
   sender?: UserProfile;
-}
-
-export function getMessageReadStatus(message: Message, currentUserId: string, recipientId: string): MessageReadStatus {
-  if (message.pending) return 'pending';
-  const readByRecipient = message.readBy.some((id) => id !== currentUserId && id === recipientId);
-  return readByRecipient ? 'read' : 'sent';
 }
 
 function ReadReceipt({ status }: { status: MessageReadStatus }) {
@@ -46,7 +39,7 @@ export function MessageBubble({ message, currentUserId, recipientId, sender }: M
         </View>
         {mine ? (
           <View style={styles.meta}>
-            <AppText style={styles.metaTime}>{messageTime(message.createdAt)}</AppText>
+            <AppText style={styles.metaTime}>{formatTime(message.createdAt)}</AppText>
             {recipientId ? <ReadReceipt status={readStatus ?? 'sent'} /> : null}
           </View>
         ) : null}

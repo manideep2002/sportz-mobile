@@ -5,24 +5,22 @@ import { currentUser } from '@/data/mockData';
 import { env } from '@/lib/env';
 import { messageService } from '@/services/messageService';
 import type { Conversation, Message } from '@/types/domain';
-import { formatConversationPreview } from '@/utils/messages';
+import { applyConversationPreview, buildConversationPreview } from '@/utils/messages';
 
-const sortConversations = (items: Conversation[]) =>
-  [...items].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
+export const messageKeys = {
+  conversations: ['conversations'] as const,
+  conversation: (conversationId: string) => ['conversation', conversationId] as const,
+  messages: (conversationId: string) => ['messages', conversationId] as const
+};
 
-export const updateConversationPreviewInCache = (
+const patchConversationPreviewInCache = (
   queryClient: QueryClient,
   conversationId: string,
   message: Pick<Message, 'body' | 'createdAt' | 'senderId'>
 ) => {
-  const lastMessage = formatConversationPreview(message.body, message.senderId, currentUser.id);
-
+  const preview = buildConversationPreview(message, currentUser.id);
   queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (old = []) =>
-    sortConversations(
-      old.map((conversation) =>
-        conversation.id === conversationId ? { ...conversation, lastMessage, lastMessageAt: message.createdAt } : conversation
-      )
-    )
+    applyConversationPreview(old, conversationId, preview)
   );
 };
 
@@ -32,12 +30,6 @@ const clearConversationUnread = (queryClient: QueryClient, conversationId: strin
       conversation.id === conversationId ? { ...conversation, unreadCount: 0 } : conversation
     )
   );
-};
-
-export const messageKeys = {
-  conversations: ['conversations'] as const,
-  conversation: (conversationId: string) => ['conversation', conversationId] as const,
-  messages: (conversationId: string) => ['messages', conversationId] as const
 };
 
 export const useConversation = (conversationId: string) =>
@@ -107,14 +99,14 @@ export const useSendMessage = (conversationId: string) => {
       };
       await queryClient.cancelQueries({ queryKey: messageKeys.messages(conversationId) });
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) => [...old, optimistic]);
-      updateConversationPreviewInCache(queryClient, conversationId, optimistic);
+      patchConversationPreviewInCache(queryClient, conversationId, optimistic);
       return { optimisticId: optimistic.id };
     },
     onSuccess: (message, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
         old.map((item) => (item.id === context?.optimisticId ? message : item))
       );
-      updateConversationPreviewInCache(queryClient, conversationId, message);
+      patchConversationPreviewInCache(queryClient, conversationId, message);
     },
     onError: (_error, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
@@ -124,3 +116,5 @@ export const useSendMessage = (conversationId: string) => {
     }
   });
 };
+
+export const patchConversationPreviewInCacheForRealtime = patchConversationPreviewInCache;

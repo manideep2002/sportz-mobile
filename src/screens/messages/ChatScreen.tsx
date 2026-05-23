@@ -19,10 +19,6 @@ import { getOtherParticipant, getParticipantById } from '@/utils/conversation';
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'Chat'>;
 
-const groupCommunityByConversation: Record<string, string> = {
-  'conversation-blr': 'group-blr-ballers'
-};
-
 export function ChatScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
@@ -78,7 +74,7 @@ export function ChatScreen() {
         isGroup={Boolean(conversation?.isGroup)}
         participantName={headerTitle}
         otherUserId={otherParticipant?.id}
-        communityId={groupCommunityByConversation[conversationId]}
+        communityId={conversation?.communityId}
         onClose={() => setOptionsOpen(false)}
         onClearChat={handleClearChat}
       />

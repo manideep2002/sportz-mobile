@@ -4,17 +4,10 @@ import { postService, type CreatePostInput } from '@/services/postService';
 import type { Post } from '@/types/domain';
 
 export const feedKeys = {
-  all: ['feed'] as const,
   infinite: ['feed', 'infinite'] as const,
   post: (id: string) => ['post', id] as const,
   comments: (postId: string) => ['comments', postId] as const
 };
-
-export const useFeed = () =>
-  useQuery({
-    queryKey: feedKeys.all,
-    queryFn: postService.listFeed
-  });
 
 export const useInfiniteFeed = () =>
   useInfiniteQuery({
@@ -41,9 +34,8 @@ export const useCreatePost = () => {
 
   return useMutation({
     mutationFn: (input: CreatePostInput) => postService.createPost(input),
-    onSuccess: (post) => {
-      queryClient.setQueryData<Post[]>(feedKeys.all, (old = []) => [post, ...old]);
-      queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
     }
   });
 };
@@ -54,20 +46,11 @@ export const useOptimisticPostLike = () => {
   return useMutation({
     mutationFn: ({ postId, liked }: { postId: string; liked: boolean }) => postService.togglePostLike(postId, liked),
     onMutate: async ({ postId, liked }) => {
-      await queryClient.cancelQueries({ queryKey: feedKeys.all });
-      const previous = queryClient.getQueryData<Post[]>(feedKeys.all);
-
-      queryClient.setQueryData<Post[]>(feedKeys.all, (old = []) =>
-        old.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                likedByMe: !liked,
-                likes: liked ? Math.max(0, post.likes - 1) : post.likes + 1
-              }
-            : post
-        )
-      );
+      await queryClient.cancelQueries({ queryKey: feedKeys.infinite });
+      const previous = queryClient.getQueryData<{
+        pages: Array<{ items: Post[]; nextCursor?: string }>;
+        pageParams: unknown[];
+      }>(feedKeys.infinite);
 
       queryClient.setQueryData<{ pages: Array<{ items: Post[]; nextCursor?: string }>; pageParams: unknown[] }>(
         feedKeys.infinite,
@@ -94,11 +77,12 @@ export const useOptimisticPostLike = () => {
       return { previous };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(feedKeys.all, context.previous);
-      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+      if (context?.previous) {
+        queryClient.setQueryData(feedKeys.infinite, context.previous);
+      }
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
     }
   });
 };

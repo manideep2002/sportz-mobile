@@ -9,7 +9,7 @@ import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useEvent, useJoinEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
-import { eventDate, eventTime } from '@/utils/format';
+import { eventDate, formatTime } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventDetail'>;
@@ -41,7 +41,7 @@ export function EventDetailScreen() {
           <CalendarDays size={14} color={colors.orange[500]} />
           <AppText variant="bodyMuted">{eventDate(event.startsAt)}</AppText>
           <Clock size={14} color={colors.orange[500]} />
-          <AppText variant="bodyMuted">{eventTime(event.startsAt)}</AppText>
+          <AppText variant="bodyMuted">{formatTime(event.startsAt)}</AppText>
         </View>
         <View style={styles.metaRow}>
           <MapPin size={16} color={colors.orange[500]} />

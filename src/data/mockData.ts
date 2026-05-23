@@ -390,6 +390,7 @@ export const conversations: Conversation[] = [
     title: 'BLR Ballers',
     participants: [currentUser, users[1], users[2], users[3]],
     isGroup: true,
+    communityId: 'group-blr-ballers',
     lastMessage: 'Arjun: See you all at 6.',
     lastMessageAt: hoursAgo(1),
     unreadCount: 0

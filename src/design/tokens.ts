@@ -107,4 +107,4 @@ export const layout = {
   maxContentWidth: 430
 } as const;
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark';
