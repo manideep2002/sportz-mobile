@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Plus, Send } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
 import { AppText, Avatar, IconButton } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { currentUser } from '@/data/mockData';
-import { useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
+import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
+import { messageService } from '@/services/messageService';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import type { AppStackParamList } from '@/navigation/routes';
 import { getOtherParticipant, getParticipantById } from '@/utils/conversation';
@@ -16,11 +19,17 @@ import { getOtherParticipant, getParticipantById } from '@/utils/conversation';
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'Chat'>;
 
+const groupCommunityByConversation: Record<string, string> = {
+  'conversation-blr': 'group-blr-ballers'
+};
+
 export function ChatScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const queryClient = useQueryClient();
   const conversationId = route.params.conversationId;
   const [body, setBody] = useState('');
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
@@ -44,6 +53,13 @@ export function ChatScreen() {
     sendMessage.mutate(trimmed);
   };
 
+  const handleClearChat = () => {
+    void (async () => {
+      await messageService.clearConversation(conversationId);
+      queryClient.setQueryData(messageKeys.messages(conversationId), []);
+    })();
+  };
+
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
@@ -53,7 +69,18 @@ export function ChatScreen() {
           <AppText style={styles.title}>{headerTitle}</AppText>
           <AppText style={[styles.status, showOnlineStatus ? styles.online : null]}>{statusLabel}</AppText>
         </View>
+        <IconButton icon={MoreVertical} accessibilityLabel="Chat options" onPress={() => setOptionsOpen(true)} />
       </View>
+      <ChatOptionsSheet
+        open={optionsOpen}
+        conversationId={conversationId}
+        isGroup={Boolean(conversation?.isGroup)}
+        participantName={headerTitle}
+        otherUserId={otherParticipant?.id}
+        communityId={groupCommunityByConversation[conversationId]}
+        onClose={() => setOptionsOpen(false)}
+        onClearChat={handleClearChat}
+      />
       <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
         <View style={styles.today}>
           <AppText variant="small">Today</AppText>

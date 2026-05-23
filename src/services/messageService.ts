@@ -225,6 +225,13 @@ export const messageService = {
     };
   },
 
+  async clearConversation(conversationId: string): Promise<void> {
+    if (!env.isSupabaseConfigured) return;
+
+    const { error } = await supabase.from('messages').delete().eq('conversation_id', conversationId);
+    if (error) throw error;
+  },
+
   async setTyping(conversationId: string, isTyping: boolean): Promise<void> {
     if (!env.isSupabaseConfigured) return;
     const channel = supabase.channel(`typing:${conversationId}`);
