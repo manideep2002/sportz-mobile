@@ -32,7 +32,7 @@ export function SplashScreen({ navigation }: Props) {
           SPORTZ<AppText variant="hero" color={colors.orange[500]}>.</AppText>
         </AppText>
         <AppText variant="bodyMuted" style={styles.tagline}>
-          Connect. Compete. Grow.{"\n"}The sports world in your pocket.
+          Connect. Compe. Grow.{"\n"}The sports world in your pocket.
         </AppText>
       </View>
       <View style={styles.actions}>
