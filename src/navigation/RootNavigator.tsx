@@ -24,6 +24,8 @@ import { NewMessageScreen } from '@/screens/messages/NewMessageScreen';
 import { FindPlayersScreen } from '@/screens/profile/FindPlayersScreen';
 import { CreatePostScreen } from '@/screens/feed/CreatePostScreen';
 import { PostDetailScreen } from '@/screens/feed/PostDetailScreen';
+import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
+import { StoryViewerScreen } from '@/screens/feed/StoryViewerScreen';
 import { GroupDetailScreen } from '@/screens/community/GroupDetailScreen';
 import { PageDetailScreen } from '@/screens/community/PageDetailScreen';
 
@@ -55,6 +57,8 @@ function AppNavigator() {
       <App.Screen name="EventDetail" component={EventDetailScreen} />
       <App.Screen name="CreateEvent" component={CreateEventScreen} />
       <App.Screen name="UserProfile" component={UserProfileScreen} />
+      <App.Screen name="StoryViewer" component={StoryViewerScreen} options={{ animation: 'fade' }} />
+      <App.Screen name="CreateStory" component={CreateStoryScreen} />
       <App.Screen name="NewMessage" component={NewMessageScreen} />
       <App.Screen name="Chat" component={ChatScreen} getId={({ params }) => params.conversationId} />
       <App.Screen name="FindPlayers" component={FindPlayersScreen} />

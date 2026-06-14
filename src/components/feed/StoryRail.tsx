@@ -7,9 +7,11 @@ import type { Story } from '@/types/domain';
 
 interface StoryRailProps {
   stories: Story[];
+  onCreateStory: () => void;
+  onOpenStory: (storyId: string) => void;
 }
 
-export function StoryRail({ stories }: StoryRailProps) {
+export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProps) {
   return (
     <FlatList
       horizontal
@@ -18,7 +20,7 @@ export function StoryRail({ stories }: StoryRailProps) {
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       ListHeaderComponent={
-        <Pressable style={styles.item}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={styles.item} onPress={onCreateStory}>
           <View style={styles.addCircle}>
             <Plus size={22} color={colors.orange[400]} strokeWidth={2.2} />
           </View>
@@ -26,7 +28,12 @@ export function StoryRail({ stories }: StoryRailProps) {
         </Pressable>
       }
       renderItem={({ item, index }) => (
-        <Pressable style={styles.item}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${item.user.displayName}'s story`}
+          style={styles.item}
+          onPress={() => onOpenStory(item.id)}
+        >
           <View style={[styles.ring, item.seen ? styles.seen : styles.active]}>
             <View style={styles.inner}>
               <Avatar initials={item.user.initials} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />

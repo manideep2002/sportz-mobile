@@ -7,9 +7,10 @@ import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
-import { events, sportsFilters, stories } from '@/data/mockData';
+import { events, sportsFilters } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
 import { useInfiniteFeed, useOptimisticPostLike } from '@/hooks/useFeed';
+import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 
@@ -19,6 +20,7 @@ export function FeedScreen() {
   const navigation = useNavigation<Navigation>();
   const profile = useAuthStore((state) => state.profile);
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
+  const { data: stories = [] } = useStories();
   const feed = data?.pages.flatMap((page) => page.items) ?? [];
   const likeMutation = useOptimisticPostLike();
 
@@ -72,7 +74,11 @@ export function FeedScreen() {
         ))}
       </ScrollView>
 
-      <StoryRail stories={stories} />
+      <StoryRail
+        stories={stories}
+        onCreateStory={() => navigation.navigate('CreateStory')}
+        onOpenStory={(storyId) => navigation.navigate('StoryViewer', { storyId })}
+      />
 
       <View style={styles.section}>
         <LiveMatchBanner event={events[0]} onPress={() => navigation.navigate('EventDetail', { eventId: events[0].id })} />

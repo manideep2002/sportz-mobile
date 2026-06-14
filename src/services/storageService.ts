@@ -21,6 +21,25 @@ export const storageService = {
     return result.assets[0];
   },
 
+  async pickMultipleImages() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error('Photo library permission is required.');
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.86,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      orderedSelection: true,
+      selectionLimit: 10
+    });
+
+    if (result.canceled) return [];
+    return result.assets;
+  },
+
   async uploadMedia(uri: string, bucket: 'post-media' | 'story-media' | 'avatars' | 'event-covers', ownerId: string) {
     if (!env.isSupabaseConfigured) return uri;
 
@@ -28,7 +47,7 @@ export const storageService = {
     if (!fileInfo.exists) throw new Error('Selected file no longer exists.');
 
     const extension = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const path = `${ownerId}/${Date.now()}.${extension}`;
+    const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
     const response = await fetch(uri);
     const blob = await response.blob();
 
