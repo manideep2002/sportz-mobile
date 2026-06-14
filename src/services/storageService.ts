@@ -51,8 +51,13 @@ export const storageService = {
     const response = await fetch(uri);
     const blob = await response.blob();
 
+    const videoExtensions = new Set(['mp4', 'mov', 'm4v', 'webm']);
+    const imageContentTypes: Record<string, string> = {
+      png: 'image/png',
+      webp: 'image/webp'
+    };
     const { error } = await supabase.storage.from(bucket).upload(path, blob, {
-      contentType: extension === 'mp4' ? 'video/mp4' : 'image/jpeg',
+      contentType: videoExtensions.has(extension) ? 'video/mp4' : imageContentTypes[extension] ?? 'image/jpeg',
       upsert: false
     });
     if (error) throw error;

@@ -1,6 +1,7 @@
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { comments, currentUser, posts } from '@/data/mockData';
+import { storageService } from '@/services/storageService';
 import type { Comment, Post } from '@/types/domain';
 
 export interface CreatePostInput {
@@ -9,6 +10,7 @@ export interface CreatePostInput {
   kind?: Post['kind'];
   mediaUrl?: string | null;
   mediaKind?: Post['mediaKind'];
+  statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
 }
 
@@ -16,6 +18,64 @@ export interface FeedPage {
   items: Post[];
   nextCursor?: string;
 }
+
+interface PostEngagement {
+  likes: Map<string, number>;
+  comments: Map<string, number>;
+  likedByMe: Set<string>;
+}
+
+const mapPostRow = (row: any, engagement: PostEngagement): Post => ({
+  id: row.id,
+  author: {
+    ...currentUser,
+    id: row.profiles?.id ?? row.author_id,
+    displayName: row.profiles?.display_name ?? 'Athlete',
+    username: row.profiles?.username ?? 'athlete',
+    initials: (row.profiles?.display_name ?? 'AT')
+      .split(' ')
+      .map((part: string) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase()
+  },
+  kind: row.kind,
+  sport: row.sport ?? 'Basketball',
+  body: row.body,
+  mediaUrl: row.media_url,
+  mediaKind: row.media_kind ?? 'none',
+  statsLine: row.stats_line,
+  likedByMe: engagement.likedByMe.has(row.id),
+  likes: engagement.likes.get(row.id) ?? 0,
+  comments: engagement.comments.get(row.id) ?? 0,
+  shares: 0,
+  createdAt: row.created_at
+});
+
+const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> => {
+  const engagement: PostEngagement = {
+    likes: new Map(),
+    comments: new Map(),
+    likedByMe: new Set()
+  };
+  if (!postIds.length) return engagement;
+
+  const [{ data: authData }, likesResult, commentsResult] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from('likes').select('entity_id, user_id').eq('entity_type', 'post').in('entity_id', postIds),
+    supabase.from('comments').select('post_id').in('post_id', postIds)
+  ]);
+
+  for (const like of likesResult.data ?? []) {
+    engagement.likes.set(like.entity_id, (engagement.likes.get(like.entity_id) ?? 0) + 1);
+    if (authData.user?.id === like.user_id) engagement.likedByMe.add(like.entity_id);
+  }
+  for (const comment of commentsResult.data ?? []) {
+    engagement.comments.set(comment.post_id, (engagement.comments.get(comment.post_id) ?? 0) + 1);
+  }
+
+  return engagement;
+};
 
 export const postService = {
   async listUserPosts(userId: string): Promise<Post[]> {
@@ -31,32 +91,8 @@ export const postService = {
 
     if (error || !data) return posts.filter((post) => post.author.id === userId);
 
-    return data.map((row: any) => ({
-      id: row.id,
-      author: {
-        ...currentUser,
-        id: row.profiles?.id ?? row.author_id,
-        displayName: row.profiles?.display_name ?? 'Athlete',
-        username: row.profiles?.username ?? 'athlete',
-        initials: (row.profiles?.display_name ?? 'AT')
-          .split(' ')
-          .map((part: string) => part[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
-      },
-      kind: row.kind,
-      sport: row.sport ?? 'Basketball',
-      body: row.body,
-      mediaUrl: row.media_url,
-      mediaKind: row.media_kind ?? 'none',
-      statsLine: row.stats_line,
-      likedByMe: false,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      createdAt: row.created_at
-    })) satisfies Post[];
+    const engagement = await loadPostEngagement(data.map((row: any) => row.id));
+    return data.map((row: any) => mapPostRow(row, engagement));
   },
 
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
@@ -80,32 +116,8 @@ export const postService = {
     const { data, error } = await request;
     if (error || !data) return { items: posts, nextCursor: undefined };
 
-    const items = data.map((row: any) => ({
-      id: row.id,
-      author: {
-        ...currentUser,
-        id: row.profiles?.id ?? row.author_id,
-        displayName: row.profiles?.display_name ?? 'Athlete',
-        username: row.profiles?.username ?? 'athlete',
-        initials: (row.profiles?.display_name ?? 'AT')
-          .split(' ')
-          .map((part: string) => part[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
-      },
-      kind: row.kind,
-      sport: row.sport ?? 'Basketball',
-      body: row.body,
-      mediaUrl: row.media_url,
-      mediaKind: row.media_kind ?? 'none',
-      statsLine: row.stats_line,
-      likedByMe: false,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      createdAt: row.created_at
-    })) satisfies Post[];
+    const engagement = await loadPostEngagement(data.map((row: any) => row.id));
+    const items = data.map((row: any) => mapPostRow(row, engagement));
 
     return {
       items,
@@ -119,39 +131,37 @@ export const postService = {
 
     const { data, error } = await supabase.from('posts').select('*, profiles:author_id(*)').eq('id', postId).single();
     if (error || !data) return localPost;
-
-    return {
-      ...localPost,
-      id: data.id,
-      body: data.body,
-      mediaUrl: data.media_url,
-      mediaKind: (data.media_kind as Post['mediaKind']) ?? 'none',
-      statsLine: data.stats_line ?? undefined,
-      createdAt: data.created_at
-    };
+    const engagement = await loadPostEngagement([data.id]);
+    return mapPostRow(data, engagement);
   },
 
   async createPost(input: CreatePostInput): Promise<Post> {
     if (!env.isSupabaseConfigured) {
-      return {
-        id: `local-${Date.now()}`,
+      const post: Post = {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         author: currentUser,
         kind: input.kind ?? 'post',
         sport: input.sport as Post['sport'],
         body: input.body,
         mediaUrl: input.mediaUrl,
         mediaKind: input.mediaKind ?? (input.mediaUrl ? 'image' : 'none'),
+        statsLine: input.statsLine,
         likedByMe: false,
         likes: 0,
         comments: 0,
         shares: 0,
         createdAt: new Date().toISOString()
       };
+      posts.unshift(post);
+      return post;
     }
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to post.');
+    const mediaUrl = input.mediaUrl
+      ? await storageService.uploadMedia(input.mediaUrl, 'post-media', authData.user.id)
+      : null;
 
     const { data, error } = await supabase
       .from('posts')
@@ -160,8 +170,9 @@ export const postService = {
         kind: input.kind ?? 'post',
         sport: input.sport,
         body: input.body,
-        media_url: input.mediaUrl ?? null,
-        media_kind: input.mediaKind ?? (input.mediaUrl ? 'image' : 'none'),
+        media_url: mediaUrl,
+        media_kind: input.mediaKind ?? (mediaUrl ? 'image' : 'none'),
+        stats_line: input.statsLine ?? null,
         visibility: input.visibility ?? 'public'
       })
       .select()
@@ -227,7 +238,7 @@ export const postService = {
 
       const postIdx = posts.findIndex((p) => p.id === postId);
       if (postIdx > -1) {
-        posts[postIdx].comments += 1;
+        posts[postIdx] = { ...posts[postIdx], comments: posts[postIdx].comments + 1 };
       }
       return newComment;
     }
@@ -265,7 +276,14 @@ export const postService = {
   },
 
   async togglePostLike(postId: string, liked: boolean): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    if (!env.isSupabaseConfigured) {
+      const post = posts.find((item) => item.id === postId);
+      if (post) {
+        post.likedByMe = !liked;
+        post.likes = liked ? Math.max(0, post.likes - 1) : post.likes + 1;
+      }
+      return;
+    }
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;

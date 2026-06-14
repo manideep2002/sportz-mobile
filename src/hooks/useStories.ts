@@ -34,7 +34,7 @@ export const useMarkStorySeen = () => {
 
   return useCallback(
     (storyId: string) => {
-      storyService.markSeen(storyId);
+      void storyService.markSeen(storyId);
       queryClient.setQueryData<Story[]>(storyKeys.all, (old = []) =>
         old.map((story) => (story.id === storyId ? { ...story, seen: true } : story))
       );

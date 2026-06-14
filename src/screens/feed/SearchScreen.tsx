@@ -13,11 +13,22 @@ import { searchService } from '@/services/searchService';
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 const filters = ['All', 'Players', 'Events', 'Groups', 'Pages', 'Courts'];
+const filterTypes: Record<string, string | undefined> = {
+  All: undefined,
+  Players: 'player',
+  Events: 'event',
+  Groups: 'group',
+  Pages: 'page',
+  Courts: 'court'
+};
 
 export function SearchScreen() {
   const navigation = useNavigation<Navigation>();
   const [query, setQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('All');
   const { data = [] } = useSearch(query);
+  const selectedType = filterTypes[selectedFilter];
+  const filteredData = selectedType ? data.filter((result) => result.type === selectedType) : data;
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -33,20 +44,33 @@ export function SearchScreen() {
         data={filters}
         keyExtractor={(item) => item}
         contentContainerStyle={styles.filterRow}
-        renderItem={({ item, index }) => <Chip selected={index === 0}>{item}</Chip>}
+        renderItem={({ item }) => (
+          <Chip selected={item === selectedFilter} onPress={() => setSelectedFilter(item)}>
+            {item}
+          </Chip>
+        )}
       />
       <View style={styles.section}>
         <SectionHeader title="Trending" />
         <View style={styles.trending}>
           {searchService.getTrending().map((tag) => (
-            <Badge key={tag}>{tag}</Badge>
+            <Pressable key={tag} accessibilityRole="button" onPress={() => setQuery(tag.replace('#', ''))}>
+              <Badge>{tag}</Badge>
+            </Pressable>
           ))}
         </View>
       </View>
       <View style={styles.section}>
-        <SectionHeader title="Results" action="Filter" />
+        <SectionHeader
+          title={`Results (${filteredData.length})`}
+          action={query || selectedFilter !== 'All' ? 'Clear' : undefined}
+          onAction={() => {
+            setQuery('');
+            setSelectedFilter('All');
+          }}
+        />
       </View>
-      {data.map((result, index) => (
+      {filteredData.map((result, index) => (
         <Pressable
           key={`${result.type}-${result.id}`}
           style={styles.result}
@@ -66,6 +90,11 @@ export function SearchScreen() {
           <Badge tone={result.type === 'event' ? 'green' : 'dark'}>{result.type}</Badge>
         </Pressable>
       ))}
+      {filteredData.length === 0 ? (
+        <View style={styles.empty}>
+          <AppText variant="bodyMuted">No results match your search and filter.</AppText>
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -113,5 +142,9 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 14
+  },
+  empty: {
+    alignItems: 'center',
+    padding: spacing.xl
   }
 });

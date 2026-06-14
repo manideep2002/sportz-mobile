@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { stories as mockStories, currentUser } from '@/data/mockData';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
@@ -6,11 +8,27 @@ import type { Story, UserProfile } from '@/types/domain';
 
 const localStories = [...mockStories];
 const seenStoryIds = new Set(mockStories.filter((story) => story.seen).map((story) => story.id));
+const seenStoriesStorageKey = 'sportz.seen-stories';
+let seenStoriesLoaded = false;
+
+const loadSeenStories = async () => {
+  if (seenStoriesLoaded) return;
+  seenStoriesLoaded = true;
+
+  try {
+    const savedIds = JSON.parse((await AsyncStorage.getItem(seenStoriesStorageKey)) ?? '[]') as string[];
+    savedIds.forEach((id) => seenStoryIds.add(id));
+  } catch {
+    // Keep the in-memory seen state if persisted data is unavailable.
+  }
+};
 
 type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
 
 export const storyService = {
   async listStories(): Promise<Story[]> {
+    await loadSeenStories();
+
     if (!env.isSupabaseConfigured) {
       return localStories.map((story) => ({ ...story, seen: seenStoryIds.has(story.id) }));
     }
@@ -21,7 +39,9 @@ export const storyService = {
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
-    if (error || !data) return localStories;
+    if (error || !data) {
+      return localStories.map((story) => ({ ...story, seen: seenStoryIds.has(story.id) }));
+    }
 
     return data.map((row: any) => {
       const displayName = row.profiles?.display_name ?? 'Athlete';
@@ -48,7 +68,7 @@ export const storyService = {
   async createStory(mediaUri: string, author: StoryAuthor = currentUser): Promise<Story> {
     if (!env.isSupabaseConfigured) {
       const story: Story = {
-        id: `local-story-${Date.now()}`,
+        id: `local-story-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user: author,
         mediaUrl: mediaUri,
         seen: false,
@@ -99,7 +119,12 @@ export const storyService = {
     return createdStories;
   },
 
-  markSeen(storyId: string) {
+  async markSeen(storyId: string) {
     seenStoryIds.add(storyId);
+    try {
+      await AsyncStorage.setItem(seenStoriesStorageKey, JSON.stringify([...seenStoryIds]));
+    } catch {
+      // The in-memory state still keeps the rail accurate for the current session.
+    }
   }
 };

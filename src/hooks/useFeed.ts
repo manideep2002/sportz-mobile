@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { postService, type CreatePostInput } from '@/services/postService';
-import type { Post } from '@/types/domain';
+import type { Comment, Post } from '@/types/domain';
 
 export const feedKeys = {
   infinite: ['feed', 'infinite'] as const,
@@ -43,6 +43,36 @@ export const useCreatePost = () => {
     mutationFn: (input: CreatePostInput) => postService.createPost(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+    }
+  });
+};
+
+const patchFeedPost = (postId: string, patch: (post: Post) => Post) => (old: {
+  pages: Array<{ items: Post[]; nextCursor?: string }>;
+  pageParams: unknown[];
+} | undefined) =>
+  old
+    ? {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          items: page.items.map((post) => (post.id === postId ? patch(post) : post))
+        }))
+      }
+    : old;
+
+export const useCreateComment = (postId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: string) => postService.createComment(postId, body),
+    onSuccess: (comment) => {
+      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, comment]);
+      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) =>
+        old ? { ...old, comments: old.comments + 1 } : old
+      );
+      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, (post) => ({ ...post, comments: post.comments + 1 })));
     }
   });
 };
@@ -53,43 +83,33 @@ export const useOptimisticPostLike = () => {
   return useMutation({
     mutationFn: ({ postId, liked }: { postId: string; liked: boolean }) => postService.togglePostLike(postId, liked),
     onMutate: async ({ postId, liked }) => {
-      await queryClient.cancelQueries({ queryKey: feedKeys.infinite });
-      const previous = queryClient.getQueryData<{
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
+      ]);
+      const previousFeed = queryClient.getQueryData<{
         pages: Array<{ items: Post[]; nextCursor?: string }>;
         pageParams: unknown[];
       }>(feedKeys.infinite);
+      const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const patch = (post: Post): Post => ({
+        ...post,
+        likedByMe: !liked,
+        likes: liked ? Math.max(0, post.likes - 1) : post.likes + 1
+      });
 
-      queryClient.setQueryData<{ pages: Array<{ items: Post[]; nextCursor?: string }>; pageParams: unknown[] }>(
-        feedKeys.infinite,
-        (old) =>
-          old
-            ? {
-                ...old,
-                pages: old.pages.map((page) => ({
-                  ...page,
-                  items: page.items.map((post) =>
-                    post.id === postId
-                      ? {
-                          ...post,
-                          likedByMe: !liked,
-                          likes: liked ? Math.max(0, post.likes - 1) : post.likes + 1
-                        }
-                      : post
-                  )
-                }))
-              }
-            : old
-      );
+      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
+      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
 
-      return { previous };
+      return { previousFeed, previousPost, postId };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(feedKeys.infinite, context.previous);
+      if (context?.previousFeed) {
+        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
       }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+      if (context?.previousPost) {
+        queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
+      }
     }
   });
 };

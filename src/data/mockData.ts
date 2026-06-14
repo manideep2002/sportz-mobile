@@ -582,6 +582,12 @@ export const searchResults: SearchResult[] = [
     type: community.type,
     title: community.name,
     subtitle: `${community.sport} - ${community.city}`
+  })),
+  ...courts.map((court) => ({
+    id: court.id,
+    type: 'court' as const,
+    title: court.name,
+    subtitle: `${court.sport} - ${court.city}`
   }))
 ];
 

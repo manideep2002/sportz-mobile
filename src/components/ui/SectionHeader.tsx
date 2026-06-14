@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
 import { colors } from '@/design/tokens';
@@ -6,13 +6,18 @@ import { colors } from '@/design/tokens';
 interface SectionHeaderProps {
   title: string;
   action?: string;
+  onAction?: () => void;
 }
 
-export function SectionHeader({ title, action }: SectionHeaderProps) {
+export function SectionHeader({ title, action, onAction }: SectionHeaderProps) {
   return (
     <View style={styles.row}>
       <AppText variant="h4">{title}</AppText>
-      {action ? <AppText style={styles.action}>{action}</AppText> : null}
+      {action ? (
+        <Pressable accessibilityRole={onAction ? 'button' : undefined} disabled={!onAction} onPress={onAction}>
+          <AppText style={styles.action}>{action}</AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

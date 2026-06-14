@@ -1,43 +1,110 @@
 import { useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BarChart3, ChevronLeft, Image, MapPin, Users, type LucideIcon } from 'lucide-react-native';
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import * as Location from 'expo-location';
+import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Users, X, type LucideIcon } from 'lucide-react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Avatar, Button, Chip, IconButton } from '@/components/ui';
-import { currentUser } from '@/data/mockData';
+import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
+import { currentUser, users } from '@/data/mockData';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
-import type { Sport } from '@/types/domain';
+import type { Post, Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
+type Route = RouteProp<AppStackParamList, 'CreatePost'>;
 
 const sports: Sport[] = ['Basketball', 'Football', 'Tennis', 'Cricket'];
+const visibilityOptions = ['Public', 'Followers'] as const;
 
 export function CreatePostScreen() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute<Route>();
   const profile = useAuthStore((state) => state.profile) ?? currentUser;
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaKind, setMediaKind] = useState<Post['mediaKind']>('none');
+  const [kind, setKind] = useState<Post['kind']>(route.params?.initialKind ?? 'post');
+  const [statsLine, setStatsLine] = useState('');
+  const [visibility, setVisibility] = useState<(typeof visibilityOptions)[number]>('Public');
+  const [locationLabel, setLocationLabel] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
   const createPost = useCreatePost();
+  const taggedUsers = users.slice(1).filter((user) => taggedUserIds.includes(user.id));
+  const canPublish = Boolean(
+    body.trim() ||
+      mediaUri ||
+      (kind === 'stats' && statsLine.trim()) ||
+      taggedUsers.length ||
+      locationLabel
+  );
 
   const handlePickMedia = async () => {
     try {
       const media = await storageService.pickMedia();
       setMediaUri(media?.uri ?? null);
+      setMediaKind(media?.type === 'video' ? 'video' : media ? 'image' : 'none');
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
-  const handlePublish = async () => {
-    if (!body.trim()) return;
+  const handleDetectLocation = async () => {
+    setDetectingLocation(true);
     try {
-      await createPost.mutateAsync({ body: body.trim(), sport, mediaUrl: mediaUri });
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Location permission needed', 'Allow location access to tag your current location.');
+        return;
+      }
+      const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [place] = await Location.reverseGeocodeAsync(currentLocation.coords);
+      setLocationLabel(
+        [place.city ?? place.district ?? place.subregion, place.region].filter(Boolean).join(', ') ||
+          `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
+      );
+    } catch (error) {
+      Alert.alert('Could not detect location', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    const additions = [
+      taggedUsers.length ? `With ${taggedUsers.map((user) => `@${user.username}`).join(', ')}` : '',
+      locationLabel ? `At ${locationLabel}` : ''
+    ].filter(Boolean);
+    const fallbackBody =
+      kind === 'stats' && statsLine.trim()
+        ? 'Game stats'
+        : mediaUri
+          ? kind === 'highlight'
+            ? 'Shared a new highlight.'
+            : 'Shared a new sports update.'
+          : '';
+    const publishedBody = [body.trim() || fallbackBody, ...additions].filter(Boolean).join('\n');
+    if (!canPublish) {
+      Alert.alert('Add something to share', 'Write an update or choose a photo or video.');
+      return;
+    }
+
+    try {
+      await createPost.mutateAsync({
+        body: publishedBody,
+        sport,
+        kind,
+        mediaUrl: mediaUri,
+        mediaKind,
+        statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
+        visibility: visibility.toLowerCase() as 'public' | 'followers'
+      });
       navigation.goBack();
     } catch (error) {
       Alert.alert('Could not publish', error instanceof Error ? error.message : 'Please try again.');
@@ -49,7 +116,7 @@ export function CreatePostScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">New Post</AppText>
-        <Button size="sm" loading={createPost.isPending} onPress={handlePublish}>
+        <Button size="sm" disabled={!canPublish} loading={createPost.isPending} onPress={handlePublish}>
           Publish
         </Button>
       </View>
@@ -59,8 +126,8 @@ export function CreatePostScreen() {
           <View style={styles.authorMeta}>
             <AppText style={styles.authorName}>{profile.displayName}</AppText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {['Public', 'Friends', 'Group'].map((item, index) => (
-                <Chip key={item} selected={index === 0}>
+              {visibilityOptions.map((item) => (
+                <Chip key={item} selected={item === visibility} onPress={() => setVisibility(item)}>
                   {item}
                 </Chip>
               ))}
@@ -75,10 +142,41 @@ export function CreatePostScreen() {
           multiline
           style={styles.composer}
         />
+        {kind === 'stats' ? (
+          <Input
+            label="Stat line"
+            value={statsLine}
+            onChangeText={setStatsLine}
+            placeholder="Example: 34 PTS - 8 REB - 5 AST"
+            autoCapitalize="characters"
+          />
+        ) : null}
+        {mediaUri ? (
+          <View style={styles.mediaPreview}>
+            {mediaKind === 'image' ? (
+              <Image source={{ uri: mediaUri }} style={styles.previewImage} />
+            ) : (
+              <View style={styles.videoPreview}>
+                <AppText variant="h4">Video selected</AppText>
+                <AppText variant="small">It will be uploaded with your post.</AppText>
+              </View>
+            )}
+            <IconButton
+              icon={X}
+              accessibilityLabel="Remove media"
+              size={34}
+              style={styles.removeMedia}
+              onPress={() => {
+                setMediaUri(null);
+                setMediaKind('none');
+              }}
+            />
+          </View>
+        ) : null}
         <View style={styles.mediaActions}>
-          <ComposerAction icon={Image} label={mediaUri ? 'Media added' : 'Photo/Video'} onPress={handlePickMedia} />
-          <ComposerAction icon={BarChart3} label="Stats" />
-          <ComposerAction icon={MapPin} label="Location" />
+          <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
+          <ComposerAction icon={BarChart3} label="Stats" selected={kind === 'stats'} onPress={() => setKind(kind === 'stats' ? 'post' : 'stats')} />
+          <ComposerAction icon={MapPin} label={detectingLocation ? 'Locating...' : locationLabel || 'Location'} selected={Boolean(locationLabel)} onPress={() => void handleDetectLocation()} />
         </View>
         <AppText style={styles.label}>Tag Sport</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
@@ -88,20 +186,54 @@ export function CreatePostScreen() {
             </Chip>
           ))}
         </ScrollView>
-        <View style={styles.tagPeople}>
+        <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
           <Users size={16} color={colors.text.tertiary} />
-          <AppText style={styles.tagText}>Tag people...</AppText>
-        </View>
+          <AppText style={styles.tagText}>
+            {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
+          </AppText>
+        </Pressable>
       </ScrollView>
+      <Modal visible={tagPickerOpen} transparent animationType="fade" onRequestClose={() => setTagPickerOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setTagPickerOpen(false)}>
+          <Pressable style={styles.tagPicker}>
+            <View style={styles.tagPickerHeader}>
+              <AppText variant="h3">Tag People</AppText>
+              <IconButton icon={X} size={34} iconSize={16} onPress={() => setTagPickerOpen(false)} />
+            </View>
+            {users.slice(1).map((user) => {
+              const selected = taggedUserIds.includes(user.id);
+              return (
+                <Pressable
+                  key={user.id}
+                  style={[styles.tagOption, selected ? styles.tagOptionSelected : null]}
+                  onPress={() =>
+                    setTaggedUserIds((old) =>
+                      selected ? old.filter((id) => id !== user.id) : [...old, user.id]
+                    )
+                  }
+                >
+                  <Avatar initials={user.initials} size={38} />
+                  <View style={styles.tagOptionMeta}>
+                    <AppText style={styles.authorName}>{user.displayName}</AppText>
+                    <AppText variant="small">@{user.username}</AppText>
+                  </View>
+                  <AppText color={selected ? colors.orange[400] : colors.text.tertiary}>{selected ? 'Tagged' : 'Tag'}</AppText>
+                </Pressable>
+              );
+            })}
+            <Button full onPress={() => setTagPickerOpen(false)}>Done</Button>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function ComposerAction({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress?: () => void }) {
+function ComposerAction({ icon: Icon, label, selected, onPress }: { icon: LucideIcon; label: string; selected?: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={styles.composerAction} onPress={onPress}>
-      <Icon size={20} color={colors.text.tertiary} />
-      <AppText variant="small">{label}</AppText>
+    <Pressable style={[styles.composerAction, selected ? styles.composerActionSelected : null]} onPress={onPress}>
+      <Icon size={20} color={selected ? colors.orange[400] : colors.text.tertiary} />
+      <AppText variant="small" color={selected ? colors.orange[400] : undefined} numberOfLines={2}>{label}</AppText>
     </Pressable>
   );
 }
@@ -169,6 +301,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs
   },
+  composerActionSelected: {
+    borderColor: colors.orange[400],
+    backgroundColor: colors.overlays.orangeSoft
+  },
+  mediaPreview: {
+    height: 180,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    backgroundColor: colors.dark[800],
+    marginBottom: spacing.md
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%'
+  },
+  videoPreview: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs
+  },
+  removeMedia: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm
+  },
   label: {
     color: colors.text.tertiary,
     fontFamily: typography.bodyBold,
@@ -188,6 +346,38 @@ const styles = StyleSheet.create({
     borderColor: colors.dark[700]
   },
   tagText: {
-    color: colors.text.tertiary
+    color: colors.text.tertiary,
+    flex: 1
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlays.scrim,
+    justifyContent: 'flex-end'
+  },
+  tagPicker: {
+    backgroundColor: colors.dark[900],
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.xl,
+    paddingBottom: 36,
+    gap: spacing.sm
+  },
+  tagPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  tagOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md
+  },
+  tagOptionSelected: {
+    backgroundColor: colors.overlays.orangeSoft
+  },
+  tagOptionMeta: {
+    flex: 1
   }
 });

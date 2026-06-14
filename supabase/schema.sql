@@ -389,7 +389,18 @@ create policy "users manage own follows" on public.follows for all using (auth.u
 create policy "public stories readable" on public.stories for select using (expires_at > now());
 create policy "users manage own stories" on public.stories for all using (auth.uid() = author_id) with check (auth.uid() = author_id);
 
-create policy "public posts readable" on public.posts for select using (visibility = 'public' or auth.uid() = author_id);
+create policy "visible posts readable" on public.posts for select using (
+  visibility = 'public'
+  or auth.uid() = author_id
+  or (
+    visibility = 'followers'
+    and exists (
+      select 1
+      from public.follows f
+      where f.follower_id = auth.uid() and f.following_id = author_id
+    )
+  )
+);
 create policy "users insert own posts" on public.posts for insert with check (auth.uid() = author_id);
 create policy "users update own posts" on public.posts for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
 create policy "users delete own posts" on public.posts for delete using (auth.uid() = author_id);

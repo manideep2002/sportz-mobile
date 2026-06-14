@@ -11,7 +11,7 @@ interface LiveMatchBannerProps {
 
 export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
   return (
-    <Pressable onPress={onPress}>
+    <Pressable accessibilityRole="button" onPress={onPress}>
       <Card style={styles.card}>
         <View style={styles.glow} />
         <View style={styles.top}>
@@ -37,7 +37,14 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
             ))}
           </View>
           <AppText variant="small">+7 watching</AppText>
-          <Button size="sm" style={styles.watch}>
+          <Button
+            size="sm"
+            style={styles.watch}
+            onPress={(event) => {
+              event.stopPropagation();
+              onPress();
+            }}
+          >
             Watch
           </Button>
         </View>

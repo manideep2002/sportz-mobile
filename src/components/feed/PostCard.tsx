@@ -1,4 +1,4 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Heart, MessageCircle, Repeat2, MoreHorizontal, Play } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
@@ -12,23 +12,48 @@ interface PostCardProps {
   onPress?: () => void;
   onAuthorPress?: () => void;
   onLike?: () => void;
+  onComment?: () => void;
+  onShare?: () => void;
+  onMore?: () => void;
+  onPrimaryAction?: () => void;
+  onMediaPress?: () => void;
 }
 
-export function PostCard({ post, onPress, onAuthorPress, onLike }: PostCardProps) {
+export function PostCard({
+  post,
+  onPress,
+  onAuthorPress,
+  onLike,
+  onComment,
+  onShare,
+  onMore,
+  onPrimaryAction,
+  onMediaPress
+}: PostCardProps) {
+  const runAction = (event: GestureResponderEvent, action?: () => void) => {
+    event.stopPropagation();
+    action?.();
+  };
+
   return (
-    <Pressable onPress={onPress}>
+    <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress}>
       <Card style={styles.card} padded={false}>
         <View style={styles.header}>
-          <Pressable onPress={onAuthorPress}>
+          <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
             <Avatar initials={post.author.initials} size={40} tone="orange" online={post.author.isOnline} />
           </Pressable>
-          <View style={styles.author}>
+          <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
             <AppText style={styles.authorName}>{post.author.displayName}</AppText>
             <AppText variant="small">
               {post.sport} - {timeAgo(post.createdAt)}
             </AppText>
+          </Pressable>
+          <View style={styles.headerActions}>
+            {post.kind === 'stats' ? <Badge tone="orange">MVP</Badge> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
+              <MoreHorizontal size={18} color={colors.text.tertiary} />
+            </Pressable>
           </View>
-          {post.kind === 'stats' ? <Badge tone="orange">MVP</Badge> : <MoreHorizontal size={18} color={colors.text.tertiary} />}
         </View>
         <AppText variant="bodyMuted" style={styles.body}>
           {post.body}
@@ -39,14 +64,19 @@ export function PostCard({ post, onPress, onAuthorPress, onLike }: PostCardProps
           </View>
         ) : null}
         {post.mediaKind === 'video' && post.mediaUrl ? (
-          <View style={styles.media}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Play video"
+            style={styles.media}
+            onPress={(event) => runAction(event, onMediaPress)}
+          >
             <View style={styles.mediaVideoContainer}>
               <Image source={{ uri: 'https://images.unsplash.com/photo-1546519638-68e109498ffc' }} style={styles.mediaImage} />
               <View style={styles.playButtonOverlay}>
                 <Play size={22} color="#0A0907" fill="#0A0907" />
               </View>
             </View>
-          </View>
+          </Pressable>
         ) : null}
         {post.mediaKind === 'court-card' ? (
           <View style={styles.media}>
@@ -70,7 +100,7 @@ export function PostCard({ post, onPress, onAuthorPress, onLike }: PostCardProps
           </View>
         ) : null}
         <View style={styles.actions}>
-          <Pressable style={styles.action} onPress={onLike}>
+          <Pressable accessibilityRole="button" accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'} style={styles.action} onPress={(event) => runAction(event, onLike)}>
             <Heart
               size={17}
               color={post.likedByMe ? colors.orange[400] : colors.text.tertiary}
@@ -78,23 +108,28 @@ export function PostCard({ post, onPress, onAuthorPress, onLike }: PostCardProps
             />
             <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
           </Pressable>
-          <View style={styles.action}>
+          <Pressable accessibilityRole="button" accessibilityLabel="View comments" style={styles.action} onPress={(event) => runAction(event, onComment)}>
             <MessageCircle size={17} color={colors.text.tertiary} />
             <AppText style={styles.actionText}>{post.comments}</AppText>
-          </View>
-          <View style={styles.action}>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
             <Repeat2 size={17} color={colors.text.tertiary} />
-          </View>
+            {post.shares > 0 ? <AppText style={styles.actionText}>{post.shares}</AppText> : null}
+          </Pressable>
           {post.kind === 'stats' ? (
-            <Button size="sm" style={styles.join}>
-              Join Team
+            <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
+              View Athlete
             </Button>
           ) : (
-            <AppText style={styles.reply}>Reply to thread</AppText>
+            <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onPrimaryAction)}>
+              <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply to thread' : 'Comment'}</AppText>
+            </Pressable>
           )}
         </View>
         <View style={styles.footer}>
-          <AppText variant="bodyMuted">Vikram and 24 others liked this</AppText>
+          <AppText variant="bodyMuted">
+            {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'athlete' : 'athletes'} liked this` : 'Be the first to like this'}
+          </AppText>
         </View>
       </Card>
     </Pressable>
@@ -115,6 +150,11 @@ const styles = StyleSheet.create({
   },
   author: {
     flex: 1
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
   },
   authorName: {
     color: colors.text.primary,

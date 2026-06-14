@@ -9,12 +9,12 @@ import { useUiStore } from '@/store/uiStore';
 import type { AppStackParamList } from './routes';
 
 const actions = [
-  { label: 'Post', detail: 'Share a photo, video or text update', icon: Trophy, route: 'CreatePost' },
-  { label: 'Share Stats', detail: 'Post game stats and performance', icon: Star, route: 'CreatePost' },
+  { label: 'Post', detail: 'Share a photo, video or text update', icon: Trophy, route: 'CreatePost', kind: 'post' },
+  { label: 'Share Stats', detail: 'Post game stats and performance', icon: Star, route: 'CreatePost', kind: 'stats' },
   { label: 'Create Event', detail: 'Schedule a game or practice', icon: CalendarPlus, route: 'CreateEvent' },
-  { label: 'Create Group / Page', detail: 'Start a community', icon: Users, route: 'Community' },
-  { label: 'Go Live', detail: 'Stream your game live', icon: Radio, route: 'CreatePost' },
-  { label: 'Post a Thread', detail: 'Start a discussion', icon: MessageCircle, route: 'CreatePost' }
+  { label: 'Explore Groups / Pages', detail: 'Find sports communities', icon: Users, route: 'Community' },
+  { label: 'Share Highlight', detail: 'Publish a photo or video highlight', icon: Radio, route: 'CreatePost', kind: 'highlight' },
+  { label: 'Post a Thread', detail: 'Start a discussion', icon: MessageCircle, route: 'CreatePost', kind: 'thread' }
 ] as const;
 
 export function CreateActionSheet() {
@@ -31,7 +31,13 @@ export function CreateActionSheet() {
             style={styles.option}
             onPress={() => {
               close();
-              navigation.navigate(action.route);
+              if (action.route === 'CreatePost') {
+                navigation.navigate('CreatePost', { initialKind: action.kind });
+              } else if (action.route === 'CreateEvent') {
+                navigation.navigate('CreateEvent');
+              } else {
+                navigation.navigate('Community');
+              }
             }}
           >
             <View style={styles.iconWrap}>
