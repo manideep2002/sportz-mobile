@@ -151,18 +151,45 @@ export const stories: Story[] = users.slice(1).map((user, index) => ({
 
 export const posts: Post[] = [
   {
-    id: 'post-arjun-34',
-    author: users[1],
-    kind: 'stats',
+    id: 'post-marcus-photo',
+    author: users[0],
+    kind: 'post',
     sport: 'Basketball',
-    body: "Dropped 34 pts at Lalbagh courts last night. Looking for 2 more players for our team this weekend. React if you are in.",
-    mediaKind: 'court-card',
-    statsLine: '34 PTS - 8 REB - 5 AST',
+    body: "Solid game today at Koramangala Indoor. Ended with a double-double and a clean win. Prepping for the tournament next week!",
+    mediaKind: 'image',
+    mediaUrl: 'https://images.unsplash.com/photo-1546519638-68e109498ffc',
+    likedByMe: false,
+    likes: 85,
+    comments: 18,
+    shares: 5,
+    createdAt: hoursAgo(1)
+  },
+  {
+    id: 'post-arjun-video',
+    author: users[1],
+    kind: 'post',
+    sport: 'Basketball',
+    body: "Dropped 34 pts at Lalbagh courts last night. Check out this crossover! React if you are in for this weekend's run.",
+    mediaKind: 'video',
+    mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-basketball-player-dribbling-in-a-court-4770-large.mp4',
     likedByMe: true,
     likes: 128,
     comments: 24,
     shares: 8,
     createdAt: hoursAgo(2)
+  },
+  {
+    id: 'post-marcus-thread',
+    author: users[0],
+    kind: 'thread',
+    sport: 'Football',
+    body: "Training session done. Working on mid-range distribution. If anyone wants to join the drills on Wednesday morning at Cubbon Ground, let me know.",
+    mediaKind: 'none',
+    likedByMe: true,
+    likes: 42,
+    comments: 7,
+    shares: 2,
+    createdAt: hoursAgo(3)
   },
   {
     id: 'post-sneha-thread',
@@ -206,7 +233,7 @@ export const posts: Post[] = [
 export const comments: Comment[] = [
   {
     id: 'comment-sneha-1',
-    postId: 'post-arjun-34',
+    postId: 'post-arjun-video',
     author: users[2],
     body: 'Legendary game. Count me in for the weekend.',
     likes: 8,
@@ -214,7 +241,7 @@ export const comments: Comment[] = [
   },
   {
     id: 'comment-vikram-1',
-    postId: 'post-arjun-34',
+    postId: 'post-arjun-video',
     author: users[3],
     body: '34 pts! Carry energy. I am in for the weekend game.',
     likes: 6,

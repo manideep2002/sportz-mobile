@@ -8,6 +8,7 @@ export interface CreatePostInput {
   sport: string;
   kind?: Post['kind'];
   mediaUrl?: string | null;
+  mediaKind?: Post['mediaKind'];
   visibility?: 'public' | 'followers' | 'group';
 }
 
@@ -17,6 +18,47 @@ export interface FeedPage {
 }
 
 export const postService = {
+  async listUserPosts(userId: string): Promise<Post[]> {
+    if (!env.isSupabaseConfigured) {
+      return posts.filter((post) => post.author.id === userId);
+    }
+
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, profiles:author_id(*)')
+      .eq('author_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return posts.filter((post) => post.author.id === userId);
+
+    return data.map((row: any) => ({
+      id: row.id,
+      author: {
+        ...currentUser,
+        id: row.profiles?.id ?? row.author_id,
+        displayName: row.profiles?.display_name ?? 'Athlete',
+        username: row.profiles?.username ?? 'athlete',
+        initials: (row.profiles?.display_name ?? 'AT')
+          .split(' ')
+          .map((part: string) => part[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase()
+      },
+      kind: row.kind,
+      sport: row.sport ?? 'Basketball',
+      body: row.body,
+      mediaUrl: row.media_url,
+      mediaKind: row.media_kind ?? 'none',
+      statsLine: row.stats_line,
+      likedByMe: false,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      createdAt: row.created_at
+    })) satisfies Post[];
+  },
+
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
     if (!env.isSupabaseConfigured) {
       const start = cursor ? Number(cursor) : 0;
@@ -98,7 +140,7 @@ export const postService = {
         sport: input.sport as Post['sport'],
         body: input.body,
         mediaUrl: input.mediaUrl,
-        mediaKind: input.mediaUrl ? 'image' : 'none',
+        mediaKind: input.mediaKind ?? (input.mediaUrl ? 'image' : 'none'),
         likedByMe: false,
         likes: 0,
         comments: 0,
@@ -119,7 +161,7 @@ export const postService = {
         sport: input.sport,
         body: input.body,
         media_url: input.mediaUrl ?? null,
-        media_kind: input.mediaUrl ? 'image' : 'none',
+        media_kind: input.mediaKind ?? (input.mediaUrl ? 'image' : 'none'),
         visibility: input.visibility ?? 'public'
       })
       .select()
@@ -169,6 +211,57 @@ export const postService = {
       likes: 0,
       createdAt: row.created_at
     }));
+  },
+
+  async createComment(postId: string, body: string): Promise<Comment> {
+    if (!env.isSupabaseConfigured) {
+      const newComment: Comment = {
+        id: `local-comment-${Date.now()}`,
+        postId,
+        author: currentUser,
+        body,
+        likes: 0,
+        createdAt: new Date().toISOString()
+      };
+      comments.push(newComment);
+
+      const postIdx = posts.findIndex((p) => p.id === postId);
+      if (postIdx > -1) {
+        posts[postIdx].comments += 1;
+      }
+      return newComment;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to comment.');
+
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({
+        post_id: postId,
+        author_id: authData.user.id,
+        body: body
+      })
+      .select('*, profiles:author_id(*)')
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      postId: data.post_id,
+      author: {
+        ...currentUser,
+        id: data.profiles?.id ?? data.author_id,
+        displayName: data.profiles?.display_name ?? 'Athlete',
+        username: data.profiles?.username ?? 'athlete',
+        initials: (data.profiles?.display_name ?? 'AT').slice(0, 2).toUpperCase()
+      },
+      body: data.body,
+      likes: 0,
+      createdAt: data.created_at
+    };
   },
 
   async togglePostLike(postId: string, liked: boolean): Promise<void> {

@@ -1,12 +1,14 @@
+import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, MoreHorizontal } from 'lucide-react-native';
+import { ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { users } from '@/data/mockData';
-import { colors, spacing } from '@/design/tokens';
+import { colors, spacing, typography } from '@/design/tokens';
+import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
 import { compactNumber } from '@/utils/format';
@@ -19,6 +21,7 @@ export function UserProfileScreen() {
   const route = useRoute<Route>();
   const profile = users.find((user) => user.id === route.params.userId) ?? users[1];
   const conversationId = messageService.getConversationIdForUser(profile.id);
+  const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
 
   const openChat = () => {
     if (!conversationId) return;
@@ -60,16 +63,152 @@ export function UserProfileScreen() {
           </Button>
           <IconButton icon={MoreHorizontal} />
         </View>
-        <SegmentedControl value="Posts" options={['Posts', 'Stats', 'Highlights']} onChange={() => undefined} />
-        <View style={styles.grid}>
-          {['B', 'S', 'T', 'G', 'B', 'H'].map((item, index) => (
-            <View key={`${item}-${index}`} style={styles.gridItem}>
-              <AppText variant="h2">{item}</AppText>
-            </View>
-          ))}
-        </View>
+        <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
+        {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
+        {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
+        {tab === 'Highlights' ? <HighlightsPanel /> : null}
       </View>
     </Screen>
+  );
+}
+
+function ProfileGrid({ userId }: { userId: string }) {
+  const navigation = useNavigation<Navigation>();
+  const { data: postsList = [], isLoading } = useUserPosts(userId);
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.orange[500]} size="small" />
+      </View>
+    );
+  }
+
+  if (postsList.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <MessageSquare size={32} color={colors.text.tertiary} style={{ marginBottom: 8 }} />
+        <AppText variant="bodyMuted" style={{ textAlign: 'center' }}>
+          No posts shared yet.
+        </AppText>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.grid}>
+      {postsList.map((post) => {
+        const isStats = post.kind === 'stats';
+        return (
+          <Pressable
+            key={post.id}
+            onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+            style={({ pressed }) => [
+              styles.gridItem,
+              isStats ? styles.gridItemStats : null,
+              pressed ? styles.gridItemPressed : null,
+            ]}
+          >
+            {isStats ? (
+              <LinearGradient
+                colors={['#FF5A1F', '#FF7A45']}
+                style={styles.gridGradient}
+              >
+                <View style={styles.gridHeader}>
+                  <Trophy size={14} color="#0A0907" />
+                  <AppText style={styles.gridSportTextStats}>{post.sport}</AppText>
+                </View>
+                <AppText style={styles.gridBodyTextStats} numberOfLines={2}>
+                  {post.statsLine || post.body}
+                </AppText>
+                <View style={styles.gridFooter}>
+                  <Heart size={10} color="#0A0907" />
+                  <AppText style={styles.gridStatTextStats}>{post.likes}</AppText>
+                  <MessageCircle size={10} color="#0A0907" style={{ marginLeft: 6 }} />
+                  <AppText style={styles.gridStatTextStats}>{post.comments}</AppText>
+                </View>
+              </LinearGradient>
+            ) : (
+              <View style={styles.gridInner}>
+                <View style={styles.gridHeader}>
+                  <AppText style={styles.gridSportText}>{post.sport}</AppText>
+                  {post.mediaKind === 'court-card' && <AppText style={styles.courtBadge}>COURT</AppText>}
+                </View>
+                <AppText style={styles.gridBodyText} numberOfLines={3}>
+                  {post.body}
+                </AppText>
+                <View style={styles.gridFooter}>
+                  <Heart size={10} color={colors.text.secondary} />
+                  <AppText style={styles.gridStatText}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={colors.text.secondary} style={{ marginLeft: 6 }} />
+                  <AppText style={styles.gridStatText}>{post.comments}</AppText>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function StatsPanel({ profile }: { profile: typeof users[0] }) {
+  const stats = [
+    ['Speed', 85],
+    ['Power', 90],
+    ['Agility', 75],
+    ['Endurance', 80]
+  ] as const;
+
+  return (
+    <View style={styles.panel}>
+      <AppText variant="h4">Season Stats - 2026</AppText>
+      {stats.map(([label, value]) => (
+        <View key={label} style={styles.statLine}>
+          <View style={styles.statLineTop}>
+            <AppText variant="small">{label}</AppText>
+            <AppText style={styles.statValue}>{value}</AppText>
+          </View>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${value}%` }]} />
+          </View>
+        </View>
+      ))}
+      <View style={styles.threeStats}>
+        <StatCard value={profile.stats.bestPoints?.toString() || "34"} label="Best PTS" tone="orange" />
+        <StatCard value={profile.stats.avgRebounds?.toString() || "8.2"} label="Avg REB" />
+        <StatCard value={profile.stats.games.toString()} label="Games" tone="green" />
+      </View>
+    </View>
+  );
+}
+
+function HighlightsPanel() {
+  return (
+    <View style={styles.panel}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {['Add', 'Season', 'Best Plays', 'Goals', 'Streaks'].map((item, index) => (
+          <View key={item} style={styles.highlightPill}>
+            <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null]}>
+              <AppText variant="h3">{index === 0 ? '+' : item.slice(0, 1)}</AppText>
+            </View>
+            <AppText variant="small">{item}</AppText>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.highlightCards}>
+        <LinearGradient colors={['#1A0800', '#2A1200']} style={styles.highlightCard}>
+          <AppText variant="h2" color={colors.orange[500]}>MVP</AppText>
+          <AppText style={styles.highlightTitle}>Match vs Challengers</AppText>
+          <Badge tone="orange">34 PTS</Badge>
+        </LinearGradient>
+        <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
+          <AppText variant="h2" color={colors.semantic.success}>30</AppText>
+          <AppText style={styles.highlightTitle}>Day Training Streak</AppText>
+          <Badge tone="green">STREAK</Badge>
+        </LinearGradient>
+      </View>
+    </View>
   );
 }
 
@@ -117,18 +256,182 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1
   },
+  center: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  emptyState: {
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dark[800],
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    marginTop: spacing.sm
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 2,
+    justifyContent: 'space-between',
+    rowGap: 12,
     marginTop: spacing.sm
   },
   gridItem: {
-    width: '32.8%',
-    aspectRatio: 1,
+    width: '48.5%',
+    aspectRatio: 1.1,
     backgroundColor: colors.dark[800],
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    overflow: 'hidden'
+  },
+  gridItemStats: {
+    borderColor: colors.orange[500],
+    borderWidth: 1
+  },
+  gridItemPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }]
+  },
+  gridGradient: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between'
+  },
+  gridInner: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between'
+  },
+  gridHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  gridSportText: {
+    color: colors.orange[400],
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  gridSportTextStats: {
+    color: '#0A0907',
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  gridBodyText: {
+    color: colors.text.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    marginVertical: 4
+  },
+  gridBodyTextStats: {
+    color: '#0A0907',
+    fontFamily: typography.headingBold,
+    fontSize: 14,
+    lineHeight: 18,
+    marginVertical: 4
+  },
+  gridFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 'auto'
+  },
+  gridStatText: {
+    color: colors.text.secondary,
+    fontSize: 10,
+    marginLeft: 4
+  },
+  gridStatTextStats: {
+    color: '#0A0907',
+    fontSize: 10,
+    marginLeft: 4,
+    fontFamily: typography.bodyBold
+  },
+  courtBadge: {
+    color: colors.semantic.info,
+    fontSize: 9,
+    fontFamily: typography.bodyBold,
+    marginLeft: 'auto',
+    borderWidth: 1,
+    borderColor: colors.semantic.info,
+    borderRadius: 4,
+    paddingHorizontal: 3,
+    paddingVertical: 1
+  },
+  panel: {
+    backgroundColor: colors.dark[800],
+    borderRadius: 18,
+    padding: spacing.md,
+    gap: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    marginTop: spacing.sm
+  },
+  statLine: {
+    gap: 4
+  },
+  statLineTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  statValue: {
+    color: colors.text.primary,
+    fontFamily: typography.bodyBold,
+    fontSize: 12
+  },
+  track: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.dark[700],
+    overflow: 'hidden'
+  },
+  fill: {
+    height: 3,
+    backgroundColor: colors.orange[500]
+  },
+  threeStats: {
+    flexDirection: 'row',
+    gap: spacing.xs
+  },
+  highlightPill: {
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 12
+  },
+  highlightCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: colors.dark[700],
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  highlightAdd: {
+    borderStyle: 'dashed',
+    borderColor: colors.orange[400]
+  },
+  highlightCards: {
+    flexDirection: 'row',
+    gap: spacing.sm
+  },
+  highlightCard: {
+    flex: 1,
+    aspectRatio: 0.8,
+    borderRadius: 14,
+    padding: 12,
+    justifyContent: 'flex-end',
+    gap: spacing.xs
+  },
+  highlightTitle: {
+    color: colors.text.primary,
+    fontFamily: typography.bodyBold,
+    fontSize: 13
   }
 });

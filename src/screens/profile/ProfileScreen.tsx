@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Settings } from 'lucide-react-native';
+import { Heart, MessageCircle, MessageSquare, Settings, Trophy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { currentUser } from '@/data/mockData';
 import { colors, spacing, typography } from '@/design/tokens';
+import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { compactNumber } from '@/utils/format';
@@ -56,21 +57,92 @@ export function ProfileScreen() {
       <View style={styles.tabs}>
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
       </View>
-      {tab === 'Posts' ? <ProfileGrid /> : null}
+      {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
       {tab === 'Stats' ? <StatsPanel /> : null}
       {tab === 'Highlights' ? <HighlightsPanel /> : null}
     </Screen>
   );
 }
 
-function ProfileGrid() {
+function ProfileGrid({ userId }: { userId: string }) {
+  const navigation = useNavigation<Navigation>();
+  const { data: postsList = [], isLoading } = useUserPosts(userId);
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.orange[500]} size="small" />
+      </View>
+    );
+  }
+
+  if (postsList.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <MessageSquare size={32} color={colors.text.tertiary} style={{ marginBottom: 8 }} />
+        <AppText variant="bodyMuted" style={{ textAlign: 'center', marginBottom: 12 }}>
+          No posts shared yet.
+        </AppText>
+        <Button size="sm" onPress={() => navigation.navigate('CreatePost')}>
+          Share Your First Update
+        </Button>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.grid}>
-      {['B', 'S', 'F', 'T', 'H', 'B'].map((item, index) => (
-        <Pressable key={`${item}-${index}`} style={[styles.gridItem, index === 1 ? styles.gridStat : null]}>
-          <AppText variant="h2">{item}</AppText>
-        </Pressable>
-      ))}
+      {postsList.map((post) => {
+        const isStats = post.kind === 'stats';
+        return (
+          <Pressable
+            key={post.id}
+            onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+            style={({ pressed }) => [
+              styles.gridItem,
+              isStats ? styles.gridItemStats : null,
+              pressed ? styles.gridItemPressed : null,
+            ]}
+          >
+            {isStats ? (
+              <LinearGradient
+                colors={['#FF5A1F', '#FF7A45']}
+                style={styles.gridGradient}
+              >
+                <View style={styles.gridHeader}>
+                  <Trophy size={14} color="#0A0907" />
+                  <AppText style={styles.gridSportTextStats}>{post.sport}</AppText>
+                </View>
+                <AppText style={styles.gridBodyTextStats} numberOfLines={2}>
+                  {post.statsLine || post.body}
+                </AppText>
+                <View style={styles.gridFooter}>
+                  <Heart size={10} color="#0A0907" />
+                  <AppText style={styles.gridStatTextStats}>{post.likes}</AppText>
+                  <MessageCircle size={10} color="#0A0907" style={{ marginLeft: 6 }} />
+                  <AppText style={styles.gridStatTextStats}>{post.comments}</AppText>
+                </View>
+              </LinearGradient>
+            ) : (
+              <View style={styles.gridInner}>
+                <View style={styles.gridHeader}>
+                  <AppText style={styles.gridSportText}>{post.sport}</AppText>
+                  {post.mediaKind === 'court-card' && <AppText style={styles.courtBadge}>COURT</AppText>}
+                </View>
+                <AppText style={styles.gridBodyText} numberOfLines={3}>
+                  {post.body}
+                </AppText>
+                <View style={styles.gridFooter}>
+                  <Heart size={10} color={colors.text.secondary} />
+                  <AppText style={styles.gridStatText}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={colors.text.secondary} style={{ marginLeft: 6 }} />
+                  <AppText style={styles.gridStatText}>{post.comments}</AppText>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -192,22 +264,113 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     marginBottom: 16
   },
+  center: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  emptyState: {
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dark[800],
+    marginHorizontal: spacing.screen,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700]
+  },
   grid: {
     paddingHorizontal: spacing.screen,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 2
+    justifyContent: 'space-between',
+    rowGap: 12
   },
   gridItem: {
-    width: '32.8%',
-    aspectRatio: 1,
+    width: '48.5%',
+    aspectRatio: 1.1,
     backgroundColor: colors.dark[800],
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center'
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    overflow: 'hidden'
   },
-  gridStat: {
-    backgroundColor: '#0A1A08'
+  gridItemStats: {
+    borderColor: colors.orange[500],
+    borderWidth: 1
+  },
+  gridItemPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }]
+  },
+  gridGradient: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between'
+  },
+  gridInner: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between'
+  },
+  gridHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  gridSportText: {
+    color: colors.orange[400],
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  gridSportTextStats: {
+    color: '#0A0907',
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  gridBodyText: {
+    color: colors.text.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    marginVertical: 4
+  },
+  gridBodyTextStats: {
+    color: '#0A0907',
+    fontFamily: typography.headingBold,
+    fontSize: 14,
+    lineHeight: 18,
+    marginVertical: 4
+  },
+  gridFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 'auto'
+  },
+  gridStatText: {
+    color: colors.text.secondary,
+    fontSize: 10,
+    marginLeft: 4
+  },
+  gridStatTextStats: {
+    color: '#0A0907',
+    fontSize: 10,
+    marginLeft: 4,
+    fontFamily: typography.bodyBold
+  },
+  courtBadge: {
+    color: colors.semantic.info,
+    fontSize: 9,
+    fontFamily: typography.bodyBold,
+    marginLeft: 'auto',
+    borderWidth: 1,
+    borderColor: colors.semantic.info,
+    borderRadius: 4,
+    paddingHorizontal: 3,
+    paddingVertical: 1
   },
   panel: {
     marginHorizontal: spacing.screen,

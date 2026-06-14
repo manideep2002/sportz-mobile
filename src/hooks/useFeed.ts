@@ -6,7 +6,8 @@ import type { Post } from '@/types/domain';
 export const feedKeys = {
   infinite: ['feed', 'infinite'] as const,
   post: (id: string) => ['post', id] as const,
-  comments: (postId: string) => ['comments', postId] as const
+  comments: (postId: string) => ['comments', postId] as const,
+  userPosts: (userId: string) => ['feed', 'user', userId] as const
 };
 
 export const useInfiniteFeed = () =>
@@ -15,6 +16,12 @@ export const useInfiniteFeed = () =>
     queryFn: ({ pageParam }) => postService.listFeedPage(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor
+  });
+
+export const useUserPosts = (userId: string) =>
+  useQuery({
+    queryKey: feedKeys.userPosts(userId),
+    queryFn: () => postService.listUserPosts(userId)
   });
 
 export const usePost = (postId: string) =>

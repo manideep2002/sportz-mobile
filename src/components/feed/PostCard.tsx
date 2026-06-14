@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Heart, MessageCircle, Repeat2, MoreHorizontal } from 'lucide-react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Heart, MessageCircle, Repeat2, MoreHorizontal, Play } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
 import { CourtArt } from './CourtArt';
@@ -33,6 +33,21 @@ export function PostCard({ post, onPress, onAuthorPress, onLike }: PostCardProps
         <AppText variant="bodyMuted" style={styles.body}>
           {post.body}
         </AppText>
+        {post.mediaKind === 'image' && post.mediaUrl ? (
+          <View style={styles.media}>
+            <Image source={{ uri: post.mediaUrl }} style={styles.mediaImage} />
+          </View>
+        ) : null}
+        {post.mediaKind === 'video' && post.mediaUrl ? (
+          <View style={styles.media}>
+            <View style={styles.mediaVideoContainer}>
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1546519638-68e109498ffc' }} style={styles.mediaImage} />
+              <View style={styles.playButtonOverlay}>
+                <Play size={22} color="#0A0907" fill="#0A0907" />
+              </View>
+            </View>
+          </View>
+        ) : null}
         {post.mediaKind === 'court-card' ? (
           <View style={styles.media}>
             <CourtArt statLine={post.statsLine} />
@@ -113,6 +128,35 @@ const styles = StyleSheet.create({
   media: {
     marginHorizontal: 14,
     marginTop: 10
+  },
+  mediaImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10
+  },
+  mediaVideoContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  playButtonOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -22 }, { translateY: -22 }],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.orange[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4
   },
   teaser: {
     flexDirection: 'row',
