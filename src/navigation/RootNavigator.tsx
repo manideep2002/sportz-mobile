@@ -20,6 +20,7 @@ import { EventDetailScreen } from '@/screens/events/EventDetailScreen';
 import { CreateEventScreen } from '@/screens/events/CreateEventScreen';
 import { UserProfileScreen } from '@/screens/profile/UserProfileScreen';
 import { ChatScreen } from '@/screens/messages/ChatScreen';
+import { NewMessageScreen } from '@/screens/messages/NewMessageScreen';
 import { FindPlayersScreen } from '@/screens/profile/FindPlayersScreen';
 import { CreatePostScreen } from '@/screens/feed/CreatePostScreen';
 import { PostDetailScreen } from '@/screens/feed/PostDetailScreen';
@@ -54,6 +55,7 @@ function AppNavigator() {
       <App.Screen name="EventDetail" component={EventDetailScreen} />
       <App.Screen name="CreateEvent" component={CreateEventScreen} />
       <App.Screen name="UserProfile" component={UserProfileScreen} />
+      <App.Screen name="NewMessage" component={NewMessageScreen} />
       <App.Screen name="Chat" component={ChatScreen} getId={({ params }) => params.conversationId} />
       <App.Screen name="FindPlayers" component={FindPlayersScreen} />
       <App.Screen name="CreatePost" component={CreatePostScreen} />

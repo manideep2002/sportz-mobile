@@ -26,6 +26,7 @@ export type AppStackParamList = {
   EventDetail: { eventId: string };
   CreateEvent: undefined;
   UserProfile: { userId: string };
+  NewMessage: undefined;
   Chat: { conversationId: string };
   FindPlayers: undefined;
   CreatePost: undefined;
