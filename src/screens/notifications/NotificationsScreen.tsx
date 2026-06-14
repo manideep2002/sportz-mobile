@@ -1,56 +1,240 @@
+import { useCallback, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { ChevronLeft, Filter } from 'lucide-react-native';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
 import { AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
-import { spacing } from '@/design/tokens';
-import { useMarkNotificationsRead, useNotifications } from '@/hooks/useNotifications';
+import { colors, spacing } from '@/design/tokens';
+import {
+  useInfiniteNotifications,
+  useMarkNotificationRead,
+  useMarkNotificationsRead,
+  useRealtimeNotifications
+} from '@/hooks/useNotifications';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { SportzNotification } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
+type FilterType = 'All' | 'Mentions' | 'Events' | 'Social';
+
+const FILTER_OPTIONS: FilterType[] = ['All', 'Mentions', 'Events', 'Social'];
+
+const filterNotifications = (notifications: SportzNotification[], filter: FilterType) => {
+  switch (filter) {
+    case 'Events':
+      return notifications.filter((n) => n.kind === 'event' || n.kind === 'invite');
+    case 'Mentions':
+      return notifications.filter((n) => n.kind === 'comment' || n.kind === 'like');
+    case 'Social':
+      return notifications.filter((n) => n.kind === 'follow' || n.kind === 'achievement');
+    case 'All':
+    default:
+      return notifications;
+  }
+};
+
+const navigateForNotification = (
+  navigation: Navigation,
+  notification: SportzNotification
+) => {
+  const { kind, entityId, entityType, actor } = notification;
+
+  switch (kind) {
+    case 'event':
+    case 'invite':
+      if (entityId && entityType === 'event') {
+        navigation.navigate('EventDetail', { eventId: entityId });
+      } else if (entityId && entityType === 'group') {
+        navigation.navigate('GroupDetail', { communityId: entityId });
+      }
+      break;
+    case 'like':
+    case 'comment':
+      if (entityId && entityType === 'post') {
+        navigation.navigate('PostDetail', { postId: entityId });
+      }
+      break;
+    case 'message':
+      if (entityId && entityType === 'conversation') {
+        navigation.navigate('Chat', { conversationId: entityId });
+      }
+      break;
+    case 'follow':
+      if (entityId && entityType === 'profile') {
+        navigation.navigate('UserProfile', { userId: entityId });
+      } else if (actor?.id) {
+        navigation.navigate('UserProfile', { userId: actor.id });
+      }
+      break;
+    case 'achievement':
+      // Could navigate to profile or achievements screen
+      break;
+  }
+};
+
 export function NotificationsScreen() {
   const navigation = useNavigation<Navigation>();
-  const { data: notifications = [] } = useNotifications();
-  const markRead = useMarkNotificationsRead();
+  const [filter, setFilter] = useState<FilterType>('All');
+  const [refreshing, setRefreshing] = useState(false);
+  const flatListRef = useRef<FlatList<SportzNotification>>(null);
+
+  const { data: notifications = [], isLoading, isRefetching, refetch } = useInfiniteNotifications();
+  const markAllRead = useMarkNotificationsRead();
+  const markAsRead = useMarkNotificationRead();
+
+  const filteredNotifications = filterNotifications(notifications, filter);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  useRealtimeNotifications((newNotification) => {
+    // The query will be invalidated by the realtime subscription
+    // For now, we just refetch to get the new notification
+    refetch();
+  });
+
+  const handleNotificationPress = (notification: SportzNotification) => {
+    if (!notification.read) {
+      markAsRead.mutate(notification.id);
+    }
+    navigateForNotification(navigation, notification);
+  };
+
+  const handleCtaPress = (notification: SportzNotification) => {
+    if (!notification.read) {
+      markAsRead.mutate(notification.id);
+    }
+    navigateForNotification(navigation, notification);
+  };
+
+  const handleMarkAllRead = () => {
+    markAllRead.mutate();
+  };
+
+  if (isLoading) {
+    return (
+      <Screen contentContainerStyle={styles.loadingContainer}>
+        <View style={styles.loading} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Activity</AppText>
-        <Button variant="dark" size="sm" loading={markRead.isPending} onPress={() => markRead.mutate()}>
+        <Button
+          variant="dark"
+          size="sm"
+          loading={markAllRead.isPending}
+          onPress={handleMarkAllRead}
+          disabled={notifications.every((n) => n.read)}
+        >
           Mark all read
         </Button>
       </View>
-      <SegmentedControl value="All" options={['All', 'Mentions', 'Events']} onChange={() => undefined} />
-      <AppText variant="caption">New</AppText>
-      {notifications.map((notification) => (
-        <NotificationRow
-          key={notification.id}
-          notification={notification}
-          onPress={() => {
-            if (notification.kind === 'event' && notification.entityId) {
-              navigation.navigate('EventDetail', { eventId: notification.entityId });
-            }
-          }}
+
+      <SegmentedControl value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
+
+      {filteredNotifications.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Filter size={48} color={colors.text.tertiary} />
+          <AppText variant="h4" style={styles.emptyTitle}>
+            {filter === 'All' ? 'No activity yet' : `No ${filter.toLowerCase()} notifications`}
+          </AppText>
+          <AppText variant="bodyMuted" style={styles.emptySubtitle}>
+            {filter === 'All'
+              ? 'When someone interacts with your posts, events, or profile, it will show up here.'
+              : 'Try another filter or check back later.'}
+          </AppText>
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={filteredNotifications}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing || isRefetching}
+              onRefresh={onRefresh}
+              tintColor={colors.orange[500]}
+              colors={[colors.orange[500]]}
+            />
+          }
+          ListHeaderComponent={
+            <AppText variant="caption" style={styles.sectionHeader}>New</AppText>
+          }
+          renderItem={({ item }) => (
+            <NotificationRow
+              notification={item}
+              onPress={() => handleNotificationPress(item)}
+              onCtaPress={() => handleCtaPress(item)}
+            />
+          )}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
-      ))}
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 0,
-    gap: spacing.md
+    flex: 1,
+    paddingHorizontal: 0
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loading: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: colors.orange[500],
+    borderTopColor: 'transparent',
+    borderRadius: 12
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.screen
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.md
+  },
+  sectionHeader: {
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    color: colors.text.secondary
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md
+  },
+  emptyTitle: {
+    textAlign: 'center',
+    color: colors.text.primary
+  },
+  emptySubtitle: {
+    textAlign: 'center',
+    color: colors.text.tertiary
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.dark[700],
+    marginHorizontal: spacing.screen
   }
 });

@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Bell } from 'lucide-react-native';
+import { Bell, MessageSquare, UserPlus, Trophy, Heart, Reply, Calendar } from 'lucide-react-native';
 
 import { AppText, Avatar, Button } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -9,16 +9,38 @@ import { timeAgo } from '@/utils/format';
 interface NotificationRowProps {
   notification: SportzNotification;
   onPress?: () => void;
+  onCtaPress?: () => void;
 }
 
-export function NotificationRow({ notification, onPress }: NotificationRowProps) {
+const getNotificationIcon = (kind: SportzNotification['kind']) => {
+  switch (kind) {
+    case 'like':
+      return <Heart size={20} color={colors.orange[500]} />;
+    case 'comment':
+      return <Reply size={20} color={colors.orange[500]} />;
+    case 'follow':
+      return <UserPlus size={20} color={colors.orange[500]} />;
+    case 'event':
+      return <Calendar size={20} color={colors.orange[500]} />;
+    case 'message':
+      return <MessageSquare size={20} color={colors.orange[500]} />;
+    case 'invite':
+      return <UserPlus size={20} color={colors.orange[500]} />;
+    case 'achievement':
+      return <Trophy size={20} color={colors.orange[500]} />;
+    default:
+      return <Bell size={20} color={colors.orange[500]} />;
+  }
+};
+
+export function NotificationRow({ notification, onPress, onCtaPress }: NotificationRowProps) {
   return (
     <Pressable onPress={onPress} style={[styles.row, !notification.read ? styles.unread : null]}>
       {notification.actor ? (
         <Avatar initials={notification.actor.initials} size={44} />
       ) : (
         <View style={styles.icon}>
-          <Bell size={20} color={colors.orange[500]} />
+          {getNotificationIcon(notification.kind)}
         </View>
       )}
       <View style={styles.body}>
@@ -28,7 +50,7 @@ export function NotificationRow({ notification, onPress }: NotificationRowProps)
           {timeAgo(notification.createdAt)}
         </AppText>
         {notification.ctaLabel ? (
-          <Button size="sm" style={styles.cta}>
+          <Button size="sm" style={styles.cta} onPress={onCtaPress}>
             {notification.ctaLabel}
           </Button>
         ) : null}

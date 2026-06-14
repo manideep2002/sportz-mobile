@@ -527,12 +527,25 @@ export const messages: Message[] = [
 export const notifications: SportzNotification[] = [
   {
     id: 'notification-like',
-    kind: 'comment',
-    title: 'New comment',
-    body: 'Arjun Kapoor liked your post and commented on your game recap.',
+    kind: 'like',
+    title: 'New like',
+    body: 'Arjun Kapoor liked your post.',
     actor: users[1],
     read: false,
-    createdAt: hoursAgo(0.03)
+    createdAt: hoursAgo(0.03),
+    entityId: 'post-arjun-video',
+    entityType: 'post'
+  },
+  {
+    id: 'notification-comment',
+    kind: 'comment',
+    title: 'New comment',
+    body: 'Sneha Reddy commented on your game recap.',
+    actor: users[2],
+    read: false,
+    createdAt: hoursAgo(0.1),
+    entityId: 'post-marcus-photo',
+    entityType: 'post'
   },
   {
     id: 'notification-event',
@@ -542,17 +555,56 @@ export const notifications: SportzNotification[] = [
     read: false,
     createdAt: hoursAgo(0.5),
     ctaLabel: 'View Event',
-    entityId: 'event-pickup-basketball'
+    entityId: 'event-pickup-basketball',
+    entityType: 'event'
   },
   {
     id: 'notification-follow',
     kind: 'follow',
     title: 'New follower',
-    body: 'Sneha Reddy started following you.',
-    actor: users[2],
+    body: 'Vikram Singh started following you.',
+    actor: users[3],
     read: false,
     createdAt: hoursAgo(1),
-    ctaLabel: 'Follow back'
+    ctaLabel: 'Follow back',
+    entityId: users[3].id,
+    entityType: 'profile'
+  },
+  {
+    id: 'notification-message',
+    kind: 'message',
+    title: 'New message',
+    body: 'Arjun Kapoor: "You in for the game tonight?"',
+    actor: users[1],
+    read: false,
+    createdAt: hoursAgo(1.5),
+    ctaLabel: 'Open Chat',
+    entityId: 'conversation-arjun',
+    entityType: 'conversation'
+  },
+  {
+    id: 'notification-invite-event',
+    kind: 'invite',
+    title: 'Event invite',
+    body: 'Sneha Reddy invited you to Weekend League Match.',
+    actor: users[2],
+    read: false,
+    createdAt: hoursAgo(3),
+    ctaLabel: 'View Event',
+    entityId: 'event-football-league',
+    entityType: 'event'
+  },
+  {
+    id: 'notification-invite-group',
+    kind: 'invite',
+    title: 'Group invite',
+    body: 'Arjun Kapoor invited you to join BLR Ballers.',
+    actor: users[1],
+    read: true,
+    createdAt: hoursAgo(24),
+    ctaLabel: 'View Group',
+    entityId: 'group-blr-ballers',
+    entityType: 'group'
   },
   {
     id: 'notification-achievement',
@@ -560,7 +612,8 @@ export const notifications: SportzNotification[] = [
     title: 'Achievement earned',
     body: 'You earned the 30-day training streak achievement.',
     read: true,
-    createdAt: hoursAgo(48)
+    createdAt: hoursAgo(48),
+    ctaLabel: 'View Profile'
   }
 ];
 

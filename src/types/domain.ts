@@ -157,6 +157,7 @@ export interface SportzNotification {
   createdAt: string;
   ctaLabel?: string;
   entityId?: ID;
+  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page';
 }
 
 export interface Community {
