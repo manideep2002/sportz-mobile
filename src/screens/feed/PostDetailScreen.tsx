@@ -7,7 +7,7 @@ import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useComments, useCreateComment, useOptimisticPostLike, usePost } from '@/hooks/useFeed';
+import { useComments, useCreateComment, useDeletePost, useOptimisticPostLike, useOptimisticPostSave, usePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { openPostMedia, sharePost } from '@/utils/share';
@@ -25,6 +25,8 @@ export function PostDetailScreen() {
   const commentInputRef = useRef<TextInput>(null);
   const createComment = useCreateComment(route.params.postId);
   const likeMutation = useOptimisticPostLike();
+  const saveMutation = useOptimisticPostSave();
+  const deletePostMutation = useDeletePost();
   const openAuthor = () => {
     if (!post) return;
     if (post.author.id.startsWith('page-')) {
@@ -60,19 +62,41 @@ export function PostDetailScreen() {
           onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => commentInputRef.current?.focus()}
           onShare={() => void sharePost(post)}
+          onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
             post.kind === 'stats'
               ? openAuthor()
               : commentInputRef.current?.focus()
           }
-          onMore={() =>
+          onMore={() => {
+            const isOwnPost = post.author.id === profile?.id;
             Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: openAuthor },
+              { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
               { text: 'Share', onPress: () => void sharePost(post) },
+              ...(isOwnPost ? [{
+                text: 'Delete',
+                style: 'destructive' as const,
+                onPress: () => Alert.alert(
+                  'Delete Post',
+                  'Are you sure you want to delete this post? This action cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        deletePostMutation.mutate(post.id);
+                        navigation.goBack();
+                      }
+                    }
+                  ]
+                )
+              }] : []),
               { text: 'Cancel', style: 'cancel' }
-            ])
-          }
+            ]);
+          }}
         />
       ) : null}
       <View style={styles.commentsHeader}>

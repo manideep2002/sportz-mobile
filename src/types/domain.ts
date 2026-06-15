@@ -58,6 +58,7 @@ export interface Post {
   statsLine?: string;
   eventTeaser?: EventTeaser;
   likedByMe: boolean;
+  savedByMe: boolean;
   likes: number;
   comments: number;
   shares: number;

@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Play } from 'lucide-react-native';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
 import { CourtArt } from './CourtArt';
@@ -14,6 +14,7 @@ interface PostCardProps {
   onLike?: () => void;
   onComment?: () => void;
   onShare?: () => void;
+  onSave?: () => void;
   onMore?: () => void;
   onPrimaryAction?: () => void;
   onMediaPress?: () => void;
@@ -26,6 +27,7 @@ export function PostCard({
   onLike,
   onComment,
   onShare,
+  onSave,
   onMore,
   onPrimaryAction,
   onMediaPress
@@ -114,6 +116,13 @@ export function PostCard({
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
             <Share2 size={17} color={colors.text.tertiary} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
+            <Bookmark
+              size={17}
+              color={post.savedByMe ? colors.orange[400] : colors.text.tertiary}
+              fill={post.savedByMe ? colors.orange[400] : 'transparent'}
+            />
           </Pressable>
           {post.kind === 'stats' ? (
             <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>

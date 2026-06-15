@@ -23,6 +23,7 @@ interface PostEngagement {
   likes: Map<string, number>;
   comments: Map<string, number>;
   likedByMe: Set<string>;
+  savedByMe: Set<string>;
 }
 
 const mapPostRow = (row: any, engagement: PostEngagement): Post => ({
@@ -46,6 +47,7 @@ const mapPostRow = (row: any, engagement: PostEngagement): Post => ({
   mediaKind: row.media_kind ?? 'none',
   statsLine: row.stats_line,
   likedByMe: engagement.likedByMe.has(row.id),
+  savedByMe: engagement.savedByMe.has(row.id),
   likes: engagement.likes.get(row.id) ?? 0,
   comments: engagement.comments.get(row.id) ?? 0,
   shares: 0,
@@ -56,14 +58,16 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   const engagement: PostEngagement = {
     likes: new Map(),
     comments: new Map(),
-    likedByMe: new Set()
+    likedByMe: new Set(),
+    savedByMe: new Set()
   };
   if (!postIds.length) return engagement;
 
-  const [{ data: authData }, likesResult, commentsResult] = await Promise.all([
+  const [{ data: authData }, likesResult, commentsResult, savesResult] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from('likes').select('entity_id, user_id').eq('entity_type', 'post').in('entity_id', postIds),
-    supabase.from('comments').select('post_id').in('post_id', postIds)
+    supabase.from('comments').select('post_id').in('post_id', postIds),
+    supabase.from('saved_posts').select('post_id, user_id').in('post_id', postIds)
   ]);
 
   for (const like of likesResult.data ?? []) {
@@ -72,6 +76,9 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   }
   for (const comment of commentsResult.data ?? []) {
     engagement.comments.set(comment.post_id, (engagement.comments.get(comment.post_id) ?? 0) + 1);
+  }
+  for (const save of savesResult.data ?? []) {
+    if (authData.user?.id === save.user_id) engagement.savedByMe.add(save.post_id);
   }
 
   return engagement;
@@ -147,6 +154,7 @@ export const postService = {
         mediaKind: input.mediaKind ?? (input.mediaUrl ? 'image' : 'none'),
         statsLine: input.statsLine,
         likedByMe: false,
+        savedByMe: false,
         likes: 0,
         comments: 0,
         shares: 0,
@@ -190,6 +198,7 @@ export const postService = {
       mediaKind: (data.media_kind as Post['mediaKind']) ?? 'none',
       statsLine: data.stats_line ?? undefined,
       likedByMe: false,
+      savedByMe: false,
       likes: 0,
       comments: 0,
       shares: 0,
@@ -304,6 +313,65 @@ export const postService = {
       entity_type: 'post',
       entity_id: postId
     });
+    if (error) throw error;
+  },
+
+  async togglePostSave(postId: string, saved: boolean): Promise<void> {
+    if (!env.isSupabaseConfigured) {
+      const post = posts.find((item) => item.id === postId);
+      if (post) {
+        post.savedByMe = !saved;
+      }
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to save posts.');
+
+    if (saved) {
+      const { error } = await supabase.from('saved_posts').delete().match({
+        user_id: authData.user.id,
+        post_id: postId
+      });
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from('saved_posts').insert({
+      user_id: authData.user.id,
+      post_id: postId
+    });
+    if (error) throw error;
+  },
+
+  async deletePost(postId: string): Promise<void> {
+    if (!env.isSupabaseConfigured) {
+      const index = posts.findIndex((item) => item.id === postId);
+      if (index > -1) {
+        posts.splice(index, 1);
+      }
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to delete posts.');
+
+    // First check if user owns the post
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (post.author_id !== authData.user.id) {
+      throw new Error('You can only delete your own posts.');
+    }
+
+    // Delete the post (cascading deletes will handle likes, comments, saves)
+    const { error } = await supabase.from('posts').delete().eq('id', postId);
     if (error) throw error;
   }
 };

@@ -113,3 +113,68 @@ export const useOptimisticPostLike = () => {
     }
   });
 };
+
+export const useDeletePost = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (postId: string) => postService.deletePost(postId),
+    onSuccess: (_data, postId) => {
+      // Remove post from infinite feed
+      queryClient.setQueryData(feedKeys.infinite, (old: {
+        pages: { items: Post[]; nextCursor?: string }[];
+        pageParams: unknown[];
+      } | undefined) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.filter((post) => post.id !== postId)
+              }))
+            }
+          : old
+      );
+      // Invalidate related queries
+      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+      void queryClient.removeQueries({ queryKey: feedKeys.post(postId) });
+      void queryClient.removeQueries({ queryKey: feedKeys.comments(postId) });
+    }
+  });
+};
+
+export const useOptimisticPostSave = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ postId, saved }: { postId: string; saved: boolean }) => postService.togglePostSave(postId, saved),
+    onMutate: async ({ postId, saved }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
+      ]);
+      const previousFeed = queryClient.getQueryData<{
+        pages: { items: Post[]; nextCursor?: string }[];
+        pageParams: unknown[];
+      }>(feedKeys.infinite);
+      const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const patch = (post: Post): Post => ({
+        ...post,
+        savedByMe: !saved
+      });
+
+      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
+      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
+
+      return { previousFeed, previousPost, postId };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousFeed) {
+        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
+      }
+      if (context?.previousPost) {
+        queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
+      }
+    }
+  });
+};

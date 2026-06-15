@@ -9,7 +9,7 @@ import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
 import { sportsFilters } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
-import { useInfiniteFeed, useOptimisticPostLike } from '@/hooks/useFeed';
+import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
@@ -27,6 +27,8 @@ export function FeedScreen() {
   const feed = data?.pages.flatMap((page) => page.items) ?? [];
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const likeMutation = useOptimisticPostLike();
+  const saveMutation = useOptimisticPostSave();
+  const deletePostMutation = useDeletePost();
   const refreshFeed = () => void Promise.all([refetch(), refetchStories()]);
   const openPost = (postId: string) => navigation.navigate('PostDetail', { postId });
   const openAuthor = (post: Post) => {
@@ -123,19 +125,38 @@ export function FeedScreen() {
           onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => openPost(post.id)}
           onShare={() => void sharePost(post)}
+          onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
             post.kind === 'stats'
               ? openAuthor(post)
               : openPost(post.id)
           }
-          onMore={() =>
+          onMore={() => {
+            const isOwnPost = post.author.id === profile?.id;
             Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: () => openAuthor(post) },
+              { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
               { text: 'Share', onPress: () => void sharePost(post) },
+              ...(isOwnPost ? [{
+                text: 'Delete',
+                style: 'destructive' as const,
+                onPress: () => Alert.alert(
+                  'Delete Post',
+                  'Are you sure you want to delete this post? This action cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => deletePostMutation.mutate(post.id)
+                    }
+                  ]
+                )
+              }] : []),
               { text: 'Cancel', style: 'cancel' }
-            ])
-          }
+            ]);
+          }}
         />
         )}
         ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : <View style={styles.footer} />}
