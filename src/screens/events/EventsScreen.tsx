@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Plus } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Plus, RefreshCw } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 
 import { EventCard } from '@/components/events/EventCard';
-import { AppText, Button, Card, SectionHeader, Screen } from '@/components/ui';
+import { AppText, Button, Card, SectionHeader, Screen, IconButton } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useEvents, useJoinEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { Sport } from '@/types/domain';
+import { eventService } from '@/services/eventService';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -24,18 +25,42 @@ function buildWeekDays() {
 
 export function EventsScreen() {
   const navigation = useNavigation<Navigation>();
-  const { data: events = [], isLoading } = useEvents();
+  const { data: events = [], isLoading, refetch, isRefetching } = useEvents();
   const joinEvent = useJoinEvent();
 
   const weekDays = buildWeekDays();
   const [selectedDay, setSelectedDay] = useState<Date>(weekDays[0]);
   const [selectedSport, setSelectedSport] = useState<Sport | 'All'>('All');
-  const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
+  const [joinedEventIds, setJoinedEventIds] = useState<Set<string>>(new Set());
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
-  const handleJoin = (eventId: string) => {
-    if (joinedIds.has(eventId)) return;
-    setJoinedIds((prev) => new Set([...prev, eventId]));
-    joinEvent.mutate(eventId);
+  // Check attendance status for all events
+  useEffect(() => {
+    const checkAttendance = async () => {
+      const joined = new Set<string>();
+      for (const event of events) {
+        const status = await eventService.checkUserAttendance(event.id);
+        if (status === 'going') {
+          joined.add(event.id);
+        }
+      }
+      setJoinedEventIds(joined);
+    };
+    void checkAttendance();
+  }, [events]);
+
+  const handleJoin = async (eventId: string) => {
+    if (joinedEventIds.has(eventId)) return;
+    try {
+      await joinEvent.mutateAsync(eventId);
+      setJoinedEventIds((prev) => new Set([...prev, eventId]));
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
+    }
+  };
+
+  const handleRefresh = () => {
+    void refetch();
   };
 
   /* Filter events by selected sport */
@@ -62,9 +87,16 @@ export function EventsScreen() {
         <AppText variant="h2">
           Events<AppText variant="h2" color={colors.orange[500]}>.</AppText>
         </AppText>
-        <Button size="sm" icon={Plus} onPress={() => navigation.navigate('CreateEvent')}>
-          Create
-        </Button>
+        <View style={styles.headerActions}>
+          {isRefetching ? (
+            <ActivityIndicator size="small" color={colors.orange[500]} style={{ marginRight: 8 }} />
+          ) : (
+            <IconButton icon={RefreshCw} onPress={handleRefresh} />
+          )}
+          <Button size="sm" icon={Plus} onPress={() => navigation.navigate('CreateEvent')}>
+            Create
+          </Button>
+        </View>
       </View>
 
       {/* Dynamic 7-day calendar strip */}
@@ -81,6 +113,10 @@ export function EventsScreen() {
               key={day.toISOString()}
               style={[styles.day, isActive ? styles.dayActive : null]}
               onPress={() => setSelectedDay(day)}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={`${isToday ? 'Today' : format(day, 'EEEE, MMMM d')}`}
+              accessibilityState={{ selected: isActive }}
             >
               <AppText style={[styles.dayName, isActive ? styles.dayActiveText : null]}>
                 {isToday ? 'TODAY' : format(day, 'EEE').toUpperCase()}
@@ -104,6 +140,10 @@ export function EventsScreen() {
             key={sport}
             style={[styles.filterChip, selectedSport === sport ? styles.filterChipActive : null]}
             onPress={() => setSelectedSport(sport)}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter by ${sport}`}
+            accessibilityState={{ selected: selectedSport === sport }}
           >
             <AppText
               style={[
@@ -129,7 +169,7 @@ export function EventsScreen() {
           <EventCard
             key={event.id}
             event={event}
-            joined={joinedIds.has(event.id)}
+            joined={joinedEventIds.has(event.id)}
             onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
             onJoin={() => handleJoin(event.id)}
           />
@@ -140,11 +180,11 @@ export function EventsScreen() {
         <View style={styles.section}>
           <SectionHeader
             title="Upcoming"
-            action="View all"
-            onAction={() => setSelectedDay(weekDays[0])}
+            action={showAllUpcoming ? 'Show less' : 'View all'}
+            onAction={() => setShowAllUpcoming(!showAllUpcoming)}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {upcomingDisplay.map((event) => (
+            {(showAllUpcoming ? upcomingDisplay : upcomingDisplay.slice(0, 5)).map((event) => (
               <Pressable
                 key={event.id}
                 onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
@@ -199,6 +239,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.screen,
     marginBottom: 16
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs
   },
   calendar: {
     paddingHorizontal: spacing.screen,

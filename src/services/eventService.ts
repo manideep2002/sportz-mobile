@@ -74,8 +74,32 @@ export const eventService = {
     const localEvent = events.find((event) => event.id === eventId) ?? events[0];
     if (!env.isSupabaseConfigured) return localEvent;
 
-    const { data, error } = await supabase.from('sport_events').select('*').eq('id', eventId).single();
+    const { data, error } = await supabase
+      .from('sport_events')
+      .select('*, profiles:organizer_id(*)')
+      .eq('id', eventId)
+      .single();
     if (error || !data) return localEvent;
+
+    // Fetch attendees
+    const { data: attendeeData } = await supabase
+      .from('event_attendees')
+      .select('user_id, profiles:user_id(*)')
+      .eq('event_id', eventId)
+      .eq('status', 'going');
+
+    const attendees = (attendeeData ?? []).map((row: any) => ({
+      ...currentUser,
+      id: row.profiles?.id ?? row.user_id,
+      displayName: row.profiles?.display_name ?? 'Athlete',
+      username: row.profiles?.username ?? 'athlete',
+      initials: (row.profiles?.display_name ?? 'AT')
+        .split(' ')
+        .map((part: string) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    }));
 
     return {
       ...localEvent,
@@ -91,7 +115,16 @@ export const eventService = {
       latitude: data.latitude ?? 0,
       longitude: data.longitude ?? 0,
       maxPlayers: data.max_players,
-      entryFeeLabel: data.entry_fee_cents > 0 ? `${data.currency} ${data.entry_fee_cents / 100}` : 'Free'
+      playerCount: attendees.length,
+      entryFeeLabel: data.entry_fee_cents > 0 ? `${data.currency} ${data.entry_fee_cents / 100}` : 'Free',
+      organizer: {
+        ...currentUser,
+        id: data.profiles?.id ?? data.organizer_id,
+        displayName: data.profiles?.display_name ?? 'Organizer',
+        username: data.profiles?.username ?? 'organizer',
+        initials: (data.profiles?.display_name ?? 'OR').slice(0, 2).toUpperCase()
+      },
+      attendees
     };
   },
 
@@ -193,5 +226,79 @@ export const eventService = {
       status
     });
     if (error) throw error;
+  },
+
+  async leaveEvent(eventId: string): Promise<void> {
+    if (!env.isSupabaseConfigured) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to leave events.');
+
+    const { error } = await supabase
+      .from('event_attendees')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', authData.user.id);
+    if (error) throw error;
+  },
+
+  async updateEvent(eventId: string, updates: Partial<CreateEventInput>): Promise<void> {
+    if (!env.isSupabaseConfigured) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to update events.');
+
+    const updateData: any = {};
+    if (updates.title) updateData.title = updates.title;
+    if (updates.sport) updateData.sport = updates.sport;
+    if (updates.description) updateData.description = updates.description;
+    if (updates.startsAt) updateData.starts_at = updates.startsAt;
+    if (updates.endsAt) updateData.ends_at = updates.endsAt;
+    if (updates.locationName) updateData.location_name = updates.locationName;
+    if (updates.city) updateData.city = updates.city;
+    if (updates.maxPlayers) updateData.max_players = updates.maxPlayers;
+    if (updates.entryFeeCents !== undefined) updateData.entry_fee_cents = updates.entryFeeCents;
+
+    const { error } = await supabase
+      .from('sport_events')
+      .update(updateData)
+      .eq('id', eventId)
+      .eq('organizer_id', authData.user.id);
+    if (error) throw error;
+  },
+
+  async cancelEvent(eventId: string): Promise<void> {
+    if (!env.isSupabaseConfigured) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to cancel events.');
+
+    const { error } = await supabase
+      .from('sport_events')
+      .update({ status: 'cancelled' })
+      .eq('id', eventId)
+      .eq('organizer_id', authData.user.id);
+    if (error) throw error;
+  },
+
+  async checkUserAttendance(eventId: string): Promise<'going' | 'interested' | 'declined' | null> {
+    if (!env.isSupabaseConfigured) return null;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) return null;
+    if (!authData.user) return null;
+
+    const { data, error } = await supabase
+      .from('event_attendees')
+      .select('status')
+      .eq('event_id', eventId)
+      .eq('user_id', authData.user.id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data.status as 'going' | 'interested' | 'declined';
   }
 };

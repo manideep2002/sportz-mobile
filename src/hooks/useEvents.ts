@@ -34,8 +34,50 @@ export const useJoinEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => eventService.joinEvent(eventId),
-    onSuccess: () => {
+    onSuccess: (_data, eventId) => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
     }
   });
 };
+
+export const useLeaveEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) => eventService.leaveEvent(eventId),
+    onSuccess: (_data, eventId) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+    }
+  });
+};
+
+export const useUpdateEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, updates }: { eventId: string; updates: Partial<CreateEventInput> }) =>
+      eventService.updateEvent(eventId, updates),
+    onSuccess: (_data, { eventId }) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+    }
+  });
+};
+
+export const useCancelEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) => eventService.cancelEvent(eventId),
+    onSuccess: (_data, eventId) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+    }
+  });
+};
+
+export const useCheckAttendance = (eventId: string) =>
+  useQuery({
+    queryKey: [...eventKeys.detail(eventId), 'attendance'] as const,
+    queryFn: () => eventService.checkUserAttendance(eventId),
+    staleTime: 1000 * 30
+  });

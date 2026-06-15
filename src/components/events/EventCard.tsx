@@ -7,14 +7,23 @@ import { eventDate, formatTime } from '@/utils/format';
 
 interface EventCardProps {
   event: SportEvent;
+  joined?: boolean;
   onPress?: () => void;
   onJoin?: () => void;
 }
 
-export function EventCard({ event, onPress, onJoin }: EventCardProps) {
+export function EventCard({ event, joined = false, onPress, onJoin }: EventCardProps) {
   const color = event.sport === 'Football' ? colors.semantic.success : colors.orange[500];
+  const isFull = event.playerCount >= event.maxPlayers;
+  const canJoin = !joined && !isFull && event.status === 'open';
   return (
-    <Pressable onPress={onPress}>
+    <Pressable
+      onPress={onPress}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`${event.title}, ${event.sport} event at ${event.locationName}, ${event.playerCount} of ${event.maxPlayers} players`}
+      accessibilityHint="Double tap to view event details"
+    >
       <Card style={styles.card}>
         <View style={[styles.accent, { backgroundColor: color }]} />
         <View style={styles.content}>
@@ -44,9 +53,23 @@ export function EventCard({ event, onPress, onJoin }: EventCardProps) {
                 </View>
               ))}
             </View>
-            <Button size="sm" onPress={onJoin} style={styles.join}>
-              Join Event
-            </Button>
+            {joined ? (
+              <Button size="sm" variant="dark" disabled style={styles.join}>
+                Joined
+              </Button>
+            ) : isFull ? (
+              <Button size="sm" variant="dark" disabled style={styles.join}>
+                Full
+              </Button>
+            ) : event.status === 'live' ? (
+              <Button size="sm" variant="ghost" onPress={onJoin} style={styles.join}>
+                Join Now
+              </Button>
+            ) : (
+              <Button size="sm" onPress={onJoin} disabled={!canJoin} style={styles.join}>
+                Join Event
+              </Button>
+            )}
           </View>
         </View>
       </Card>

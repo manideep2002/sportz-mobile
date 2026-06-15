@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronLeft, Clock, MapPin, Share2 } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
 import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useEvent, useJoinEvent } from '@/hooks/useEvents';
+import { useEvent, useJoinEvent, useLeaveEvent, useCheckAttendance } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventDate, formatTime } from '@/utils/format';
+import { shareEvent } from '@/utils/share';
+import { useAuthStore } from '@/store/authStore';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventDetail'>;
@@ -17,22 +20,88 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: event } = useEvent(route.params.eventId);
+  const { data: event, isLoading } = useEvent(route.params.eventId);
+  const { data: attendanceStatus } = useCheckAttendance(route.params.eventId);
   const joinEvent = useJoinEvent();
+  const leaveEvent = useLeaveEvent();
+  const profile = useAuthStore((state) => state.profile);
+  const [isJoining, setIsJoining] = useState(false);
 
-  if (!event) return null;
+  const handleJoin = async () => {
+    if (!event) return;
+    setIsJoining(true);
+    try {
+      await joinEvent.mutateAsync(event.id);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!event) return;
+    Alert.alert('Leave Event', 'Are you sure you want to leave this event?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await leaveEvent.mutateAsync(event.id);
+          } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave event');
+          }
+        }
+      }
+    ]);
+  };
+
+  const handleShare = () => {
+    if (event) {
+      shareEvent(event);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Screen>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={colors.orange[500]} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!event) {
+    return (
+      <Screen>
+        <View style={styles.loading}>
+          <AppText variant="h3">Event not found</AppText>
+          <Button onPress={() => navigation.goBack()}>Go Back</Button>
+        </View>
+      </Screen>
+    );
+  }
+
+  const isOrganizer = profile?.id === event.organizer.id;
+  const hasJoined = attendanceStatus === 'going';
+  const isFull = event.playerCount >= event.maxPlayers;
+  const canJoin = !hasJoined && !isFull && event.status === 'open';
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={Share2} />
+        <IconButton icon={Share2} onPress={handleShare} />
       </View>
       <View style={styles.hero}>
         <CourtArt />
         <LinearGradient colors={['transparent', colors.dark[950]]} style={styles.heroGradient} />
-        <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>
+        {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
+        {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
+        {isFull && event.status === 'open' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
       </View>
       <View style={styles.body}>
         <Badge tone="orange">{event.sport}</Badge>
@@ -54,11 +123,16 @@ export function EventDetailScreen() {
           </View>
           <ProgressBar value={event.playerCount} max={event.maxPlayers} height={5} />
           <View style={styles.stack}>
-            {event.attendees.map((user, index) => (
+            {event.attendees.slice(0, 8).map((user, index) => (
               <View key={user.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
                 <Avatar initials={user.initials} size={32} tone={index % 2 === 0 ? 'orange' : 'green'} />
               </View>
             ))}
+            {event.attendees.length > 8 && (
+              <View style={{ marginLeft: -8 }}>
+                <Avatar initials={`+${event.attendees.length - 8}`} size={32} tone="dark" />
+              </View>
+            )}
           </View>
         </Card>
         <AppText variant="h4">About This Event</AppText>
@@ -68,16 +142,42 @@ export function EventDetailScreen() {
           <Avatar initials={event.organizer.initials} size={44} />
           <View style={{ flex: 1 }}>
             <AppText style={styles.organizerName}>{event.organizer.displayName}</AppText>
-            <AppText variant="small">12 events organised</AppText>
+            <AppText variant="small">Event organizer</AppText>
           </View>
           <Button variant="dark" size="sm" onPress={() => navigation.navigate('UserProfile', { userId: event.organizer.id })}>
             View Profile
           </Button>
         </View>
-        <Button full size="lg" loading={joinEvent.isPending} onPress={() => joinEvent.mutate(event.id)}>
-          Join Event - {event.entryFeeLabel}
-        </Button>
-        <Button full size="lg" variant="ghost">
+        
+        {hasJoined ? (
+          <>
+            <Button full size="lg" variant="ghost" icon={MessageCircle}>
+              Event Chat
+            </Button>
+            <Button full size="lg" variant="dark" onPress={handleLeave}>
+              Leave Event
+            </Button>
+          </>
+        ) : isOrganizer ? (
+          <Button full size="lg" variant="dark">
+            Manage Event
+          </Button>
+        ) : event.status === 'cancelled' ? (
+          <Button full size="lg" variant="dark" disabled>
+            Event Cancelled
+          </Button>
+        ) : (
+          <Button
+            full
+            size="lg"
+            loading={isJoining}
+            onPress={handleJoin}
+            disabled={!canJoin}
+          >
+            {isFull ? 'Event Full' : `Join Event - ${event.entryFeeLabel}`}
+          </Button>
+        )}
+        <Button full size="lg" variant="ghost" onPress={handleShare}>
           Share Event
         </Button>
       </View>
@@ -88,6 +188,12 @@ export function EventDetailScreen() {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 0
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.lg
   },
   header: {
     flexDirection: 'row',
