@@ -9,33 +9,25 @@ const isConfiguredValue = (value?: string) => {
   return !placeholderFragments.some((fragment) => value.includes(fragment));
 };
 
-function getEnv(key: string): string | undefined;
-function getEnv(key: string, fallback: string): string;
-function getEnv(key: string, fallback?: string) {
-  const processValue = process.env[key];
-  const runtimeValue = runtimeEnv[key];
+const getProcessEnv = (key: keyof typeof process.env): string | undefined => {
+  return process.env[key];
+};
 
-  if (typeof processValue === 'string') {
-    return processValue;
-  }
+const getRuntimeEnv = (key: string): string | undefined => {
+  const value = runtimeEnv[key];
+  return typeof value === 'string' ? value : undefined;
+};
 
-  if (typeof runtimeValue === 'string') {
-    return runtimeValue;
-  }
-
-  return fallback;
-}
-
-const supabaseUrl = getEnv('EXPO_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
-const supabasePublishableKey = getEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_replace_me');
+const supabaseUrl = getProcessEnv('EXPO_PUBLIC_SUPABASE_URL') ?? getRuntimeEnv('EXPO_PUBLIC_SUPABASE_URL') ?? 'https://example.supabase.co';
+const supabasePublishableKey = getProcessEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ?? getRuntimeEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ?? 'sb_publishable_replace_me';
 
 export const env = {
   supabaseUrl,
   supabasePublishableKey,
-  googleIosClientId: getEnv('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'),
-  googleAndroidClientId: getEnv('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID'),
-  googleWebClientId: getEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
-  appScheme: getEnv('EXPO_PUBLIC_APP_SCHEME', 'sportz'),
-  mapProvider: getEnv('EXPO_PUBLIC_MAP_PROVIDER', 'apple'),
+  googleIosClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'),
+  googleAndroidClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID'),
+  googleWebClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
+  appScheme: getProcessEnv('EXPO_PUBLIC_APP_SCHEME') ?? getRuntimeEnv('EXPO_PUBLIC_APP_SCHEME') ?? 'sportz',
+  mapProvider: getProcessEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? getRuntimeEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? 'apple',
   isSupabaseConfigured: isConfiguredValue(supabaseUrl) && isConfiguredValue(supabasePublishableKey)
 };

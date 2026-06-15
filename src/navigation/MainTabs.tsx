@@ -32,50 +32,52 @@ export function MainTabs() {
           tabBarItemStyle: styles.item
         }}
       >
-        <Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: 'Feed', tabBarIcon: tabIcon(Grid2X2) }} />
-        <Tab.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Events', tabBarIcon: tabIcon(CalendarDays) }} />
-        <Tab.Screen
-          name="CreateTab"
-          component={FeedScreen}
-          listeners={{
-            tabPress: (event) => {
-              event.preventDefault();
-              openCreateSheet();
-            }
-          }}
-          options={{
-            title: '',
-            tabBarButton: ({ onPress, accessibilityState }) => (
-              <Pressable accessibilityRole="button" accessibilityState={accessibilityState} onPress={onPress} style={styles.createButton}>
-                <Plus size={25} color={colors.light[0]} strokeWidth={2.5} />
-              </Pressable>
-            )
-          }}
-        />
-        <Tab.Screen
-          name="MessagesTab"
-          component={MessagesScreen}
-          options={{
-            title: 'Messages',
-            tabBarIcon: tabIcon(MessageCircle),
-            tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
-            tabBarBadgeStyle: styles.badge
-          }}
-        />
-        <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profile', tabBarIcon: tabIcon(UserRound) }} />
+<Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: 'Feed', tabBarIcon: TabIcon(Grid2X2) }} />
+         <Tab.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Events', tabBarIcon: TabIcon(CalendarDays) }} />
+         <Tab.Screen
+           name="CreateTab"
+           component={FeedScreen}
+           listeners={{
+             tabPress: (event) => {
+               event.preventDefault();
+               openCreateSheet();
+             }
+           }}
+           options={{
+             title: '',
+             tabBarButton: ({ onPress, accessibilityState }) => (
+               <Pressable accessibilityRole="button" accessibilityState={accessibilityState} onPress={onPress} style={styles.createButton}>
+                 <Plus size={25} color={colors.light[0]} strokeWidth={2.5} />
+               </Pressable>
+             )
+           }}
+         />
+         <Tab.Screen
+           name="MessagesTab"
+           component={MessagesScreen}
+           options={{
+             title: 'Messages',
+             tabBarIcon: TabIcon(MessageCircle),
+             tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
+             tabBarBadgeStyle: styles.badge
+           }}
+         />
+         <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profile', tabBarIcon: TabIcon(UserRound) }} />
       </Tab.Navigator>
       <CreateActionSheet />
     </>
   );
 }
 
-const tabIcon =
-  (Icon: LucideIcon) =>
-  ({ color, focused }: { color: string; focused: boolean }) => (
+const TabIcon = (Icon: LucideIcon) => {
+  const Component = ({ color, focused }: { color: string; focused: boolean }) => (
     <View style={[styles.iconWrap, focused ? styles.iconActive : null]}>
       <Icon size={22} color={color} strokeWidth={focused ? 2.2 : 1.8} />
     </View>
   );
+  Component.displayName = `TabIcon(${typeof Icon === 'function' ? Icon.name ?? 'icon' : 'icon'})`;
+  return Component;
+};
 
 const styles = StyleSheet.create({
   tabBar: {

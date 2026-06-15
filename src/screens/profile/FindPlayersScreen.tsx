@@ -13,7 +13,7 @@ import type { Sport, UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const sports: Array<'All Sports' | Sport> = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Cricket'];
+const sports: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Cricket'];
 
 export function FindPlayersScreen() {
   const navigation = useNavigation<Navigation>();

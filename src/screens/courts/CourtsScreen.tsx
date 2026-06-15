@@ -14,7 +14,7 @@ import type { Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const filters: Array<'All Sports' | Sport> = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Badminton'];
+const filters: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Badminton'];
 
 export function CourtsScreen() {
   const navigation = useNavigation<Navigation>();

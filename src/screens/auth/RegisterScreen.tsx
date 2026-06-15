@@ -550,7 +550,7 @@ function LocationPickerModal({
           </Button>
           {canUseTypedLocation ? (
             <Pressable style={styles.pickerOptionFeatured} onPress={() => onSelect(typedLocation)}>
-              <AppText style={styles.pickerOptionTitle}>Use "{typedLocation}"</AppText>
+              <AppText style={styles.pickerOptionTitle}>Use &ldquo;{typedLocation}&rdquo;</AppText>
               <AppText variant="small">Add this as your location</AppText>
             </Pressable>
           ) : null}

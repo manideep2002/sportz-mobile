@@ -42,6 +42,8 @@ export function StoryViewerScreen() {
         clearInterval(timer);
         if (nextStoryId) {
           setCurrentStoryId(nextStoryId);
+        } else if (previousStoryId) {
+          setCurrentStoryId(previousStoryId);
         } else {
           navigation.goBack();
         }
@@ -49,7 +51,9 @@ export function StoryViewerScreen() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [markStorySeen, navigation, nextStoryId, story?.id]);
+    // story is intentionally omitted to prevent effect re-running on every story data change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markStorySeen, navigation, nextStoryId, previousStoryId, story?.id]);
 
   return (
     <View style={styles.root}>

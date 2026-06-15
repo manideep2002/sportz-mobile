@@ -49,7 +49,7 @@ export const useCreatePost = () => {
 };
 
 const patchFeedPost = (postId: string, patch: (post: Post) => Post) => (old: {
-  pages: Array<{ items: Post[]; nextCursor?: string }>;
+  pages: { items: Post[]; nextCursor?: string }[];
   pageParams: unknown[];
 } | undefined) =>
   old
@@ -88,7 +88,7 @@ export const useOptimisticPostLike = () => {
         queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
       ]);
       const previousFeed = queryClient.getQueryData<{
-        pages: Array<{ items: Post[]; nextCursor?: string }>;
+        pages: { items: Post[]; nextCursor?: string }[];
         pageParams: unknown[];
       }>(feedKeys.infinite);
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));

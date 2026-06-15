@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -13,7 +13,6 @@ import {
   Users,
   type LucideIcon
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, BottomSheet } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
