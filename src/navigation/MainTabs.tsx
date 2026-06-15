@@ -1,8 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CalendarDays, Grid2X2, MessageCircle, Plus, UserRound, type LucideIcon } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 
-import { colors, layout, radii, shadows, typography } from '@/design/tokens';
+import { colors, layout, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import { useUiStore } from '@/store/uiStore';
 import type { MainTabParamList } from './routes';
@@ -29,7 +30,14 @@ export function MainTabs() {
           tabBarInactiveTintColor: colors.text.tertiary,
           tabBarStyle: styles.tabBar,
           tabBarLabelStyle: styles.label,
-          tabBarItemStyle: styles.item
+          tabBarItemStyle: styles.item,
+          tabBarBackground: () => (
+            <BlurView
+              intensity={Platform.OS === 'ios' ? 80 : 90}
+              tint="dark"
+              style={styles.blurContainer}
+            />
+          )
         }}
       >
 <Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: 'Feed', tabBarIcon: TabIcon(Grid2X2) }} />
@@ -82,20 +90,43 @@ const TabIcon = (Icon: LucideIcon) => {
 const styles = StyleSheet.create({
   tabBar: {
     height: layout.tabBarHeight,
-    backgroundColor: colors.overlays.nav,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.dark[700],
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
     paddingTop: 10,
     paddingBottom: 18,
-    position: 'absolute'
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    borderRadius: 28,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 24
+      },
+      android: {
+        elevation: 12
+      }
+    })
+  },
+  blurContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(10,9,7,0.75)' : 'rgba(10,9,7,0.92)',
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden'
   },
   item: {
     paddingTop: 0
   },
   iconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -104,18 +135,31 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: typography.bodyMedium,
-    fontSize: 10
+    fontSize: 10,
+    marginTop: 2
   },
   createButton: {
-    width: 50,
-    height: 50,
-    borderRadius: radii.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.orange[500],
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -14,
+    marginTop: -20,
     alignSelf: 'center',
-    ...shadows.orangeGlow
+    borderWidth: 3,
+    borderColor: 'rgba(10,9,7,0.4)',
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.orange[500],
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 20
+      },
+      android: {
+        elevation: 8
+      }
+    })
   },
   badge: {
     backgroundColor: colors.semantic.danger,
@@ -124,6 +168,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     minWidth: 16,
     height: 16,
-    borderRadius: 8
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.dark[950]
   }
 });
