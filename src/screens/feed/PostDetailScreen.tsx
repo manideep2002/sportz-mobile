@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
@@ -103,13 +103,18 @@ export function PostDetailScreen() {
         <AppText variant="h4">Comments ({comments.length})</AppText>
       </View>
       {comments.map((comment) => (
-        <View key={comment.id} style={styles.commentRow}>
+        <Pressable
+          key={comment.id}
+          accessibilityRole="button"
+          style={styles.commentRow}
+          onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
+        >
           <Avatar initials={comment.author.initials} size={36} tone="green" />
           <View style={styles.commentBody}>
             <AppText style={styles.commentAuthor}>{comment.author.displayName}</AppText>
             <AppText variant="bodyMuted">{comment.body}</AppText>
           </View>
-        </View>
+        </Pressable>
       ))}
       <View style={styles.commentInput}>
         <Avatar initials={profile?.initials ?? 'MK'} size={36} />

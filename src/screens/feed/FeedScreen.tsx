@@ -30,6 +30,15 @@ export function FeedScreen() {
   const saveMutation = useOptimisticPostSave();
   const deletePostMutation = useDeletePost();
   const refreshFeed = () => void Promise.all([refetch(), refetchStories()]);
+  
+  // Dynamic greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    if (hour < 21) return 'Good evening';
+    return 'Good night';
+  };
   const openPost = (postId: string) => navigation.navigate('PostDetail', { postId });
   const openAuthor = (post: Post) => {
     if (post.author.id.startsWith('page-')) {
@@ -62,7 +71,7 @@ export function FeedScreen() {
           <>
       <View style={styles.topBar}>
         <View>
-          <AppText variant="caption">Good morning</AppText>
+          <AppText variant="caption">{getGreeting()}</AppText>
           <AppText variant="h2">
             {profile?.displayName.split(' ')[0] ?? 'Athlete'} <AppText variant="h2" color={colors.orange[500]}>.</AppText>
           </AppText>
