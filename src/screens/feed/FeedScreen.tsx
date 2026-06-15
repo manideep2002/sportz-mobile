@@ -4,11 +4,10 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
-import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
-import { events, sportsFilters } from '@/data/mockData';
+import { sportsFilters } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
 import { useInfiniteFeed, useOptimisticPostLike } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';
@@ -102,10 +101,6 @@ export function FeedScreen() {
         onOpenStory={(storyId) => navigation.navigate('StoryViewer', { storyId })}
       />
 
-      <View style={styles.section}>
-        <LiveMatchBanner event={events[0]} onPress={() => navigation.navigate('EventDetail', { eventId: events[0].id })} />
-      </View>
-
       <View style={styles.sectionHeader}>
         <SectionHeader title={selectedSport === 'All' ? 'For You' : selectedSport} action="Refresh" onAction={refreshFeed} />
       </View>
@@ -197,11 +192,6 @@ const styles = StyleSheet.create({
   chips: {
     paddingHorizontal: spacing.screen,
     paddingBottom: 18
-  },
-  section: {
-    paddingHorizontal: spacing.screen,
-    marginTop: 18,
-    marginBottom: 20
   },
   sectionHeader: {
     paddingHorizontal: spacing.screen

@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Heart, MessageCircle, Repeat2, MoreHorizontal, Play } from 'lucide-react-native';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Play } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
 import { CourtArt } from './CourtArt';
@@ -108,13 +108,12 @@ export function PostCard({
             />
             <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="View comments" style={styles.action} onPress={(event) => runAction(event, onComment)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
             <MessageCircle size={17} color={colors.text.tertiary} />
             <AppText style={styles.actionText}>{post.comments}</AppText>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
-            <Repeat2 size={17} color={colors.text.tertiary} />
-            {post.shares > 0 ? <AppText style={styles.actionText}>{post.shares}</AppText> : null}
+            <Share2 size={17} color={colors.text.tertiary} />
           </Pressable>
           {post.kind === 'stats' ? (
             <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
@@ -122,7 +121,7 @@ export function PostCard({
             </Button>
           ) : (
             <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onPrimaryAction)}>
-              <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply to thread' : 'Comment'}</AppText>
+              <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply' : 'Comment'}</AppText>
             </Pressable>
           )}
         </View>
