@@ -9,3 +9,5 @@ coverage/
 ios/
 android/
 .expo-export-check/
+.idea/
+/caches/
