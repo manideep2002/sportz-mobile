@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import {
   BarlowCondensed_700Bold,
   BarlowCondensed_800ExtraBold,
@@ -19,12 +19,24 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthBootstrap } from '@/hooks/useAuthBootstrap';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuthStore } from '@/store/authStore';
+import { AppText } from '@/components/ui';
+import { colors } from '@/design/tokens';
 
 void SplashScreen.preventAutoHideAsync();
 
 function AppContent() {
   usePushNotifications();
   return <RootNavigator />;
+}
+
+function LoadingSplash() {
+  return (
+    <View style={styles.loadingContainer}>
+      <AppText variant="hero">
+        SPORTZ<AppText variant="hero" color={colors.orange[500]}>.</AppText>
+      </AppText>
+    </View>
+  );
 }
 
 export default function App() {
@@ -49,13 +61,22 @@ export default function App() {
   }, [ready]);
 
   if (!ready) {
-    return null;
+    return <LoadingSplash />;
   }
 
   return (
     <AppProviders>
-      <StatusBar style="light" />
+      <StatusBar barStyle="light-content" />
       <AppContent />
     </AppProviders>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.dark[950],
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+});
