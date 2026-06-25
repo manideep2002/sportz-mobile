@@ -23,7 +23,7 @@ export function MessagesScreen() {
         <AppText variant="h2">
           Messages<AppText variant="h2" color={colors.orange[500]}>.</AppText>
         </AppText>
-        <IconButton icon={Plus} />
+        <IconButton icon={Plus} onPress={() => navigation.navigate('NewMessage')} />
       </View>
       <Input icon={Search} placeholder="Search messages..." />
       {pinned.length ? (
