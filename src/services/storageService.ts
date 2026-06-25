@@ -1,5 +1,4 @@
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
@@ -42,9 +41,6 @@ export const storageService = {
 
   async uploadMedia(uri: string, bucket: 'post-media' | 'story-media' | 'avatars' | 'event-covers', ownerId: string) {
     if (!env.isSupabaseConfigured) return uri;
-
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (!fileInfo.exists) throw new Error('Selected file no longer exists.');
 
     const extension = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
     const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
