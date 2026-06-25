@@ -3,9 +3,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 
-/** Supported video extensions */
-const VIDEO_EXTS = new Set(['mp4', 'mov', 'm4v', 'webm']);
-
 /** Map file extension → MIME type. Falls back to image/jpeg. */
 const mimeFromExt = (ext: string): string => {
   const map: Record<string, string> = {

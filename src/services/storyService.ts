@@ -1,14 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImagePickerAsset } from 'expo-image-picker';
 
-import { stories as mockStories, currentUser } from '@/data/mockData';
-import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { initialsForName } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { Story, UserProfile } from '@/types/domain';
 
-const localStories = [...mockStories];
-const seenStoryIds = new Set(mockStories.filter((story) => story.seen).map((story) => story.id));
+const seenStoryIds = new Set<string>();
 const seenStoriesStorageKey = 'sportz.seen-stories';
 let seenStoriesLoaded = false;
 
@@ -28,11 +27,8 @@ type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
 
 export const storyService = {
   async listStories(): Promise<Story[]> {
+    assertSupabaseConfigured();
     await loadSeenStories();
-
-    if (!env.isSupabaseConfigured) {
-      return localStories.map((story) => ({ ...story, seen: seenStoryIds.has(story.id) }));
-    }
 
     const { data, error } = await supabase
       .from('stories')
@@ -40,11 +36,9 @@ export const storyService = {
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
-    if (error || !data) {
-      return localStories.map((story) => ({ ...story, seen: seenStoryIds.has(story.id) }));
-    }
+    if (error) throw error;
 
-    return data.map((row: any) => {
+    return (data ?? []).map((row: any) => {
       const displayName = row.profiles?.display_name ?? 'Athlete';
 
       return {
@@ -52,12 +46,7 @@ export const storyService = {
         user: {
           id: row.profiles?.id ?? '',
           displayName,
-          initials: displayName
-            .split(' ')
-            .map((part: string) => part[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase()
+          initials: initialsForName(displayName)
         },
         mediaUrl: row.media_url,
         seen: seenStoryIds.has(row.id),
@@ -66,25 +55,13 @@ export const storyService = {
     });
   },
 
-  async createStory(asset: ImagePickerAsset, author: StoryAuthor = currentUser): Promise<Story> {
-    if (!env.isSupabaseConfigured) {
-      const story: Story = {
-        id: `local-story-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        user: author,
-        mediaUrl: asset.uri,
-        seen: false,
-        createdAt: new Date().toISOString()
-      };
-      localStories.unshift(story);
-      return story;
-    }
+  async createStory(asset: ImagePickerAsset, author?: StoryAuthor): Promise<Story> {
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to create a story.');
 
-    // Pass the full asset (not just URI) so mimeType is available for
-    // correct MIME detection and XHR-based upload of ph:// / content:// URIs.
     const mediaUrl = await storageService.uploadMedia(asset, 'story-media', authData.user.id);
     const { data, error } = await supabase
       .from('stories')
@@ -93,30 +70,30 @@ export const storyService = {
         media_url: mediaUrl,
         media_kind: asset.type === 'video' ? 'video' : 'image'
       })
-      .select('id, media_url, created_at')
+      .select('id, media_url, created_at, profiles:author_id(id, display_name)')
       .single();
 
     if (error) throw error;
 
+    const displayName = data.profiles?.display_name ?? author?.displayName ?? 'Athlete';
+
     return {
       id: data.id,
-      user: author,
+      user: {
+        id: data.profiles?.id ?? authData.user.id,
+        displayName,
+        initials: data.profiles?.display_name ? initialsForName(data.profiles.display_name) : author?.initials ?? initialsForName(displayName)
+      },
       mediaUrl: data.media_url,
       seen: false,
       createdAt: data.created_at
     };
   },
 
-  async createStories(assets: ImagePickerAsset[], author: StoryAuthor = currentUser): Promise<Story[]> {
+  async createStories(assets: ImagePickerAsset[], author?: StoryAuthor): Promise<Story[]> {
     const createdStories: Story[] = [];
     for (const asset of assets) {
       createdStories.push(await storyService.createStory(asset, author));
-    }
-
-    if (!env.isSupabaseConfigured) {
-      const createdIds = new Set(createdStories.map((story) => story.id));
-      const existingStories = localStories.filter((story) => !createdIds.has(story.id));
-      localStories.splice(0, localStories.length, ...createdStories, ...existingStories);
     }
 
     return createdStories;
@@ -132,11 +109,7 @@ export const storyService = {
   },
 
   async deleteStory(storyId: string): Promise<void> {
-    if (!env.isSupabaseConfigured) {
-      const index = localStories.findIndex((s) => s.id === storyId);
-      if (index > -1) localStories.splice(index, 1);
-      return;
-    }
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;

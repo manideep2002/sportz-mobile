@@ -1,30 +1,14 @@
-import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { notifications } from '@/data/mockData';
-import type { SportzNotification, UserProfile } from '@/types/domain';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { mapProfileRow } from '@/services/profileMapper';
+import type { SportzNotification } from '@/types/domain';
 
 const mapNotificationRow = (row: any): SportzNotification => ({
   id: row.id,
   kind: row.kind,
   title: row.title,
   body: row.body,
-  actor: row.actor
-    ? {
-        id: row.actor.id,
-        username: row.actor.username,
-        displayName: row.actor.display_name,
-        initials: row.actor.display_name.slice(0, 2).toUpperCase(),
-        bio: row.actor.bio ?? '',
-        city: row.actor.city ?? '',
-        country: row.actor.country ?? '',
-        primarySport: (row.actor.primary_sport as UserProfile['primarySport']) ?? 'Basketball',
-        sports: (row.actor.sports as UserProfile['sports']) ?? ['Basketball'],
-        skillLevel: (row.actor.skill_level as UserProfile['skillLevel']) ?? 'Intermediate',
-        isOnline: false,
-        badges: [],
-        stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
-      }
-    : undefined,
+  actor: row.actor ? mapProfileRow(row.actor) : undefined,
   read: Boolean(row.read_at),
   createdAt: row.created_at,
   entityId: row.entity_id ?? undefined,
@@ -33,26 +17,25 @@ const mapNotificationRow = (row: any): SportzNotification => ({
 
 export const notificationService = {
   async listNotifications(limit = 40, offset = 0): Promise<SportzNotification[]> {
-    if (!env.isSupabaseConfigured) {
-      return notifications.slice(offset, offset + limit);
-    }
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return [];
 
     const { data, error } = await supabase
       .from('notifications')
       .select('*, actor:actor_id(*)')
+      .eq('user_id', authData.user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (error || !data) return notifications.slice(offset, offset + limit);
-
-    return data.map(mapNotificationRow);
+    if (error) throw error;
+    return (data ?? []).map(mapNotificationRow);
   },
 
   async markAllRead(): Promise<void> {
-    if (!env.isSupabaseConfigured) {
-      notifications.forEach((n) => (n.read = true));
-      return;
-    }
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -68,11 +51,7 @@ export const notificationService = {
   },
 
   async markAsRead(notificationId: string): Promise<void> {
-    if (!env.isSupabaseConfigured) {
-      const notification = notifications.find((n) => n.id === notificationId);
-      if (notification) notification.read = true;
-      return;
-    }
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -89,7 +68,7 @@ export const notificationService = {
   },
 
   subscribeToNotifications(callback: (notification: SportzNotification) => void) {
-    if (!env.isSupabaseConfigured) return { unsubscribe: () => {} };
+    assertSupabaseConfigured();
 
     const getUserAndSubscribe = async () => {
       const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -106,8 +85,7 @@ export const notificationService = {
             filter: `user_id=eq.${authData.user.id}`
           },
           (payload) => {
-            const newNotification = mapNotificationRow(payload.new);
-            callback(newNotification);
+            callback(mapNotificationRow(payload.new));
           }
         )
         .subscribe();
@@ -119,8 +97,6 @@ export const notificationService = {
       };
     };
 
-    // Return a promise that resolves to the subscription
-    // The caller should handle the promise
     return getUserAndSubscribe();
   }
 };

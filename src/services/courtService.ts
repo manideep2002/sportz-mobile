@@ -1,8 +1,7 @@
 import * as Location from 'expo-location';
 
-import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { courts } from '@/data/mockData';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import type { Court, Sport } from '@/types/domain';
 
 export const courtService = {
@@ -14,16 +13,14 @@ export const courtService = {
   },
 
   async listNearbyCourts(sport?: Sport): Promise<Court[]> {
-    if (!env.isSupabaseConfigured) {
-      return sport && sport !== 'Multi-sport' ? courts.filter((court) => court.sport === sport) : courts;
-    }
+    assertSupabaseConfigured();
 
     let request = supabase.from('courts').select('*').limit(30);
     if (sport) request = request.eq('sport', sport);
     const { data, error } = await request;
-    if (error || !data) return courts;
+    if (error) throw error;
 
-    return data.map((court) => ({
+    return (data ?? []).map((court) => ({
       id: court.id,
       name: court.name,
       sport: court.sport as Sport,

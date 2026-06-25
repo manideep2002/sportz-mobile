@@ -2,7 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { currentUser } from '@/data/mockData';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { profileService } from '@/services/profileService';
 import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
@@ -30,9 +30,7 @@ export interface RegisterInput {
 
 export const authService = {
   async getSession(): Promise<AuthResult> {
-    if (!env.isSupabaseConfigured) {
-      return { session: null, user: null };
-    }
+    assertSupabaseConfigured();
 
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -43,9 +41,7 @@ export const authService = {
   },
 
   async signInWithPassword(email: string, password: string): Promise<AuthResult> {
-    if (!env.isSupabaseConfigured) {
-      return { session: null, user: null };
-    }
+    assertSupabaseConfigured();
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -53,9 +49,7 @@ export const authService = {
   },
 
   async signUp(input: RegisterInput): Promise<AuthResult> {
-    if (!env.isSupabaseConfigured) {
-      return { session: null, user: null };
-    }
+    assertSupabaseConfigured();
 
     const username = normalizeUsername(input.username);
     validateUsername(username);
@@ -87,14 +81,11 @@ export const authService = {
   },
 
   async generateMobileOtp(mobileNumber: string): Promise<{ demoCode?: string }> {
-    const phone = mobileNumber.trim();
+    assertSupabaseConfigured();
 
+    const phone = mobileNumber.trim();
     if (!phone) {
       throw new Error('Enter a mobile number before generating an OTP.');
-    }
-
-    if (!env.isSupabaseConfigured) {
-      return { demoCode: '123456' };
     }
 
     const { error } = await supabase.auth.signInWithOtp({ phone });
@@ -103,9 +94,7 @@ export const authService = {
   },
 
   async signInWithIdToken(provider: 'google' | 'apple', idToken: string): Promise<AuthResult> {
-    if (!env.isSupabaseConfigured) {
-      return { session: null, user: null };
-    }
+    assertSupabaseConfigured();
 
     const { data, error } = await supabase.auth.signInWithIdToken({
       provider,
@@ -116,7 +105,7 @@ export const authService = {
   },
 
   async resetPassword(email: string) {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${env.appScheme}://reset-password`
@@ -125,22 +114,19 @@ export const authService = {
   },
 
   async signOut() {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   },
 
   async getCurrentProfile(): Promise<UserProfile> {
-    if (!env.isSupabaseConfigured) {
-      return currentUser;
-    }
+    assertSupabaseConfigured();
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getUser();
     if (sessionError) throw sessionError;
-    if (!sessionData.user) return currentUser;
+    if (!sessionData.user) throw new Error('You must be signed in to load your profile.');
 
-    // Delegate entirely to profileService — single source of truth for
-    // profile mapping AND the real follower/following/posts COUNT queries.
     return profileService.getProfile(sessionData.user.id);
   }
 };

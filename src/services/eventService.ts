@@ -1,6 +1,7 @@
-import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { currentUser, events } from '@/data/mockData';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { mapProfileRow } from '@/services/profileMapper';
+import { profileService } from '@/services/profileService';
 import type { SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
@@ -18,9 +19,31 @@ export interface CreateEventInput {
   visibility: 'public' | 'group' | 'invite';
 }
 
+const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) =>
+  (cents ?? 0) > 0 ? `${currency ?? 'INR'} ${(cents ?? 0) / 100}` : 'Free';
+
+const mapEventRow = (row: any, playerCount = 0, attendees: SportEvent['attendees'] = []): SportEvent => ({
+  id: row.id,
+  title: row.title,
+  sport: row.sport,
+  status: row.status,
+  description: row.description ?? '',
+  startsAt: row.starts_at,
+  endsAt: row.ends_at,
+  locationName: row.location_name,
+  city: row.city ?? '',
+  latitude: row.latitude ?? 0,
+  longitude: row.longitude ?? 0,
+  maxPlayers: row.max_players,
+  playerCount,
+  entryFeeLabel: entryFeeLabel(row.currency, row.entry_fee_cents),
+  organizer: mapProfileRow(row.profiles ?? { id: row.organizer_id, display_name: 'Organizer' }),
+  attendees
+});
+
 export const eventService = {
   async listEvents(): Promise<SportEvent[]> {
-    if (!env.isSupabaseConfigured) return events;
+    assertSupabaseConfigured();
 
     const { data, error } = await supabase
       .from('sport_events')
@@ -29,126 +52,49 @@ export const eventService = {
       .order('starts_at', { ascending: true })
       .limit(40);
 
-    if (error || !data) return events;
+    if (error) throw error;
 
     const counts = new Map<string, number>();
-    const eventIds = data.map((row) => row.id);
+    const eventIds = (data ?? []).map((row) => row.id);
     if (eventIds.length) {
-      const { data: attendeeRows } = await supabase
+      const { data: attendeeRows, error: attendeeError } = await supabase
         .from('event_attendees')
         .select('event_id')
         .in('event_id', eventIds)
         .eq('status', 'going');
+      if (attendeeError) throw attendeeError;
       attendeeRows?.forEach((attendee) => {
         counts.set(attendee.event_id, (counts.get(attendee.event_id) ?? 0) + 1);
       });
     }
 
-    return data.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      sport: row.sport,
-      status: row.status,
-      description: row.description ?? '',
-      startsAt: row.starts_at,
-      endsAt: row.ends_at,
-      locationName: row.location_name,
-      city: row.city ?? '',
-      latitude: row.latitude ?? 0,
-      longitude: row.longitude ?? 0,
-      maxPlayers: row.max_players,
-      playerCount: counts.get(row.id) ?? 0,
-      entryFeeLabel: row.entry_fee_cents > 0 ? `${row.currency} ${row.entry_fee_cents / 100}` : 'Free',
-      organizer: {
-        ...currentUser,
-        id: row.profiles?.id ?? row.organizer_id,
-        displayName: row.profiles?.display_name ?? 'Organizer',
-        username: row.profiles?.username ?? 'organizer',
-        initials: (row.profiles?.display_name ?? 'OR').slice(0, 2).toUpperCase()
-      },
-      attendees: []
-    }));
+    return (data ?? []).map((row: any) => mapEventRow(row, counts.get(row.id) ?? 0));
   },
 
   async getEvent(eventId: string): Promise<SportEvent> {
-    const localEvent = events.find((event) => event.id === eventId) ?? events[0];
-    if (!env.isSupabaseConfigured) return localEvent;
+    assertSupabaseConfigured();
 
     const { data, error } = await supabase
       .from('sport_events')
       .select('*, profiles:organizer_id(*)')
       .eq('id', eventId)
       .single();
-    if (error || !data) return localEvent;
+    if (error) throw error;
 
-    // Fetch attendees
-    const { data: attendeeData } = await supabase
+    const { data: attendeeData, error: attendeeError } = await supabase
       .from('event_attendees')
       .select('user_id, profiles:user_id(*)')
       .eq('event_id', eventId)
       .eq('status', 'going');
+    if (attendeeError) throw attendeeError;
 
-    const attendees = (attendeeData ?? []).map((row: any) => ({
-      ...currentUser,
-      id: row.profiles?.id ?? row.user_id,
-      displayName: row.profiles?.display_name ?? 'Athlete',
-      username: row.profiles?.username ?? 'athlete',
-      initials: (row.profiles?.display_name ?? 'AT')
-        .split(' ')
-        .map((part: string) => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase()
-    }));
+    const attendees = (attendeeData ?? []).map((row: any) => mapProfileRow(row.profiles ?? { id: row.user_id }));
 
-    return {
-      ...localEvent,
-      id: data.id,
-      title: data.title,
-      sport: data.sport as SportEvent['sport'],
-      status: data.status as SportEvent['status'],
-      description: data.description ?? '',
-      startsAt: data.starts_at,
-      endsAt: data.ends_at,
-      locationName: data.location_name,
-      city: data.city ?? '',
-      latitude: data.latitude ?? 0,
-      longitude: data.longitude ?? 0,
-      maxPlayers: data.max_players,
-      playerCount: attendees.length,
-      entryFeeLabel: data.entry_fee_cents > 0 ? `${data.currency} ${data.entry_fee_cents / 100}` : 'Free',
-      organizer: {
-        ...currentUser,
-        id: data.profiles?.id ?? data.organizer_id,
-        displayName: data.profiles?.display_name ?? 'Organizer',
-        username: data.profiles?.username ?? 'organizer',
-        initials: (data.profiles?.display_name ?? 'OR').slice(0, 2).toUpperCase()
-      },
-      attendees
-    };
+    return mapEventRow(data, attendees.length, attendees);
   },
 
   async createEvent(input: CreateEventInput): Promise<SportEvent> {
-    if (!env.isSupabaseConfigured) {
-      return {
-        id: `local-event-${Date.now()}`,
-        title: input.title,
-        sport: input.sport as SportEvent['sport'],
-        status: 'open',
-        description: input.description,
-        startsAt: input.startsAt,
-        endsAt: input.endsAt,
-        locationName: input.locationName,
-        city: input.city,
-        latitude: input.latitude ?? 0,
-        longitude: input.longitude ?? 0,
-        maxPlayers: input.maxPlayers,
-        playerCount: 1,
-        entryFeeLabel: input.entryFeeCents > 0 ? `INR ${input.entryFeeCents / 100}` : 'Free',
-        organizer: currentUser,
-        attendees: [currentUser]
-      };
-    }
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -173,39 +119,27 @@ export const eventService = {
         visibility: input.visibility,
         status: 'open'
       })
-      .select()
+      .select('*, profiles:organizer_id(*)')
       .single();
 
     if (error) throw error;
 
+    const organizer = await profileService.getProfile(authData.user.id);
     return {
-      id: data.id,
-      title: data.title,
-      sport: data.sport as SportEvent['sport'],
-      status: data.status as SportEvent['status'],
-      description: data.description ?? '',
-      startsAt: data.starts_at,
-      endsAt: data.ends_at,
-      locationName: data.location_name,
-      city: data.city ?? '',
-      latitude: data.latitude ?? 0,
-      longitude: data.longitude ?? 0,
-      maxPlayers: data.max_players,
-      playerCount: 1,
-      entryFeeLabel: data.entry_fee_cents > 0 ? `${data.currency} ${data.entry_fee_cents / 100}` : 'Free',
-      organizer: currentUser,
-      attendees: [currentUser]
+      ...mapEventRow(data, 1, [organizer]),
+      organizer,
+      attendees: [organizer]
     };
   },
 
   async joinEvent(eventId: string): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to join events.');
 
-    const { error } = await supabase.from('event_attendees').insert({
+    const { error } = await supabase.from('event_attendees').upsert({
       event_id: eventId,
       user_id: authData.user.id,
       status: 'going'
@@ -214,7 +148,7 @@ export const eventService = {
   },
 
   async rsvpEvent(eventId: string, status: 'going' | 'interested' | 'declined'): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -229,7 +163,7 @@ export const eventService = {
   },
 
   async leaveEvent(eventId: string): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -244,7 +178,7 @@ export const eventService = {
   },
 
   async updateEvent(eventId: string, updates: Partial<CreateEventInput>): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -270,7 +204,7 @@ export const eventService = {
   },
 
   async cancelEvent(eventId: string): Promise<void> {
-    if (!env.isSupabaseConfigured) return;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -285,10 +219,10 @@ export const eventService = {
   },
 
   async checkUserAttendance(eventId: string): Promise<'going' | 'interested' | 'declined' | null> {
-    if (!env.isSupabaseConfigured) return null;
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) return null;
+    if (authError) throw authError;
     if (!authData.user) return null;
 
     const { data, error } = await supabase
@@ -298,7 +232,7 @@ export const eventService = {
       .eq('user_id', authData.user.id)
       .maybeSingle();
 
-    if (error || !data) return null;
-    return data.status as 'going' | 'interested' | 'declined';
+    if (error) throw error;
+    return data?.status as 'going' | 'interested' | 'declined' | null;
   }
 };

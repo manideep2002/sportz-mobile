@@ -93,10 +93,10 @@ export function NotificationsScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  useRealtimeNotifications((newNotification) => {
+  useRealtimeNotifications(() => {
     // The query will be invalidated by the realtime subscription
     // For now, we just refetch to get the new notification
-    refetch();
+    void refetch();
   });
 
   const handleNotificationPress = (notification: SportzNotification) => {
