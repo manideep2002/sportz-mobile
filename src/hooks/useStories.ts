@@ -43,3 +43,28 @@ export const useMarkStorySeen = () => {
     [queryClient]
   );
 };
+
+export const useDeleteStory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (storyId: string) => storyService.deleteStory(storyId),
+    onMutate: async (storyId) => {
+      await queryClient.cancelQueries({ queryKey: storyKeys.all });
+      const previous = queryClient.getQueryData<Story[]>(storyKeys.all);
+      // Optimistically remove from cache immediately
+      queryClient.setQueryData<Story[]>(storyKeys.all, (old = []) =>
+        old.filter((s) => s.id !== storyId)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(storyKeys.all, context.previous);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: storyKeys.all });
+    }
+  });
+};

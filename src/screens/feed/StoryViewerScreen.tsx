@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { X } from 'lucide-react-native';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Trash2, X } from 'lucide-react-native';
+import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, IconButton, ProgressBar } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useMarkStorySeen, useStories } from '@/hooks/useStories';
+import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 import { timeAgo } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -18,24 +19,56 @@ const STORY_DURATION_MS = 5000;
 export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const currentProfile = useAuthStore((state) => state.profile);
+
   const { data: stories = [] } = useStories();
   const markStorySeen = useMarkStorySeen();
+  const deleteStory = useDeleteStory();
+
   const [currentStoryId, setCurrentStoryId] = useState(route.params.storyId);
   const [elapsed, setElapsed] = useState(0);
+
+  // Track the displayed media URL in state so it is seeded immediately from
+  // route params (set by CreateStoryScreen) and updated when we navigate
+  // between stories. This is the key fix for the blank-screen race condition:
+  // we never wait for the React Query cache to settle before showing the image.
+  const [displayMediaUrl, setDisplayMediaUrl] = useState<string | null | undefined>(
+    route.params.mediaUrl ?? null
+  );
+
   const currentIndex = stories.findIndex((item) => item.id === currentStoryId);
   const story = stories[currentIndex];
-  // Fallback URI passed from CreateStoryScreen so the image shows immediately
-  // while React Query's cache is still settling after mutation.
-  const fallbackMediaUrl = route.params.storyId === currentStoryId ? route.params.mediaUrl : undefined;
-  const displayMediaUrl = story?.mediaUrl ?? fallbackMediaUrl;
-  const previousStoryId = stories[currentIndex - 1]?.id;
-  const nextStoryId = stories[currentIndex + 1]?.id;
+  const previousStory = stories[currentIndex - 1];
+  const nextStory = stories[currentIndex + 1];
   const remainingSeconds = Math.max(1, Math.ceil((STORY_DURATION_MS - elapsed) / 1000));
 
+  // Sync displayMediaUrl from the cache once the story is available.
+  // This handles navigating to a story from the feed rail (where no
+  // mediaUrl param is passed), and when the cache settles after create.
   useEffect(() => {
-    if (!story) return;
+    if (story?.mediaUrl) {
+      setDisplayMediaUrl(story.mediaUrl);
+    }
+  }, [story?.mediaUrl]);
 
-    markStorySeen(story.id);
+  // When navigating between stories, immediately switch the displayed image.
+  const goToStory = useCallback(
+    (storyId: string) => {
+      const target = stories.find((s) => s.id === storyId);
+      setCurrentStoryId(storyId);
+      setDisplayMediaUrl(target?.mediaUrl ?? null);
+      setElapsed(0);
+    },
+    [stories]
+  );
+
+  // Progress timer — advances and auto-navigates.
+  useEffect(() => {
+    // Start timer even when story metadata isn't in cache yet,
+    // as long as we have a media URL to display.
+    if (!displayMediaUrl && !story) return;
+
+    markStorySeen(currentStoryId);
     setElapsed(0);
     const startedAt = Date.now();
     const timer = setInterval(() => {
@@ -44,10 +77,8 @@ export function StoryViewerScreen() {
 
       if (nextElapsed >= STORY_DURATION_MS) {
         clearInterval(timer);
-        if (nextStoryId) {
-          setCurrentStoryId(nextStoryId);
-        } else if (previousStoryId) {
-          setCurrentStoryId(previousStoryId);
+        if (nextStory) {
+          goToStory(nextStory.id);
         } else {
           navigation.goBack();
         }
@@ -55,45 +86,107 @@ export function StoryViewerScreen() {
     }, 100);
 
     return () => clearInterval(timer);
-    // story is intentionally omitted to prevent effect re-running on every story data change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markStorySeen, navigation, nextStoryId, previousStoryId, story?.id]);
+  }, [currentStoryId, displayMediaUrl]);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Story',
+      'Are you sure you want to delete this story? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteStory.mutate(currentStoryId, {
+              onSuccess: () => navigation.goBack(),
+              onError: () => Alert.alert('Error', 'Could not delete the story. Please try again.')
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const isOwnStory =
+    story?.user.id !== undefined &&
+    currentProfile?.id !== undefined &&
+    story.user.id === currentProfile.id;
 
   return (
     <View style={styles.root}>
-      {displayMediaUrl ? <Image source={{ uri: displayMediaUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+      {/* Full-screen image — rendered immediately from state, no cache wait */}
+      {displayMediaUrl ? (
+        <Image
+          source={{ uri: displayMediaUrl }}
+          resizeMode="cover"
+          style={StyleSheet.absoluteFill}
+          onError={() => {
+            // If the URI fails to load (e.g., expired local file), clear so
+            // placeholder shows instead of a silent blank.
+            setDisplayMediaUrl(null);
+          }}
+        />
+      ) : null}
+
+      {/* Tap zones for prev/next */}
       <View style={styles.navigationZones}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous story"
-          disabled={!previousStoryId}
+          disabled={!previousStory}
           style={styles.navigationZone}
-          onPress={() => previousStoryId && setCurrentStoryId(previousStoryId)}
+          onPress={() => previousStory && goToStory(previousStory.id)}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next story"
           style={styles.navigationZone}
-          onPress={() => nextStoryId ? setCurrentStoryId(nextStoryId) : navigation.goBack()}
+          onPress={() => (nextStory ? goToStory(nextStory.id) : navigation.goBack())}
         />
       </View>
+
+      {/* Top HUD */}
       <View style={styles.header}>
         <ProgressBar value={elapsed} max={STORY_DURATION_MS} height={3} color={colors.light[0]} />
         <View style={styles.authorRow}>
-          <Avatar initials={story?.user.initials ?? 'ST'} size={38} />
+          <Avatar initials={story?.user.initials ?? 'ME'} size={38} />
           <View style={styles.authorMeta}>
-            <AppText style={styles.authorName}>{story?.user.displayName ?? 'Story unavailable'}</AppText>
-            {story ? <AppText style={styles.time}>{timeAgo(story.createdAt)}</AppText> : null}
+            <AppText style={styles.authorName}>
+              {story?.user.displayName ?? 'My Story'}
+            </AppText>
+            {story ? (
+              <AppText style={styles.time}>{timeAgo(story.createdAt)}</AppText>
+            ) : null}
           </View>
           <AppText style={styles.timer}>{remainingSeconds}s</AppText>
-          <IconButton icon={X} accessibilityLabel="Close story" onPress={() => navigation.goBack()} />
+          {isOwnStory ? (
+            <IconButton
+              icon={Trash2}
+              accessibilityLabel="Delete story"
+              onPress={handleDelete}
+              disabled={deleteStory.isPending}
+            />
+          ) : null}
+          <IconButton
+            icon={X}
+            accessibilityLabel="Close story"
+            onPress={() => navigation.goBack()}
+          />
         </View>
       </View>
+
+      {/* Placeholder shown only when there is genuinely no media URL */}
       {!displayMediaUrl ? (
         <View pointerEvents="none" style={styles.placeholder}>
           <Avatar initials={story?.user.initials ?? 'ST'} size={96} />
           <AppText variant="h2">{story?.user.displayName ?? 'Story unavailable'}</AppText>
-          <AppText variant="bodyMuted">{story ? 'Shared a new sports update' : 'This story is no longer available.'}</AppText>
+          <AppText variant="bodyMuted">
+            {story
+              ? 'Media unavailable'
+              : 'This story is no longer available.'}
+          </AppText>
         </View>
       ) : null}
     </View>

@@ -126,5 +126,25 @@ export const storyService = {
     } catch {
       // The in-memory state still keeps the rail accurate for the current session.
     }
+  },
+
+  async deleteStory(storyId: string): Promise<void> {
+    if (!env.isSupabaseConfigured) {
+      const index = localStories.findIndex((s) => s.id === storyId);
+      if (index > -1) localStories.splice(index, 1);
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to delete a story.');
+
+    const { error } = await supabase
+      .from('stories')
+      .delete()
+      .eq('id', storyId)
+      .eq('author_id', authData.user.id);
+
+    if (error) throw error;
   }
 };
