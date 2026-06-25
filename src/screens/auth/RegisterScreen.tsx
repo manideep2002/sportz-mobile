@@ -8,6 +8,7 @@ import { AppText, Button, Chip, IconButton, Input, Screen } from '@/components/u
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { AuthStackParamList } from '@/navigation/routes';
 import { authService } from '@/services/authService';
+import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 import { useAuthStore } from '@/store/authStore';
 import type { Gender, SkillLevel, Sport } from '@/types/domain';
 
@@ -318,13 +319,21 @@ export function RegisterScreen({ navigation }: Props) {
       return;
     }
 
+    const normalizedUsername = normalizeUsername(username);
+    try {
+      validateUsername(normalizedUsername);
+    } catch (error) {
+      Alert.alert('Invalid username', error instanceof Error ? error.message : 'Please choose a valid username.');
+      return;
+    }
+
     try {
       await signUp({
         email: email.trim(),
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        username: username.trim(),
+        username: normalizedUsername,
         city: city.trim(),
         mobileNumber: mobileNumber.trim(),
         mobileOtp: mobileOtp.trim(),

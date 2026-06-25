@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { currentUser } from '@/data/mockData';
 import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
+import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 
 export interface AuthResult {
   session: Session | null;
@@ -55,16 +56,19 @@ export const authService = {
       return { session: null, user: null };
     }
 
+    const username = normalizeUsername(input.username);
+    validateUsername(username);
+
     const sports = Array.from(new Set([input.primarySport, ...input.secondarySports]));
 
     const { data, error } = await supabase.auth.signUp({
-      email: input.email,
+      email: input.email.trim(),
       password: input.password,
       options: {
         data: {
-          display_name: `${input.firstName} ${input.lastName}`,
-          username: input.username.replace('@', ''),
-          city: input.city,
+          display_name: `${input.firstName.trim()} ${input.lastName.trim()}`,
+          username,
+          city: input.city.trim(),
           mobile_number: input.mobileNumber.trim(),
           mobile_otp_verified: Boolean(input.mobileOtp?.trim()),
           date_of_birth: input.dateOfBirth,
