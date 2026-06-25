@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { currentUser } from '@/data/mockData';
+import { profileService } from '@/services/profileService';
 import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 
@@ -138,36 +139,8 @@ export const authService = {
     if (sessionError) throw sessionError;
     if (!sessionData.user) return currentUser;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', sessionData.user.id)
-      .single();
-
-    if (error || !data) return currentUser;
-
-    return {
-      ...currentUser,
-      id: data.id,
-      username: data.username,
-      displayName: data.display_name,
-      initials: data.display_name
-        .split(' ')
-        .map((part: string) => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase(),
-      avatarUrl: data.avatar_url,
-      coverUrl: data.cover_url,
-      bio: data.bio ?? '',
-      city: data.city ?? '',
-      country: data.country ?? 'IN',
-      primarySport: (data.primary_sport as UserProfile['primarySport']) ?? 'Basketball',
-      sports: (data.sports as UserProfile['sports']) ?? ['Basketball'],
-      position: data.position ?? undefined,
-      skillLevel: (data.skill_level as UserProfile['skillLevel']) ?? 'Intermediate',
-      isHireable: data.is_hireable,
-      isVerified: data.is_verified
-    };
+    // Delegate entirely to profileService — single source of truth for
+    // profile mapping AND the real follower/following/posts COUNT queries.
+    return profileService.getProfile(sessionData.user.id);
   }
 };

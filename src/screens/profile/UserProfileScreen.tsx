@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } fro
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useProfile, useFollowProfile } from '@/hooks/useProfile';
+import { useProfile, useIsFollowing, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { UserProfile } from '@/types/domain';
@@ -23,8 +23,8 @@ export function UserProfileScreen() {
   const { userId } = route.params;
 
   const { data: profile, isLoading, isError } = useProfile(userId);
-  const followMutation = useFollowProfile();
-  const [followed, setFollowed] = useState(false);
+  const { data: isFollowing = false } = useIsFollowing(userId);
+  const toggleFollow = useToggleFollow(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
 
   const conversationId = profile ? messageService.getConversationIdForUser(profile.id) : null;
@@ -35,14 +35,9 @@ export function UserProfileScreen() {
   };
 
   const handleFollow = () => {
-    if (!profile || followed) return;
-    followMutation.mutate(profile.id, {
-      onSuccess: () => {
-        setFollowed(true);
-        Alert.alert('Following', `You are now following ${profile.displayName}.`);
-      },
+    toggleFollow.mutate(isFollowing, {
       onError: () => {
-        Alert.alert('Error', 'Could not follow this player. Please try again.');
+        Alert.alert('Error', 'Could not update follow status. Please try again.');
       }
     });
   };
@@ -119,13 +114,13 @@ export function UserProfileScreen() {
         <View style={styles.actions}>
           <Button
             style={styles.actionButton}
-            icon={followed ? UserCheck : UserPlus}
-            variant={followed ? 'ghost' : 'primary'}
-            disabled={followed || followMutation.isPending}
-            loading={followMutation.isPending}
+            icon={isFollowing ? UserCheck : UserPlus}
+            variant={isFollowing ? 'ghost' : 'primary'}
+            disabled={toggleFollow.isPending}
+            loading={toggleFollow.isPending}
             onPress={handleFollow}
           >
-            {followed ? 'Following' : 'Follow'}
+            {isFollowing ? 'Unfollow' : 'Follow'}
           </Button>
           <Button
             style={styles.actionButton}

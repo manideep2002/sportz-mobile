@@ -6,11 +6,13 @@ import type { UserProfile } from '@/types/domain';
 
 export const profileKeys = {
   detail: (id: string) => ['profile', id] as const,
+  isFollowing: (id: string) => ['profile', 'isFollowing', id] as const,
   players: (query?: string) => ['profile', 'players', query ?? ''] as const
 };
 
 /**
- * Fetch any user's profile. Falls back to mock data when Supabase is not configured.
+ * Fetch any user's profile, including live followers/following/posts counts
+ * from the DB. Falls back to mock data when Supabase is not configured.
  * Stale time is 5 min — profile data doesn't change very often.
  */
 export const useProfile = (userId: string) =>
@@ -22,32 +24,75 @@ export const useProfile = (userId: string) =>
   });
 
 /**
- * Follow a user. Optimistically updates the cached profile's follower count.
+ * Check if the current user is already following a given profile.
+ * Returns false in mock mode.
  */
-export const useFollowProfile = () => {
+export const useIsFollowing = (targetId: string) =>
+  useQuery({
+    queryKey: profileKeys.isFollowing(targetId),
+    queryFn: () => profileService.isFollowing(targetId),
+    staleTime: 2 * 60 * 1000,
+    enabled: Boolean(targetId)
+  });
+
+/**
+ * Toggle follow/unfollow for a profile.
+ * Optimistically updates the cached follower count and the isFollowing flag.
+ * Rolls back both on error.
+ */
+export const useToggleFollow = (targetId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (profileId: string) => profileService.followProfile(profileId),
-    onMutate: async (profileId) => {
-      await queryClient.cancelQueries({ queryKey: profileKeys.detail(profileId) });
-      const previous = queryClient.getQueryData<UserProfile>(profileKeys.detail(profileId));
+    mutationFn: async (currentlyFollowing: boolean) => {
+      if (currentlyFollowing) {
+        await profileService.unfollowProfile(targetId);
+      } else {
+        await profileService.followProfile(targetId);
+      }
+      return !currentlyFollowing;
+    },
+    onMutate: async (currentlyFollowing) => {
+      // Cancel in-flight queries to avoid race conditions
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: profileKeys.detail(targetId) }),
+        queryClient.cancelQueries({ queryKey: profileKeys.isFollowing(targetId) })
+      ]);
 
-      queryClient.setQueryData<UserProfile>(profileKeys.detail(profileId), (old) =>
-        old
-          ? {
-              ...old,
-              stats: { ...old.stats, followers: old.stats.followers + 1 }
-            }
-          : old
-      );
+      const previousProfile = queryClient.getQueryData<UserProfile>(profileKeys.detail(targetId));
+      const previousIsFollowing = queryClient.getQueryData<boolean>(profileKeys.isFollowing(targetId));
 
-      return { previous, profileId };
+      // Optimistically flip the follower count
+      queryClient.setQueryData<UserProfile>(profileKeys.detail(targetId), (old) => {
+        if (!old) return old;
+        const delta = currentlyFollowing ? -1 : 1;
+        return {
+          ...old,
+          stats: {
+            ...old.stats,
+            followers: Math.max(0, old.stats.followers + delta)
+          }
+        };
+      });
+
+      // Optimistically flip the isFollowing flag
+      queryClient.setQueryData<boolean>(profileKeys.isFollowing(targetId), !currentlyFollowing);
+
+      return { previousProfile, previousIsFollowing };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(profileKeys.detail(context.profileId), context.previous);
+      // Roll back on error
+      if (context?.previousProfile !== undefined) {
+        queryClient.setQueryData(profileKeys.detail(targetId), context.previousProfile);
       }
+      if (context?.previousIsFollowing !== undefined) {
+        queryClient.setQueryData(profileKeys.isFollowing(targetId), context.previousIsFollowing);
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server truth
+      void queryClient.invalidateQueries({ queryKey: profileKeys.detail(targetId) });
+      void queryClient.invalidateQueries({ queryKey: profileKeys.isFollowing(targetId) });
     }
   });
 };
@@ -65,35 +110,24 @@ export const useUpdateProfile = () => {
       profileService.updateProfile(id, input),
     onSuccess: (_data, { id, input }) => {
       // Merge the update into both the React Query cache and the auth store
-      queryClient.setQueryData<UserProfile>(profileKeys.detail(id), (old) => {
-        if (!old) return old;
-        const updated: UserProfile = {
-          ...old,
-          displayName: input.displayName ?? old.displayName,
-          bio: input.bio ?? old.bio,
-          city: input.city ?? old.city,
-          primarySport: input.primarySport ?? old.primarySport,
-          sports: input.sports ?? old.sports,
-          position: input.position ?? old.position,
-          skillLevel: input.skillLevel ?? old.skillLevel,
-          isHireable: input.isHireable ?? old.isHireable
-        };
-        return updated;
+      const merge = (old: UserProfile): UserProfile => ({
+        ...old,
+        displayName: input.displayName ?? old.displayName,
+        bio: input.bio ?? old.bio,
+        city: input.city ?? old.city,
+        primarySport: input.primarySport ?? old.primarySport,
+        sports: input.sports ?? old.sports,
+        position: input.position ?? old.position,
+        skillLevel: input.skillLevel ?? old.skillLevel,
+        isHireable: input.isHireable ?? old.isHireable
       });
 
+      queryClient.setQueryData<UserProfile>(profileKeys.detail(id), (old) =>
+        old ? merge(old) : old
+      );
+
       if (currentProfile?.id === id) {
-        const updated: UserProfile = {
-          ...currentProfile,
-          displayName: input.displayName ?? currentProfile.displayName,
-          bio: input.bio ?? currentProfile.bio,
-          city: input.city ?? currentProfile.city,
-          primarySport: input.primarySport ?? currentProfile.primarySport,
-          sports: input.sports ?? currentProfile.sports,
-          position: input.position ?? currentProfile.position,
-          skillLevel: input.skillLevel ?? currentProfile.skillLevel,
-          isHireable: input.isHireable ?? currentProfile.isHireable
-        };
-        setProfile(updated);
+        setProfile(merge(currentProfile));
       }
     }
   });
