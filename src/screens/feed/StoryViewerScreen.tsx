@@ -24,6 +24,10 @@ export function StoryViewerScreen() {
   const [elapsed, setElapsed] = useState(0);
   const currentIndex = stories.findIndex((item) => item.id === currentStoryId);
   const story = stories[currentIndex];
+  // Fallback URI passed from CreateStoryScreen so the image shows immediately
+  // while React Query's cache is still settling after mutation.
+  const fallbackMediaUrl = route.params.storyId === currentStoryId ? route.params.mediaUrl : undefined;
+  const displayMediaUrl = story?.mediaUrl ?? fallbackMediaUrl;
   const previousStoryId = stories[currentIndex - 1]?.id;
   const nextStoryId = stories[currentIndex + 1]?.id;
   const remainingSeconds = Math.max(1, Math.ceil((STORY_DURATION_MS - elapsed) / 1000));
@@ -57,7 +61,7 @@ export function StoryViewerScreen() {
 
   return (
     <View style={styles.root}>
-      {story?.mediaUrl ? <Image source={{ uri: story.mediaUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+      {displayMediaUrl ? <Image source={{ uri: displayMediaUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
       <View style={styles.navigationZones}>
         <Pressable
           accessibilityRole="button"
@@ -85,7 +89,7 @@ export function StoryViewerScreen() {
           <IconButton icon={X} accessibilityLabel="Close story" onPress={() => navigation.goBack()} />
         </View>
       </View>
-      {!story?.mediaUrl ? (
+      {!displayMediaUrl ? (
         <View pointerEvents="none" style={styles.placeholder}>
           <Avatar initials={story?.user.initials ?? 'ST'} size={96} />
           <AppText variant="h2">{story?.user.displayName ?? 'Story unavailable'}</AppText>

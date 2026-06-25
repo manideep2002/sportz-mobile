@@ -11,7 +11,8 @@ export const storyKeys = {
 export const useStories = () =>
   useQuery({
     queryKey: storyKeys.all,
-    queryFn: storyService.listStories
+    queryFn: storyService.listStories,
+    staleTime: 30 * 1000  // prevent background refetch from wiping optimistic story data
   });
 
 export const useCreateStories = () => {

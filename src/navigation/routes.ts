@@ -26,7 +26,7 @@ export type AppStackParamList = {
   EventDetail: { eventId: string };
   CreateEvent: undefined;
   UserProfile: { userId: string };
-  StoryViewer: { storyId: string };
+  StoryViewer: { storyId: string; mediaUrl?: string };
   CreateStory: undefined;
   NewMessage: undefined;
   Chat: { conversationId: string };

@@ -39,7 +39,7 @@ export function CreateStoryScreen() {
 
     try {
       const stories = await createStories.mutateAsync({ mediaUris, author: profile });
-      navigation.replace('StoryViewer', { storyId: stories[0].id });
+      navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl });
     } catch (error) {
       Alert.alert('Could not share story', error instanceof Error ? error.message : 'Please try again.');
     }
