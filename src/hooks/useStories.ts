@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { storyService } from '@/services/storyService';
 import type { Story, UserProfile } from '@/types/domain';
@@ -19,8 +20,8 @@ export const useCreateStories = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ mediaUris, author }: { mediaUris: string[]; author: Pick<UserProfile, 'id' | 'displayName' | 'initials'> }) =>
-      storyService.createStories(mediaUris, author),
+    mutationFn: ({ assets, author }: { assets: ImagePickerAsset[]; author: Pick<UserProfile, 'id' | 'displayName' | 'initials'> }) =>
+      storyService.createStories(assets, author),
     onSuccess: (createdStories) => {
       queryClient.setQueryData<Story[]>(storyKeys.all, (old = []) => [
         ...createdStories,

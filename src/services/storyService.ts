@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { stories as mockStories, currentUser } from '@/data/mockData';
 import { env } from '@/lib/env';
@@ -65,12 +66,12 @@ export const storyService = {
     });
   },
 
-  async createStory(mediaUri: string, author: StoryAuthor = currentUser): Promise<Story> {
+  async createStory(asset: ImagePickerAsset, author: StoryAuthor = currentUser): Promise<Story> {
     if (!env.isSupabaseConfigured) {
       const story: Story = {
         id: `local-story-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user: author,
-        mediaUrl: mediaUri,
+        mediaUrl: asset.uri,
         seen: false,
         createdAt: new Date().toISOString()
       };
@@ -82,13 +83,15 @@ export const storyService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to create a story.');
 
-    const mediaUrl = await storageService.uploadMedia(mediaUri, 'story-media', authData.user.id);
+    // Pass the full asset (not just URI) so mimeType is available for
+    // correct MIME detection and XHR-based upload of ph:// / content:// URIs.
+    const mediaUrl = await storageService.uploadMedia(asset, 'story-media', authData.user.id);
     const { data, error } = await supabase
       .from('stories')
       .insert({
         author_id: authData.user.id,
         media_url: mediaUrl,
-        media_kind: 'image'
+        media_kind: asset.type === 'video' ? 'video' : 'image'
       })
       .select('id, media_url, created_at')
       .single();
@@ -104,10 +107,10 @@ export const storyService = {
     };
   },
 
-  async createStories(mediaUris: string[], author: StoryAuthor = currentUser): Promise<Story[]> {
+  async createStories(assets: ImagePickerAsset[], author: StoryAuthor = currentUser): Promise<Story[]> {
     const createdStories: Story[] = [];
-    for (const mediaUri of mediaUris) {
-      createdStories.push(await storyService.createStory(mediaUri, author));
+    for (const asset of assets) {
+      createdStories.push(await storyService.createStory(asset, author));
     }
 
     if (!env.isSupabaseConfigured) {

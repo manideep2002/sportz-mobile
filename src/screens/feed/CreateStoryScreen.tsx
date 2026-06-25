@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, ImagePlus } from 'lucide-react-native';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { Alert, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, IconButton } from '@/components/ui';
@@ -17,29 +18,30 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 export function CreateStoryScreen() {
   const navigation = useNavigation<Navigation>();
   const profile = useAuthStore((state) => state.profile) ?? currentUser;
-  const [mediaUris, setMediaUris] = useState<string[]>([]);
+  const [mediaAssets, setMediaAssets] = useState<ImagePickerAsset[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const createStories = useCreateStories();
-  const selectedMediaUri = mediaUris[selectedIndex];
+  const selectedAsset = mediaAssets[selectedIndex];
 
   const handlePickMedia = async () => {
     try {
-      const media = await storageService.pickMultipleImages();
-      if (!media.length) return;
-      const nextUris = Array.from(new Set([...mediaUris, ...media.map((item) => item.uri)])).slice(0, 10);
-      setMediaUris(nextUris);
-      setSelectedIndex(Math.min(mediaUris.length, nextUris.length - 1));
+      const picked = await storageService.pickMultipleImages();
+      if (!picked.length) return;
+      const existingUris = new Set(mediaAssets.map((a) => a.uri));
+      const newAssets = picked.filter((a) => !existingUris.has(a.uri));
+      const next = [...mediaAssets, ...newAssets].slice(0, 10);
+      setMediaAssets(next);
+      setSelectedIndex(Math.min(mediaAssets.length, next.length - 1));
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
   const handleShare = async () => {
-    if (!mediaUris.length) return;
-
+    if (!mediaAssets.length) return;
     try {
-      const stories = await createStories.mutateAsync({ mediaUris, author: profile });
-      navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl });
+      const stories = await createStories.mutateAsync({ assets: mediaAssets, author: profile });
+      navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl ?? undefined });
     } catch (error) {
       Alert.alert('Could not share story', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -50,13 +52,13 @@ export function CreateStoryScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={() => navigation.goBack()} />
         <AppText variant="h3">Create Story</AppText>
-        <Button size="sm" disabled={!mediaUris.length} loading={createStories.isPending} onPress={handleShare}>
-          {mediaUris.length > 1 ? `Share ${mediaUris.length}` : 'Share'}
+        <Button size="sm" disabled={!mediaAssets.length} loading={createStories.isPending} onPress={handleShare}>
+          {mediaAssets.length > 1 ? `Share ${mediaAssets.length}` : 'Share'}
         </Button>
       </View>
       <Pressable accessibilityRole="button" style={styles.canvas} onPress={handlePickMedia}>
-        {selectedMediaUri ? (
-          <Image source={{ uri: selectedMediaUri }} resizeMode="cover" style={styles.preview} />
+        {selectedAsset ? (
+          <Image source={{ uri: selectedAsset.uri }} resizeMode="cover" style={styles.preview} />
         ) : (
           <View style={styles.empty}>
             <View style={styles.icon}>
@@ -67,11 +69,11 @@ export function CreateStoryScreen() {
           </View>
         )}
       </Pressable>
-      {mediaUris.length ? (
+      {mediaAssets.length ? (
         <FlatList
           horizontal
-          data={mediaUris}
-          keyExtractor={(item) => item}
+          data={mediaAssets}
+          keyExtractor={(item) => item.uri}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.thumbnails}
           renderItem={({ item, index }) => (
@@ -81,12 +83,12 @@ export function CreateStoryScreen() {
               onPress={() => setSelectedIndex(index)}
               style={[styles.thumbnail, index === selectedIndex ? styles.selectedThumbnail : null]}
             >
-              <Image source={{ uri: item }} style={styles.thumbnailImage} />
+              <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />
             </Pressable>
           )}
         />
       ) : null}
-      {mediaUris.length ? (
+      {mediaAssets.length ? (
         <Button variant="dark" full icon={ImagePlus} onPress={handlePickMedia}>
           Add more photos
         </Button>
