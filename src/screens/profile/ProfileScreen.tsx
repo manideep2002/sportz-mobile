@@ -6,10 +6,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
-import { currentUser } from '@/data/mockData';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { UserProfile } from '@/types/domain';
 import { useAuthStore } from '@/store/authStore';
 import { compactNumber } from '@/utils/format';
 
@@ -18,8 +19,19 @@ type Tab = 'Posts' | 'Stats' | 'Highlights';
 
 export function ProfileScreen() {
   const navigation = useNavigation<Navigation>();
-  const profile = useAuthStore((state) => state.profile) ?? currentUser;
+  const profile = useAuthStore((state) => state.profile);
   const [tab, setTab] = useState<Tab>('Posts');
+
+  if (!profile) {
+    return (
+      <Screen withTabPadding contentContainerStyle={styles.content}>
+        <View style={styles.settings}>
+          <IconButton icon={Settings} onPress={() => navigation.navigate('Settings')} />
+        </View>
+        <ActivityIndicator color={colors.orange[500]} style={{ marginTop: 120 }} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen withTabPadding contentContainerStyle={styles.content}>
@@ -36,7 +48,7 @@ export function ProfileScreen() {
         <View style={styles.nameRow}>
           <View style={{ flex: 1 }}>
             <AppText variant="h1" style={styles.name}>{profile.displayName}</AppText>
-            <AppText variant="bodyMuted">@{profile.username} - {profile.city}, {profile.country}</AppText>
+            <AppText variant="bodyMuted">@{profile.username} · {profile.city}, {profile.country}</AppText>
           </View>
           <Button size="sm" onPress={() => navigation.navigate('EditProfile')}>Edit Profile</Button>
         </View>
@@ -45,7 +57,11 @@ export function ProfileScreen() {
           {profile.sports.map((sport) => (
             <Badge key={sport}>{sport}</Badge>
           ))}
-          <Badge tone="orange">PRO</Badge>
+          <Badge tone="dark">{profile.skillLevel}</Badge>
+          {profile.badges.map((badge) => (
+            <Badge key={badge} tone="orange">{badge}</Badge>
+          ))}
+          {profile.isHireable && <Badge tone="green">Hireable</Badge>}
         </View>
         <View style={styles.stats}>
           <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
@@ -58,7 +74,7 @@ export function ProfileScreen() {
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
       </View>
       {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
-      {tab === 'Stats' ? <StatsPanel /> : null}
+      {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
       {tab === 'Highlights' ? <HighlightsPanel /> : null}
     </Screen>
   );
@@ -147,32 +163,34 @@ function ProfileGrid({ userId }: { userId: string }) {
   );
 }
 
-function StatsPanel() {
-  const stats = [
-    ['Speed', 85],
-    ['Power', 90],
-    ['Agility', 75],
-    ['Endurance', 80]
+function StatsPanel({ profile }: { profile: UserProfile }) {
+  const statLines = [
+    ['Games Played', profile.stats.games],
+    ['Win Rate', profile.stats.winRate],
+    ['Best Points', profile.stats.bestPoints ?? 0],
+    ['Avg Rebounds', profile.stats.avgRebounds ?? 0]
   ] as const;
+
+  const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
 
   return (
     <View style={styles.panel}>
-      <AppText variant="h4">Season Stats - 2026</AppText>
-      {stats.map(([label, value]) => (
+      <AppText variant="h4">Season Stats — 2026</AppText>
+      {statLines.map(([label, value]) => (
         <View key={label} style={styles.statLine}>
           <View style={styles.statLineTop}>
             <AppText variant="small">{label}</AppText>
             <AppText style={styles.statValue}>{value}</AppText>
           </View>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${value}%` }]} />
+            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%` }]} />
           </View>
         </View>
       ))}
       <View style={styles.threeStats}>
-        <StatCard value="34" label="Best PTS" tone="orange" />
-        <StatCard value="8.2" label="Avg REB" />
-        <StatCard value="147" label="Games" tone="green" />
+        <StatCard value={profile.stats.bestPoints?.toString() ?? '—'} label="Best PTS" tone="orange" />
+        <StatCard value={profile.stats.avgRebounds?.toString() ?? '—'} label="Avg REB" />
+        <StatCard value={profile.stats.games.toString()} label="Games" tone="green" />
       </View>
     </View>
   );

@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy } from 'lucide-react-native';
+import { ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
-import { users } from '@/data/mockData';
 import { colors, spacing, typography } from '@/design/tokens';
+import { useProfile, useFollowProfile } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { UserProfile } from '@/types/domain';
 import { messageService } from '@/services/messageService';
 import { compactNumber } from '@/utils/format';
 
@@ -19,9 +20,14 @@ type Route = RouteProp<AppStackParamList, 'UserProfile'>;
 export function UserProfileScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const profile = users.find((user) => user.id === route.params.userId) ?? users[1];
-  const conversationId = messageService.getConversationIdForUser(profile.id);
+  const { userId } = route.params;
+
+  const { data: profile, isLoading, isError } = useProfile(userId);
+  const followMutation = useFollowProfile();
+  const [followed, setFollowed] = useState(false);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
+
+  const conversationId = profile ? messageService.getConversationIdForUser(profile.id) : null;
 
   const openChat = () => {
     if (!conversationId) return;
@@ -29,8 +35,46 @@ export function UserProfileScreen() {
   };
 
   const handleFollow = () => {
-    Alert.alert('Follow', `You are now following ${profile.displayName}.`);
+    if (!profile || followed) return;
+    followMutation.mutate(profile.id, {
+      onSuccess: () => {
+        setFollowed(true);
+        Alert.alert('Following', `You are now following ${profile.displayName}.`);
+      },
+      onError: () => {
+        Alert.alert('Error', 'Could not follow this player. Please try again.');
+      }
+    });
   };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <Screen contentContainerStyle={styles.centered}>
+        <View style={styles.header}>
+          <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        </View>
+        <ActivityIndicator color={colors.orange[500]} size="large" style={{ marginTop: 80 }} />
+      </Screen>
+    );
+  }
+
+  // ── Error / not found ──────────────────────────────────────────────────────
+  if (isError || !profile) {
+    return (
+      <Screen contentContainerStyle={styles.centered}>
+        <View style={styles.header}>
+          <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        </View>
+        <AppText variant="bodyMuted" style={{ textAlign: 'center', marginTop: 80 }}>
+          Could not load this profile. Please try again.
+        </AppText>
+        <Button size="sm" onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          Go Back
+        </Button>
+      </Screen>
+    );
+  }
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -44,25 +88,56 @@ export function UserProfileScreen() {
         <Avatar initials={profile.initials} size={80} online={profile.isOnline} />
       </View>
       <View style={styles.body}>
-        <AppText variant="h2">{profile.displayName}</AppText>
-        <AppText variant="bodyMuted">@{profile.username} - {profile.city}, {profile.country}</AppText>
+        <View style={styles.nameRow}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="h2">{profile.displayName}</AppText>
+            <AppText variant="bodyMuted">
+              @{profile.username} · {profile.city}
+              {profile.country ? `, ${profile.country}` : ''}
+            </AppText>
+          </View>
+          {profile.isVerified && <Badge tone="blue">Verified</Badge>}
+        </View>
+
         <View style={styles.badges}>
           <Badge>{profile.primarySport}</Badge>
-          {profile.badges.map((badge) => <Badge key={badge} tone="orange">{badge}</Badge>)}
+          <Badge tone="dark">{profile.skillLevel}</Badge>
+          {profile.badges.map((badge) => (
+            <Badge key={badge} tone="orange">{badge}</Badge>
+          ))}
+          {profile.isHireable && <Badge tone="green">Hireable</Badge>}
         </View>
+
         <AppText variant="bodyMuted">{profile.bio}</AppText>
+
         <View style={styles.stats}>
           <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
           <StatCard value={profile.stats.following} label="Following" />
           <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
         </View>
+
         <View style={styles.actions}>
-          <Button style={styles.actionButton} onPress={handleFollow}>Follow</Button>
-          <Button style={styles.actionButton} variant="ghost" onPress={openChat} disabled={!conversationId}>
+          <Button
+            style={styles.actionButton}
+            icon={followed ? UserCheck : UserPlus}
+            variant={followed ? 'ghost' : 'primary'}
+            disabled={followed || followMutation.isPending}
+            loading={followMutation.isPending}
+            onPress={handleFollow}
+          >
+            {followed ? 'Following' : 'Follow'}
+          </Button>
+          <Button
+            style={styles.actionButton}
+            variant="ghost"
+            onPress={openChat}
+            disabled={!conversationId}
+          >
             Message
           </Button>
           <IconButton icon={MoreHorizontal} />
         </View>
+
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
         {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
         {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
@@ -71,6 +146,8 @@ export function UserProfileScreen() {
     </Screen>
   );
 }
+
+// ── ProfileGrid ──────────────────────────────────────────────────────────────
 
 function ProfileGrid({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
@@ -106,14 +183,11 @@ function ProfileGrid({ userId }: { userId: string }) {
             style={({ pressed }) => [
               styles.gridItem,
               isStats ? styles.gridItemStats : null,
-              pressed ? styles.gridItemPressed : null,
+              pressed ? styles.gridItemPressed : null
             ]}
           >
             {isStats ? (
-              <LinearGradient
-                colors={['#FF5A1F', '#FF7A45']}
-                style={styles.gridGradient}
-              >
+              <LinearGradient colors={['#FF5A1F', '#FF7A45']} style={styles.gridGradient}>
                 <View style={styles.gridHeader}>
                   <Trophy size={14} color="#0A0907" />
                   <AppText style={styles.gridSportTextStats}>{post.sport}</AppText>
@@ -132,7 +206,9 @@ function ProfileGrid({ userId }: { userId: string }) {
               <View style={styles.gridInner}>
                 <View style={styles.gridHeader}>
                   <AppText style={styles.gridSportText}>{post.sport}</AppText>
-                  {post.mediaKind === 'court-card' && <AppText style={styles.courtBadge}>COURT</AppText>}
+                  {post.mediaKind === 'court-card' && (
+                    <AppText style={styles.courtBadge}>COURT</AppText>
+                  )}
                 </View>
                 <AppText style={styles.gridBodyText} numberOfLines={3}>
                   {post.body}
@@ -152,36 +228,53 @@ function ProfileGrid({ userId }: { userId: string }) {
   );
 }
 
-function StatsPanel({ profile }: { profile: typeof users[0] }) {
-  const stats = [
-    ['Speed', 85],
-    ['Power', 90],
-    ['Agility', 75],
-    ['Endurance', 80]
+// ── StatsPanel ───────────────────────────────────────────────────────────────
+
+function StatsPanel({ profile }: { profile: UserProfile }) {
+  const statLines = [
+    ['Games Played', profile.stats.games],
+    ['Win Rate', profile.stats.winRate],
+    ['Best Points', profile.stats.bestPoints ?? 0],
+    ['Avg Rebounds', profile.stats.avgRebounds ?? 0]
   ] as const;
+
+  const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
 
   return (
     <View style={styles.panel}>
-      <AppText variant="h4">Season Stats - 2026</AppText>
-      {stats.map(([label, value]) => (
+      <AppText variant="h4">Season Stats — 2026</AppText>
+      {statLines.map(([label, value]) => (
         <View key={label} style={styles.statLine}>
           <View style={styles.statLineTop}>
             <AppText variant="small">{label}</AppText>
             <AppText style={styles.statValue}>{value}</AppText>
           </View>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${value}%` }]} />
+            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%` }]} />
           </View>
         </View>
       ))}
       <View style={styles.threeStats}>
-        <StatCard value={profile.stats.bestPoints?.toString() || "34"} label="Best PTS" tone="orange" />
-        <StatCard value={profile.stats.avgRebounds?.toString() || "8.2"} label="Avg REB" />
-        <StatCard value={profile.stats.games.toString()} label="Games" tone="green" />
+        <StatCard
+          value={profile.stats.bestPoints?.toString() ?? '—'}
+          label="Best PTS"
+          tone="orange"
+        />
+        <StatCard
+          value={profile.stats.avgRebounds?.toString() ?? '—'}
+          label="Avg REB"
+        />
+        <StatCard
+          value={profile.stats.games.toString()}
+          label="Games"
+          tone="green"
+        />
       </View>
     </View>
   );
 }
+
+// ── HighlightsPanel ──────────────────────────────────────────────────────────
 
 function HighlightsPanel() {
   return (
@@ -212,8 +305,13 @@ function HighlightsPanel() {
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   content: {
+    paddingHorizontal: 0
+  },
+  centered: {
     paddingHorizontal: 0
   },
   header: {
@@ -236,6 +334,11 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: spacing.screen,
+    gap: spacing.sm
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm
   },
   badges: {
