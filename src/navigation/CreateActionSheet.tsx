@@ -1,4 +1,4 @@
-import { CalendarPlus, MessageCircle, Radio, Star, Trophy, Users } from 'lucide-react-native';
+import { CalendarPlus, Radio, Star, Trophy, Users } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -13,8 +13,7 @@ const actions = [
   { label: 'Share Stats', detail: 'Post game stats and performance', icon: Star, route: 'CreatePost', kind: 'stats' },
   { label: 'Create Event', detail: 'Schedule a game or practice', icon: CalendarPlus, route: 'CreateEvent' },
   { label: 'Explore Groups / Pages', detail: 'Find sports communities', icon: Users, route: 'Community' },
-  { label: 'Share Highlight', detail: 'Publish a photo or video highlight', icon: Radio, route: 'CreatePost', kind: 'highlight' },
-  { label: 'Post a Thread', detail: 'Start a discussion', icon: MessageCircle, route: 'CreatePost', kind: 'thread' }
+  { label: 'Share Highlight', detail: 'Publish a photo or video highlight', icon: Radio, route: 'CreatePost', kind: 'highlight' }
 ] as const;
 
 export function CreateActionSheet() {
