@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
-import { currentUser } from '@/data/mockData';
-import { env } from '@/lib/env';
 import { messageService } from '@/services/messageService';
+import { useAuthStore } from '@/store/authStore';
 import type { Conversation, Message } from '@/types/domain';
 import { applyConversationPreview, buildConversationPreview } from '@/utils/messages';
 
@@ -16,9 +15,10 @@ export const messageKeys = {
 const patchConversationPreviewInCache = (
   queryClient: QueryClient,
   conversationId: string,
-  message: Pick<Message, 'body' | 'createdAt' | 'senderId'>
+  message: Pick<Message, 'body' | 'createdAt' | 'senderId'>,
+  currentUserId: string
 ) => {
-  const preview = buildConversationPreview(message, currentUser.id);
+  const preview = buildConversationPreview(message, currentUserId);
   queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (old = []) =>
     applyConversationPreview(old, conversationId, preview)
   );
@@ -58,22 +58,6 @@ export const useMarkConversationRead = (conversationId: string) => {
 
     void (async () => {
       await messageService.markConversationRead(conversationId);
-
-      if (!env.isSupabaseConfigured) {
-        queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
-          old.map((message) =>
-            message.senderId === currentUser.id
-              ? message
-              : {
-                  ...message,
-                  readBy: message.readBy.includes(currentUser.id) ? message.readBy : [...message.readBy, currentUser.id]
-                }
-          )
-        );
-        clearConversationUnread(queryClient, conversationId);
-        return;
-      }
-
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: messageKeys.messages(conversationId) }),
         queryClient.invalidateQueries({ queryKey: messageKeys.conversations })
@@ -84,6 +68,7 @@ export const useMarkConversationRead = (conversationId: string) => {
 
 export const useSendMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? '');
 
   return useMutation({
     mutationFn: (body: string) => messageService.sendMessage(conversationId, body),
@@ -91,22 +76,22 @@ export const useSendMessage = (conversationId: string) => {
       const optimistic: Message = {
         id: `optimistic-${Date.now()}`,
         conversationId,
-        senderId: currentUser.id,
+        senderId: currentUserId,
         body,
         createdAt: new Date().toISOString(),
-        readBy: [currentUser.id],
+        readBy: [currentUserId],
         pending: true
       };
       await queryClient.cancelQueries({ queryKey: messageKeys.messages(conversationId) });
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) => [...old, optimistic]);
-      patchConversationPreviewInCache(queryClient, conversationId, optimistic);
+      patchConversationPreviewInCache(queryClient, conversationId, optimistic, currentUserId);
       return { optimisticId: optimistic.id };
     },
     onSuccess: (message, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
         old.map((item) => (item.id === context?.optimisticId ? message : item))
       );
-      patchConversationPreviewInCache(queryClient, conversationId, message);
+      patchConversationPreviewInCache(queryClient, conversationId, message, currentUserId);
     },
     onError: (_error, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
@@ -117,4 +102,9 @@ export const useSendMessage = (conversationId: string) => {
   });
 };
 
-export const patchConversationPreviewInCacheForRealtime = patchConversationPreviewInCache;
+export const patchConversationPreviewInCacheForRealtime = (
+  queryClient: QueryClient,
+  conversationId: string,
+  message: Pick<Message, 'body' | 'createdAt' | 'senderId'>,
+  currentUserId: string
+) => patchConversationPreviewInCache(queryClient, conversationId, message, currentUserId);

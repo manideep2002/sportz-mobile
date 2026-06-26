@@ -3,6 +3,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 
+/** Supported video extensions */
+const VIDEO_EXTS = new Set(['mp4', 'mov', 'm4v', 'webm']);
+
 /** Map file extension → MIME type. Falls back to image/jpeg. */
 const mimeFromExt = (ext: string): string => {
   const map: Record<string, string> = {
@@ -22,58 +25,30 @@ const mimeFromExt = (ext: string): string => {
 /**
  * Derive a clean extension + MIME type from an ImagePicker asset.
  *
- * expo-image-picker on iOS can return:
- *   - file:///…/ImagePicker/xxx.jpg   → easy
- *   - ph://ED7AC36B-…/L0/001          → no real extension; use `type` field
- *
- * We prefer the asset's `mimeType` field when available, then fall back to
- * the file extension in the URI, then default to jpeg.
+ * Prefers the picker's mimeType field (most reliable), then falls back
+ * to the extension in the URI, then defaults to jpeg.
  */
 function resolveExtAndMime(asset: ImagePicker.ImagePickerAsset): { ext: string; mime: string } {
-  // 1. Use mimeType field from the picker (most reliable)
+  // 1. mimeType field from the picker (most reliable)
   if (asset.mimeType) {
     const mime = asset.mimeType;
     const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
     return { ext, mime };
   }
 
-  // 2. Fall back to the URI extension (last segment after the last dot,
-  //    only if it looks like a real extension ≤ 4 chars)
+  // 2. Extension from the URI (only when it looks like a real extension ≤ 5 chars)
   const lastSegment = asset.uri.split('/').pop() ?? '';
   const dotIndex = lastSegment.lastIndexOf('.');
   if (dotIndex !== -1) {
     const rawExt = lastSegment.slice(dotIndex + 1).toLowerCase();
     if (rawExt.length > 0 && rawExt.length <= 5 && /^[a-z0-9]+$/.test(rawExt)) {
-      return { ext: rawExt === 'jpeg' ? 'jpg' : rawExt, mime: mimeFromExt(rawExt) };
+      const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+      return { ext, mime: mimeFromExt(ext) };
     }
   }
 
   // 3. Default
   return { ext: 'jpg', mime: 'image/jpeg' };
-}
-
-/**
- * Read a local file URI into an ArrayBuffer using XMLHttpRequest.
- *
- * React Native's XHR routes file://, ph://, and content:// URIs
- * through the native layer, which fetch() alone may fail to do for
- * ph:// (iOS PhotoKit) and content:// (Android MediaStore) URIs.
- */
-function readAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', uri);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
-        resolve(xhr.response as ArrayBuffer);
-      } else {
-        reject(new Error(`Could not read file (status ${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network error while reading local file.'));
-    xhr.send();
-  });
 }
 
 export const storageService = {
@@ -115,21 +90,18 @@ export const storageService = {
   /**
    * Upload a media asset to Supabase Storage and return its public URL.
    *
-   * In mock mode (no Supabase configured) returns the original URI unchanged
-   * so the app can still display it locally.
+   * In mock mode (no Supabase configured) returns the original local URI
+   * unchanged so the app can still display it immediately.
    *
-   * @param asset   The ImagePicker asset (has URI + mimeType info).
-   * @param bucket  The target Supabase Storage bucket.
-   * @param ownerId The authenticated user's UUID (used as the folder name).
+   * Uses fetch() + blob() to read local file:// URIs — React Native's fetch
+   * handles file:// URIs natively on both iOS and Android.
    */
   async uploadMedia(
     asset: ImagePicker.ImagePickerAsset | string,
     bucket: 'post-media' | 'story-media' | 'avatars' | 'event-covers',
     ownerId: string
   ): Promise<string> {
-    // Accept a plain URI string for backward compatibility with callsites
-    // that predate the asset-based API.
-    const pickerAsset: ImagePicker.ImagePickerAsset | null =
+    const pickerAsset: ImagePicker.ImagePickerAsset =
       typeof asset === 'string'
         ? { uri: asset, width: 0, height: 0, assetId: null }
         : asset;
@@ -139,11 +111,16 @@ export const storageService = {
     const { ext, mime } = resolveExtAndMime(pickerAsset);
     const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-    // Read via XHR so ph://, content://, and file:// all work correctly.
-    const buffer = await readAsArrayBuffer(pickerAsset.uri);
+    // fetch() handles file:// URIs natively in React Native.
+    // We avoid any third-party file-system dependency here.
+    const response = await fetch(pickerAsset.uri);
+    if (!response.ok && response.status !== 0) {
+      throw new Error(`Could not read file (HTTP ${response.status})`);
+    }
+    const blob = await response.blob();
 
-    const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
-      contentType: mime,
+    const { error } = await supabase.storage.from(bucket).upload(path, blob, {
+      contentType: VIDEO_EXTS.has(ext) ? 'video/mp4' : mime,
       upsert: false
     });
     if (error) throw error;

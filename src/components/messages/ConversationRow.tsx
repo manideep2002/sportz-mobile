@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
-import { currentUser } from '@/data/mockData';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Conversation } from '@/types/domain';
 import { getOtherParticipant } from '@/utils/conversation';
@@ -9,16 +8,17 @@ import { timeAgo } from '@/utils/format';
 
 interface ConversationRowProps {
   conversation: Conversation;
+  currentUserId: string;
   onPress: () => void;
 }
 
-export function ConversationRow({ conversation, onPress }: ConversationRowProps) {
-  const other = getOtherParticipant(conversation, currentUser.id) ?? conversation.participants[0];
-  const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other.initials;
+export function ConversationRow({ conversation, currentUserId, onPress }: ConversationRowProps) {
+  const other = getOtherParticipant(conversation, currentUserId) ?? conversation.participants[0];
+  const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other?.initials ?? '??';
 
   return (
     <Pressable onPress={onPress} style={styles.row}>
-      <Avatar initials={avatarInitials} size={50} online={!conversation.isGroup && other.isOnline} />
+      <Avatar initials={avatarInitials} size={50} online={!conversation.isGroup && Boolean(other?.isOnline)} />
       <View style={styles.meta}>
         <View style={styles.titleRow}>
           <AppText style={styles.title}>{conversation.title}</AppText>

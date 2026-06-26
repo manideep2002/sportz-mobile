@@ -9,11 +9,11 @@ import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
 import { AppText, Avatar, IconButton } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { currentUser } from '@/data/mockData';
 import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
 import { messageService } from '@/services/messageService';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 import { getOtherParticipant, getParticipantById } from '@/utils/conversation';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -29,12 +29,13 @@ export function ChatScreen() {
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
+  const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   useRealtimeMessages(conversationId);
   useMarkConversationRead(conversationId);
 
-  const otherParticipant = conversation ? getOtherParticipant(conversation, currentUser.id) : undefined;
+  const otherParticipant = conversation ? getOtherParticipant(conversation, currentUserId) : undefined;
   const recipientId =
-    otherParticipant?.id ?? messages.find((message) => message.senderId !== currentUser.id)?.senderId ?? '';
+    otherParticipant?.id ?? messages.find((message) => message.senderId !== currentUserId)?.senderId ?? '';
   const headerTitle = conversation?.isGroup ? conversation.title : otherParticipant?.displayName ?? conversation?.title ?? 'Chat';
   const headerInitials = conversation?.isGroup
     ? conversation.title.slice(0, 2).toUpperCase()
@@ -84,7 +85,7 @@ export function ChatScreen() {
         </View>
         {messages.map((message) => {
           const sender =
-            message.senderId === currentUser.id
+            message.senderId === currentUserId
               ? undefined
               : conversation
                 ? getParticipantById(conversation, message.senderId) ?? otherParticipant
@@ -94,7 +95,7 @@ export function ChatScreen() {
             <MessageBubble
               key={message.id}
               message={message}
-              currentUserId={currentUser.id}
+              currentUserId={currentUserId}
               recipientId={recipientId}
               sender={sender}
             />

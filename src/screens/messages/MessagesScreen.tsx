@@ -8,12 +8,14 @@ import { AppText, IconButton, Input, Screen, SectionHeader } from '@/components/
 import { colors, spacing } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function MessagesScreen() {
   const navigation = useNavigation<Navigation>();
   const { data: conversations = [] } = useConversations();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const pinned = conversations.filter((conversation) => conversation.pinned);
   const rest = conversations.filter((conversation) => !conversation.pinned);
 
@@ -33,6 +35,7 @@ export function MessagesScreen() {
             <ConversationRow
               key={conversation.id}
               conversation={conversation}
+              currentUserId={currentUserId}
               onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
             />
           ))}
@@ -44,6 +47,7 @@ export function MessagesScreen() {
           <ConversationRow
             key={conversation.id}
             conversation={conversation}
+            currentUserId={currentUserId}
             onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
           />
         ))}

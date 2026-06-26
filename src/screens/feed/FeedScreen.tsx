@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollVi
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
-import { sportsFilters } from '@/data/mockData';
+import { sportsFilters } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
 import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';

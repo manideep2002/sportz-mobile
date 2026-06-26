@@ -9,6 +9,7 @@ import { AppText, IconButton, Input, Screen } from '@/components/ui';
 import { spacing } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -16,6 +17,7 @@ export function NewMessageScreen() {
   const navigation = useNavigation<Navigation>();
   const [query, setQuery] = useState('');
   const { data: conversations = [] } = useConversations();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const filteredConversations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return conversations;
@@ -42,6 +44,7 @@ export function NewMessageScreen() {
           <ConversationRow
             key={conversation.id}
             conversation={conversation}
+            currentUserId={currentUserId}
             onPress={() => navigation.replace('Chat', { conversationId: conversation.id })}
           />
         ))}

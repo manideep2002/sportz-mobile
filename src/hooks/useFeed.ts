@@ -7,7 +7,8 @@ export const feedKeys = {
   infinite: ['feed', 'infinite'] as const,
   post: (id: string) => ['post', id] as const,
   comments: (postId: string) => ['comments', postId] as const,
-  userPosts: (userId: string) => ['feed', 'user', userId] as const
+  userPosts: (userId: string) => ['feed', 'user', userId] as const,
+  communityPosts: (communityId: string) => ['feed', 'community', communityId] as const
 };
 
 export const useInfiniteFeed = () =>
@@ -22,6 +23,13 @@ export const useUserPosts = (userId: string) =>
   useQuery({
     queryKey: feedKeys.userPosts(userId),
     queryFn: () => postService.listUserPosts(userId)
+  });
+
+export const useCommunityPosts = (communityId: string) =>
+  useQuery({
+    queryKey: feedKeys.communityPosts(communityId),
+    queryFn: () => postService.listCommunityPosts(communityId),
+    enabled: !!communityId
   });
 
 export const usePost = (postId: string) =>

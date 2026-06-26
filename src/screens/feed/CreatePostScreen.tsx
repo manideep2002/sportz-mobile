@@ -6,13 +6,13 @@ import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Users, X, type Luci
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
-import { currentUser, users } from '@/data/mockData';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
-import type { Post, Sport } from '@/types/domain';
+import type { Post, Sport, UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CreatePost'>;
@@ -23,7 +23,7 @@ const visibilityOptions = ['Public', 'Followers'] as const;
 export function CreatePostScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const profile = useAuthStore((state) => state.profile) ?? currentUser;
+  const profile = useAuthStore((state) => state.profile);
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
@@ -34,9 +34,11 @@ export function CreatePostScreen() {
   const [locationLabel, setLocationLabel] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+  const [taggedUsers, setTaggedUsers] = useState<UserProfile[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [tagSearchResults, setTagSearchResults] = useState<UserProfile[]>([]);
+  const [tagSearching, setTagSearching] = useState(false);
   const createPost = useCreatePost();
-  const taggedUsers = users.slice(1).filter((user) => taggedUserIds.includes(user.id));
   const canPublish = Boolean(
     body.trim() ||
       mediaUri ||
@@ -122,9 +124,9 @@ export function CreatePostScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.author}>
-          <Avatar initials={profile.initials} size={42} />
+          <Avatar initials={profile?.initials ?? '??'} size={42} />
           <View style={styles.authorMeta}>
-            <AppText style={styles.authorName}>{profile.displayName}</AppText>
+            <AppText style={styles.authorName}>{profile?.displayName ?? 'Athlete'}</AppText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {visibilityOptions.map((item) => (
                 <Chip key={item} selected={item === visibility} onPress={() => setVisibility(item)}>
@@ -200,27 +202,51 @@ export function CreatePostScreen() {
               <AppText variant="h3">Tag People</AppText>
               <IconButton icon={X} size={34} iconSize={16} onPress={() => setTagPickerOpen(false)} />
             </View>
-            {users.slice(1).map((user) => {
-              const selected = taggedUserIds.includes(user.id);
-              return (
-                <Pressable
-                  key={user.id}
-                  style={[styles.tagOption, selected ? styles.tagOptionSelected : null]}
-                  onPress={() =>
-                    setTaggedUserIds((old) =>
-                      selected ? old.filter((id) => id !== user.id) : [...old, user.id]
-                    )
-                  }
-                >
-                  <Avatar initials={user.initials} size={38} />
-                  <View style={styles.tagOptionMeta}>
-                    <AppText style={styles.authorName}>{user.displayName}</AppText>
-                    <AppText variant="small">@{user.username}</AppText>
-                  </View>
-                  <AppText color={selected ? colors.orange[400] : colors.text.tertiary}>{selected ? 'Tagged' : 'Tag'}</AppText>
-                </Pressable>
-              );
-            })}
+            <Input
+              placeholder="Search players..."
+              value={tagSearchQuery}
+              onChangeText={async (q) => {
+                setTagSearchQuery(q);
+                if (!q.trim()) { setTagSearchResults([]); return; }
+                setTagSearching(true);
+                try {
+                  const results = await profileService.listPlayers(q.trim());
+                  setTagSearchResults(results.filter((p) => !taggedUsers.some((t) => t.id === p.id)));
+                } catch { /* ignore */ } finally { setTagSearching(false); }
+              }}
+            />
+            {tagSearchResults.map((user) => (
+              <Pressable
+                key={user.id}
+                style={styles.tagOption}
+                onPress={() => {
+                  setTaggedUsers((old) => [...old, user]);
+                  setTagSearchResults([]);
+                  setTagSearchQuery('');
+                }}
+              >
+                <Avatar initials={user.initials} size={38} />
+                <View style={styles.tagOptionMeta}>
+                  <AppText style={styles.authorName}>{user.displayName}</AppText>
+                  <AppText variant="small">@{user.username}</AppText>
+                </View>
+                <AppText color={colors.orange[400]}>Tag</AppText>
+              </Pressable>
+            ))}
+            {taggedUsers.map((user) => (
+              <Pressable
+                key={user.id}
+                style={[styles.tagOption, styles.tagOptionSelected]}
+                onPress={() => setTaggedUsers((old) => old.filter((t) => t.id !== user.id))}
+              >
+                <Avatar initials={user.initials} size={38} />
+                <View style={styles.tagOptionMeta}>
+                  <AppText style={styles.authorName}>{user.displayName}</AppText>
+                  <AppText variant="small">@{user.username}</AppText>
+                </View>
+                <AppText color={colors.text.tertiary}>Remove</AppText>
+              </Pressable>
+            ))}
             <Button full onPress={() => setTagPickerOpen(false)}>Done</Button>
           </Pressable>
         </Pressable>

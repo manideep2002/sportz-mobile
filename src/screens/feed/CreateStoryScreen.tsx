@@ -6,18 +6,18 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { Alert, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, IconButton } from '@/components/ui';
-import { currentUser } from '@/data/mockData';
 import { colors, radii, spacing } from '@/design/tokens';
 import { useCreateStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
+import type { UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function CreateStoryScreen() {
   const navigation = useNavigation<Navigation>();
-  const profile = useAuthStore((state) => state.profile) ?? currentUser;
+  const profile = useAuthStore((state) => state.profile);
   const [mediaAssets, setMediaAssets] = useState<ImagePickerAsset[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const createStories = useCreateStories();
@@ -38,9 +38,14 @@ export function CreateStoryScreen() {
   };
 
   const handleShare = async () => {
-    if (!mediaAssets.length) return;
+    if (!mediaAssets.length || !profile) return;
     try {
-      const stories = await createStories.mutateAsync({ assets: mediaAssets, author: profile });
+      const author: Pick<UserProfile, 'id' | 'displayName' | 'initials'> = {
+        id: profile.id,
+        displayName: profile.displayName,
+        initials: profile.initials
+      };
+      const stories = await createStories.mutateAsync({ assets: mediaAssets, author });
       navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl ?? undefined });
     } catch (error) {
       Alert.alert('Could not share story', error instanceof Error ? error.message : 'Please try again.');

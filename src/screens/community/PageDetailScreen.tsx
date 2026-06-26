@@ -6,8 +6,9 @@ import { StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
-import { communities, posts } from '@/data/mockData';
 import { colors, spacing } from '@/design/tokens';
+import { useCommunity } from '@/hooks/useCommunities';
+import { useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -16,7 +17,16 @@ type Route = RouteProp<AppStackParamList, 'PageDetail'>;
 export function PageDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const community = communities.find((item) => item.id === route.params.communityId) ?? communities[2];
+  const { data: community, isLoading } = useCommunity(route.params.communityId);
+  const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+
+  if (isLoading || !community) {
+    return (
+      <Screen contentContainerStyle={styles.content}>
+        <AppText>Loading...</AppText>
+      </Screen>
+    );
+  }
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -26,14 +36,15 @@ export function PageDetailScreen() {
         <IconButton icon={MoreHorizontal} />
       </View>
       <LinearGradient colors={['#1A0800', colors.orange[600], '#1A0800']} style={styles.cover}>
-        <AppText variant="h1" color={colors.light[0]}>BASA</AppText>
+        <AppText variant="h1" color={colors.light[0]}>
+          {community.name.substring(0, 4).toUpperCase()}
+        </AppText>
       </LinearGradient>
       <View style={styles.body}>
         <AppText variant="h2">{community.name}</AppText>
-        <AppText variant="bodyMuted">Official Academy Page - Est. 2018</AppText>
+        <AppText variant="bodyMuted">Official Page - {community.sport}</AppText>
         <View style={styles.badges}>
-          <Badge tone="blue">Verified</Badge>
-          <Badge>Training</Badge>
+          {community.isVerified && <Badge tone="blue">Verified</Badge>}
           <Badge>{community.followerCount} followers</Badge>
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
@@ -44,7 +55,9 @@ export function PageDetailScreen() {
         </View>
         <AppText variant="h4">Latest Posts</AppText>
       </View>
-      <PostCard post={posts[2]} />
+      {posts.slice(0, 3).map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
     </Screen>
   );
 }

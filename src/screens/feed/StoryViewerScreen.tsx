@@ -122,11 +122,6 @@ export function StoryViewerScreen() {
           source={{ uri: displayMediaUrl }}
           resizeMode="cover"
           style={StyleSheet.absoluteFill}
-          onError={() => {
-            // If the URI fails to load (e.g., expired local file), clear so
-            // placeholder shows instead of a silent blank.
-            setDisplayMediaUrl(null);
-          }}
         />
       ) : null}
 

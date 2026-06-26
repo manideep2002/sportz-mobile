@@ -75,14 +75,16 @@ export const storyService = {
 
     if (error) throw error;
 
-    const displayName = data.profiles?.display_name ?? author?.displayName ?? 'Athlete';
+    // profiles is returned as an array from the select query
+    const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    const displayName = profile?.display_name ?? author?.displayName ?? 'Athlete';
 
     return {
       id: data.id,
       user: {
-        id: data.profiles?.id ?? authData.user.id,
+        id: profile?.id ?? authData.user.id,
         displayName,
-        initials: data.profiles?.display_name ? initialsForName(data.profiles.display_name) : author?.initials ?? initialsForName(displayName)
+        initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName)
       },
       mediaUrl: data.media_url,
       seen: false,

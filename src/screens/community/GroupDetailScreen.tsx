@@ -5,9 +5,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Avatar, Badge, IconButton, Screen } from '@/components/ui';
-import { communities, posts, users } from '@/data/mockData';
+import { AppText, Badge, IconButton, Screen } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
+import { useCommunity } from '@/hooks/useCommunities';
+import { useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -16,7 +17,16 @@ type Route = RouteProp<AppStackParamList, 'GroupDetail'>;
 export function GroupDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const community = communities.find((item) => item.id === route.params.communityId) ?? communities[0];
+  const { data: community, isLoading } = useCommunity(route.params.communityId);
+  const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+
+  if (isLoading || !community) {
+    return (
+      <Screen contentContainerStyle={styles.content}>
+        <AppText>Loading...</AppText>
+      </Screen>
+    );
+  }
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -26,11 +36,15 @@ export function GroupDetailScreen() {
         <IconButton icon={MoreHorizontal} />
       </View>
       <LinearGradient colors={['#0A1A08', '#1a3a18', '#0A1A08']} style={styles.cover}>
-        <AppText variant="hero" style={styles.coverMark}>B</AppText>
+        <AppText variant="hero" style={styles.coverMark}>
+          {community.name.charAt(0).toUpperCase()}
+        </AppText>
       </LinearGradient>
       <View style={styles.body}>
         <AppText variant="h2">{community.name}</AppText>
-        <AppText variant="bodyMuted">{community.sport} - Public Group - {community.city}</AppText>
+        <AppText variant="bodyMuted">
+          {community.sport} - Public Group - {community.city}
+        </AppText>
         <View style={styles.badges}>
           <Badge tone="orange">Admin</Badge>
           <Badge>{community.memberCount} Members</Badge>
@@ -42,17 +56,15 @@ export function GroupDetailScreen() {
           <Action icon={Plus} label="New Post" primary />
           <Action icon={UserPlus} label="Invite" />
         </View>
-        <View style={styles.members}>
-          {users.slice(1, 4).map((user, index) => (
-            <View key={user.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
-              <Avatar initials={user.initials} size={30} />
-            </View>
-          ))}
-          <AppText variant="bodyMuted" style={styles.memberText}>{community.memberCount} members</AppText>
-        </View>
         <AppText variant="h4">Recent Posts</AppText>
       </View>
-      <PostCard post={posts[0]} onPress={() => navigation.navigate('PostDetail', { postId: posts[0].id })} />
+      {posts.slice(0, 3).map((post) => (
+        <PostCard
+          key={post.id}
+          post={post}
+          onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+        />
+      ))}
     </Screen>
   );
 }
@@ -119,13 +131,5 @@ const styles = StyleSheet.create({
   },
   actionPrimaryLabel: {
     color: colors.light[0]
-  },
-  members: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.xs
-  },
-  memberText: {
-    marginLeft: spacing.sm
   }
 });

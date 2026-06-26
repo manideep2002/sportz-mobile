@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -29,10 +29,6 @@ export function UserProfileScreen() {
 
   const conversationId = profile ? messageService.getConversationIdForUser(profile.id) : null;
 
-  const openChat = () => {
-    if (!conversationId) return;
-    navigation.navigate('Chat', { conversationId });
-  };
 
   const handleFollow = () => {
     toggleFollow.mutate(isFollowing, {
@@ -40,6 +36,41 @@ export function UserProfileScreen() {
         Alert.alert('Error', 'Could not update follow status. Please try again.');
       }
     });
+  };
+
+  const openChat = () => {
+    if (conversationId) {
+      navigation.navigate('Chat', { conversationId });
+    } else {
+      navigation.navigate('NewMessage');
+    }
+  };
+
+  const openMore = () => {
+    const options = ['Share Profile', 'Report User', 'Block User', 'Cancel'];
+    const destructiveIndex = 2;
+    const cancelIndex = 3;
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, destructiveButtonIndex: destructiveIndex, cancelButtonIndex: cancelIndex },
+        (index) => {
+          if (index === 0) {
+            void Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` });
+          } else if (index === 1) {
+            Alert.alert('Report', 'Thank you. We will review this profile.');
+          } else if (index === 2) {
+            Alert.alert('Blocked', `${profile?.displayName} has been blocked.`);
+          }
+        }
+      );
+    } else {
+      Alert.alert('Options', undefined, [
+        { text: 'Share Profile', onPress: () => Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` }) },
+        { text: 'Report User', onPress: () => Alert.alert('Report', 'Thank you. We will review this profile.') },
+        { text: 'Block User', style: 'destructive', onPress: () => Alert.alert('Blocked', `${profile?.displayName} has been blocked.`) },
+        { text: 'Cancel', style: 'cancel' }
+      ]);
+    }
   };
 
   // ── Loading state ──────────────────────────────────────────────────────────
@@ -76,7 +107,7 @@ export function UserProfileScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={MoreHorizontal} />
+        <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
       </View>
       <LinearGradient colors={['#0A1A08', '#18381A']} style={styles.cover} />
       <View style={styles.avatarWrap}>
@@ -126,11 +157,10 @@ export function UserProfileScreen() {
             style={styles.actionButton}
             variant="ghost"
             onPress={openChat}
-            disabled={!conversationId}
           >
             Message
           </Button>
-          <IconButton icon={MoreHorizontal} />
+          <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
         </View>
 
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
