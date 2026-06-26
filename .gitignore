@@ -11,3 +11,4 @@ android/
 .expo-export-check/
 .idea/
 /caches/
+.vscode/
