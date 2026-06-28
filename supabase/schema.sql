@@ -360,6 +360,14 @@ create table public.notifications (
   created_at timestamptz not null default now()
 );
 
+create table public.saved_posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  post_id uuid not null references public.posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint saved_posts_unique unique (user_id, post_id)
+);
+
 create table public.push_tokens (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -374,6 +382,8 @@ before update on public.push_tokens
 for each row execute function public.set_updated_at();
 
 create index posts_author_created_idx on public.posts(author_id, created_at desc);
+create index saved_posts_user_idx on public.saved_posts(user_id);
+create index saved_posts_post_idx on public.saved_posts(post_id);
 create index comments_post_created_idx on public.comments(post_id, created_at);
 create index likes_entity_idx on public.likes(entity_type, entity_id);
 create index follows_follower_idx on public.follows(follower_id);
@@ -420,6 +430,7 @@ alter table public.stories enable row level security;
 alter table public.posts enable row level security;
 alter table public.comments enable row level security;
 alter table public.likes enable row level security;
+alter table public.saved_posts enable row level security;
 alter table public.courts enable row level security;
 alter table public.sport_events enable row level security;
 alter table public.event_attendees enable row level security;
@@ -465,6 +476,11 @@ create policy "users delete own comments" on public.comments for delete using (a
 
 create policy "likes readable" on public.likes for select using (true);
 create policy "users manage own likes" on public.likes for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "users read own saved posts" on public.saved_posts
+  for select using (auth.uid() = user_id);
+create policy "users manage own saved posts" on public.saved_posts
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "courts readable" on public.courts for select using (true);
 create policy "admins manage courts" on public.courts for all using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));

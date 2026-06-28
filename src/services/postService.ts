@@ -151,7 +151,9 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
 
   if (likesResult.error) throw likesResult.error;
   if (commentsResult.error) throw commentsResult.error;
-  if (savesResult.error) throw savesResult.error;
+  // Gracefully ignore "relation does not exist" (42P01) on saved_posts so the
+  // feed still loads before the migration has been applied to Supabase.
+  if (savesResult.error && savesResult.error.code !== '42P01') throw savesResult.error;
 
   for (const like of (likesResult.data ?? []) as LikeRow[]) {
     engagement.likes.set(like.entity_id, (engagement.likes.get(like.entity_id) ?? 0) + 1);
@@ -356,7 +358,8 @@ export const postService = {
         user_id: authData.user.id,
         post_id: postId
       });
-      if (error) throw error;
+      // Ignore "relation does not exist" — migration not yet applied
+      if (error && error.code !== '42P01') throw error;
       return;
     }
 
@@ -364,7 +367,8 @@ export const postService = {
       user_id: authData.user.id,
       post_id: postId
     });
-    if (error && error.code !== '23505') throw error;
+    // Ignore duplicate (23505) and missing table (42P01)
+    if (error && error.code !== '23505' && error.code !== '42P01') throw error;
   },
 
   async deletePost(postId: string): Promise<void> {

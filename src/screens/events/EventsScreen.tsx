@@ -25,7 +25,7 @@ function buildWeekDays() {
 
 export function EventsScreen() {
   const navigation = useNavigation<Navigation>();
-  const { data: events = [], isLoading, refetch, isRefetching } = useEvents();
+  const { data: events = [], isLoading, isError, refetch, isRefetching } = useEvents();
   const joinEvent = useJoinEvent();
 
   const weekDays = buildWeekDays();
@@ -34,17 +34,17 @@ export function EventsScreen() {
   const [joinedEventIds, setJoinedEventIds] = useState<Set<string>>(new Set());
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
-  // Check attendance status for all events
+  // Check attendance status for all events — single batched DB query instead
+  // of one round-trip per event, which was causing the UI to appear stuck.
   useEffect(() => {
+    if (!events.length) return;
     const checkAttendance = async () => {
-      const joined = new Set<string>();
-      for (const event of events) {
-        const status = await eventService.checkUserAttendance(event.id);
-        if (status === 'going') {
-          joined.add(event.id);
-        }
+      try {
+        const joined = await eventService.checkUserAttendanceBatch(events.map((e) => e.id));
+        setJoinedEventIds(joined);
+      } catch {
+        // Non-fatal — attendance indicators just won't show
       }
-      setJoinedEventIds(joined);
     };
     void checkAttendance();
   }, [events]);
@@ -160,7 +160,12 @@ export function EventsScreen() {
       <View style={styles.section}>
         <SectionHeader title={isSameDay(selectedDay, new Date()) ? 'Today' : format(selectedDay, 'EEE, MMM d')} />
         {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
-        {!isLoading && todayDisplay.length === 0 ? (
+        {isError ? (
+          <AppText variant="bodyMuted" style={styles.empty}>
+            Could not load events. Pull down to retry.
+          </AppText>
+        ) : null}
+        {!isLoading && !isError && todayDisplay.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>
             No events on this day. Try another day or sport.
           </AppText>

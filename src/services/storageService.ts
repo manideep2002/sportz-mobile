@@ -1,4 +1,6 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
@@ -51,6 +53,35 @@ function resolveExtAndMime(asset: ImagePicker.ImagePickerAsset): { ext: string; 
   return { ext: 'jpg', mime: 'image/jpeg' };
 }
 
+/**
+ * Read a local file URI into an ArrayBuffer for upload.
+ *
+ * On Android, React Native's fetch() does not reliably produce a non-empty
+ * Blob from file:// URIs (the blob body can be 0 bytes). We use
+ * expo-file-system on native to read the raw base64 and convert it, which
+ * works correctly on both iOS and Android.
+ *
+ * On web, fetch() + arrayBuffer() is the standard approach.
+ */
+async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
+  if (Platform.OS !== 'web') {
+    // expo-file-system reliably reads file:// and content:// URIs on native.
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64'
+    });
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  // Web: fetch handles blob/data URIs fine.
+  const response = await fetch(uri);
+  return response.arrayBuffer();
+}
+
 export const storageService = {
   async pickMedia(): Promise<ImagePicker.ImagePickerAsset | null> {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -59,7 +90,8 @@ export const storageService = {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      // Array form — MediaTypeOptions.All is deprecated in SDK 54+
+      mediaTypes: ['images', 'videos'],
       quality: 0.86,
       allowsEditing: false
     });
@@ -90,11 +122,8 @@ export const storageService = {
   /**
    * Upload a media asset to Supabase Storage and return its public URL.
    *
-   * In mock mode (no Supabase configured) returns the original local URI
-   * unchanged so the app can still display it immediately.
-   *
-   * Uses fetch() + blob() to read local file:// URIs — React Native's fetch
-   * handles file:// URIs natively on both iOS and Android.
+   * Uses expo-file-system on native to avoid the Android fetch()+blob() bug
+   * where the blob body comes back as 0 bytes from file:// URIs.
    */
   async uploadMedia(
     asset: ImagePicker.ImagePickerAsset | string,
@@ -110,17 +139,12 @@ export const storageService = {
 
     const { ext, mime } = resolveExtAndMime(pickerAsset);
     const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const contentType = VIDEO_EXTS.has(ext) ? 'video/mp4' : mime;
 
-    // fetch() handles file:// URIs natively in React Native.
-    // We avoid any third-party file-system dependency here.
-    const response = await fetch(pickerAsset.uri);
-    if (!response.ok && response.status !== 0) {
-      throw new Error(`Could not read file (HTTP ${response.status})`);
-    }
-    const blob = await response.blob();
+    const fileData = await readFileAsArrayBuffer(pickerAsset.uri);
 
-    const { error } = await supabase.storage.from(bucket).upload(path, blob, {
-      contentType: VIDEO_EXTS.has(ext) ? 'video/mp4' : mime,
+    const { error } = await supabase.storage.from(bucket).upload(path, fileData, {
+      contentType,
       upsert: false
     });
     if (error) throw error;

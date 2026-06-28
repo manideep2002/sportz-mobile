@@ -22,7 +22,7 @@ export function FeedScreen() {
   const navigation = useNavigation<Navigation>();
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
-  const { data, isLoading, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
+  const { data, isLoading, isError, error, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
   const { data: stories = [], refetch: refetchStories } = useStories();
   const feed = data?.pages.flatMap((page) => page.items) ?? [];
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
@@ -117,7 +117,13 @@ export function FeedScreen() {
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
-      {!isLoading && filteredFeed.length === 0 ? (
+      {isError ? (
+        <View style={styles.empty}>
+          <AppText variant="h4">Could not load posts</AppText>
+          <AppText variant="bodyMuted">{error instanceof Error ? error.message : 'Pull down to retry.'}</AppText>
+        </View>
+      ) : null}
+      {!isLoading && !isError && filteredFeed.length === 0 ? (
         <View style={styles.empty}>
           <AppText variant="h4">No {selectedSport} posts yet</AppText>
           <AppText variant="bodyMuted">Try another sport or refresh the feed.</AppText>

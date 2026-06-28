@@ -298,5 +298,28 @@ export const eventService = {
 
     if (error) throw error;
     return data?.status as 'going' | 'interested' | 'declined' | null;
+  },
+
+  /**
+   * Batch version of checkUserAttendance — single DB round-trip for any number
+   * of events. Returns a Set of event IDs the current user is attending.
+   */
+  async checkUserAttendanceBatch(eventIds: string[]): Promise<Set<string>> {
+    assertSupabaseConfigured();
+    if (!eventIds.length) return new Set();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return new Set();
+
+    const { data, error } = await supabase
+      .from('event_attendees')
+      .select('event_id')
+      .eq('user_id', authData.user.id)
+      .eq('status', 'going')
+      .in('event_id', eventIds);
+
+    if (error) throw error;
+    return new Set((data ?? []).map((row: { event_id: string }) => row.event_id));
   }
 };
