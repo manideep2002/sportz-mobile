@@ -3,7 +3,35 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { SportzNotification } from '@/types/domain';
 
-const mapNotificationRow = (row: any): SportzNotification => ({
+/** Shape of an actor (profile) embedded in a notification row. */
+interface NotificationActor {
+  id: string | null;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  primary_sport?: string | null;
+  city?: string | null;
+  country?: string | null;
+  sports?: string[] | null;
+  skill_level?: string | null;
+  is_verified?: boolean | null;
+  is_hireable?: boolean | null;
+}
+
+/** Shape of a raw row from the `notifications` table with joined actor profile. */
+interface NotificationRow {
+  id: string;
+  kind: SportzNotification['kind'];
+  title: string;
+  body: string;
+  actor: NotificationActor | null;
+  read_at: string | null;
+  created_at: string;
+  entity_id: string | null;
+  entity_type: SportzNotification['entityType'] | null;
+}
+
+const mapNotificationRow = (row: NotificationRow): SportzNotification => ({
   id: row.id,
   kind: row.kind,
   title: row.title,
@@ -31,7 +59,7 @@ export const notificationService = {
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return (data ?? []).map(mapNotificationRow);
+    return (data ?? []).map((row) => mapNotificationRow(row as unknown as NotificationRow));
   },
 
   async markAllRead(): Promise<void> {
@@ -85,7 +113,7 @@ export const notificationService = {
             filter: `user_id=eq.${authData.user.id}`
           },
           (payload) => {
-            callback(mapNotificationRow(payload.new));
+            callback(mapNotificationRow(payload.new as unknown as NotificationRow));
           }
         )
         .subscribe();

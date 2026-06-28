@@ -19,10 +19,62 @@ export interface CreateEventInput {
   visibility: 'public' | 'group' | 'invite';
 }
 
+/** Shape of a row from `sport_events` with joined organizer profile. */
+interface SportEventRow {
+  id: string;
+  organizer_id: string;
+  title: string;
+  sport: string;
+  status: SportEvent['status'];
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  location_name: string;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  max_players: number;
+  entry_fee_cents: number | null;
+  currency: string | null;
+  profiles: {
+    id: string | null;
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    cover_url?: string | null;
+    bio?: string | null;
+    city?: string | null;
+    country?: string | null;
+    primary_sport?: string | null;
+    sports?: string[] | null;
+    skill_level?: string | null;
+    is_verified?: boolean | null;
+    is_hireable?: boolean | null;
+  } | null;
+}
+
+/** Shape of an attendee row with joined profile. */
+interface AttendeeRow {
+  user_id: string;
+  profiles: {
+    id: string | null;
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    city?: string | null;
+    country?: string | null;
+    primary_sport?: string | null;
+    sports?: string[] | null;
+    skill_level?: string | null;
+    is_verified?: boolean | null;
+    is_hireable?: boolean | null;
+  } | null;
+}
+
 const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) =>
   (cents ?? 0) > 0 ? `${currency ?? 'INR'} ${(cents ?? 0) / 100}` : 'Free';
 
-const mapEventRow = (row: any, playerCount = 0, attendees: SportEvent['attendees'] = []): SportEvent => ({
+const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent['attendees'] = []): SportEvent => ({
   id: row.id,
   title: row.title,
   sport: row.sport,
@@ -63,12 +115,12 @@ export const eventService = {
         .in('event_id', eventIds)
         .eq('status', 'going');
       if (attendeeError) throw attendeeError;
-      attendeeRows?.forEach((attendee) => {
+      (attendeeRows ?? []).forEach((attendee) => {
         counts.set(attendee.event_id, (counts.get(attendee.event_id) ?? 0) + 1);
       });
     }
 
-    return (data ?? []).map((row: any) => mapEventRow(row, counts.get(row.id) ?? 0));
+    return (data ?? []).map((row) => mapEventRow(row as unknown as SportEventRow, counts.get(row.id) ?? 0));
   },
 
   async getEvent(eventId: string): Promise<SportEvent> {
@@ -88,9 +140,11 @@ export const eventService = {
       .eq('status', 'going');
     if (attendeeError) throw attendeeError;
 
-    const attendees = (attendeeData ?? []).map((row: any) => mapProfileRow(row.profiles ?? { id: row.user_id }));
+    const attendees = (attendeeData ?? []).map((row) =>
+      mapProfileRow((row as unknown as AttendeeRow).profiles ?? { id: (row as unknown as AttendeeRow).user_id })
+    );
 
-    return mapEventRow(data, attendees.length, attendees);
+    return mapEventRow(data as unknown as SportEventRow, attendees.length, attendees);
   },
 
   async createEvent(input: CreateEventInput): Promise<SportEvent> {
@@ -126,7 +180,7 @@ export const eventService = {
 
     const organizer = await profileService.getProfile(authData.user.id);
     return {
-      ...mapEventRow(data, 1, [organizer]),
+      ...mapEventRow(data as unknown as SportEventRow, 1, [organizer]),
       organizer,
       attendees: [organizer]
     };
@@ -184,7 +238,17 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to update events.');
 
-    const updateData: any = {};
+    const updateData: Partial<{
+      title: string;
+      sport: string;
+      description: string;
+      starts_at: string;
+      ends_at: string;
+      location_name: string;
+      city: string;
+      max_players: number;
+      entry_fee_cents: number;
+    }> = {};
     if (updates.title) updateData.title = updates.title;
     if (updates.sport) updateData.sport = updates.sport;
     if (updates.description) updateData.description = updates.description;

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 
 import { messageService } from '@/services/messageService';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagingStore } from '@/store/messagingStore';
 import type { Conversation, Message } from '@/types/domain';
 import { applyConversationPreview, buildConversationPreview } from '@/utils/messages';
 
@@ -38,11 +39,13 @@ export const useConversation = (conversationId: string) =>
     queryFn: () => messageService.getConversation(conversationId)
   });
 
-export const useConversations = () =>
-  useQuery({
+export const useConversations = () => {
+  const readConversationIds = useMessagingStore((state) => state.readConversationIds);
+  return useQuery({
     queryKey: messageKeys.conversations,
-    queryFn: messageService.listConversations
+    queryFn: () => messageService.listConversations(readConversationIds)
   });
+};
 
 export const useConversationMessages = (conversationId: string) =>
   useQuery({
@@ -52,8 +55,11 @@ export const useConversationMessages = (conversationId: string) =>
 
 export const useMarkConversationRead = (conversationId: string) => {
   const queryClient = useQueryClient();
+  const markReadLocally = useMessagingStore((state) => state.markConversationReadLocally);
 
   useEffect(() => {
+    // Immediately zero the badge in the store and cache — no DB round-trip needed for UX
+    markReadLocally(conversationId);
     clearConversationUnread(queryClient, conversationId);
 
     void (async () => {
@@ -63,7 +69,7 @@ export const useMarkConversationRead = (conversationId: string) => {
         queryClient.invalidateQueries({ queryKey: messageKeys.conversations })
       ]);
     })();
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, markReadLocally]);
 };
 
 export const useSendMessage = (conversationId: string) => {

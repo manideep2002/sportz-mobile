@@ -81,7 +81,9 @@ export function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<SportzNotification>>(null);
 
-  const { data: notifications = [], isLoading, isRefetching, refetch } = useInfiniteNotifications();
+  const { data: infiniteData, isLoading, isRefetching, refetch } = useInfiniteNotifications();
+  // Flatten paginated results into a single array
+  const notifications: SportzNotification[] = infiniteData?.pages.flat() ?? [];
   const markAllRead = useMarkNotificationsRead();
   const markAsRead = useMarkNotificationRead();
 

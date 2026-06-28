@@ -1,17 +1,56 @@
 import { create } from 'zustand';
 
-interface MessagingState {
-  mutedConversations: Record<string, boolean>;
-  toggleMuteConversation: (conversationId: string) => void;
+interface ConversationPreview {
+  lastMessage: string;
+  lastMessageAt: string;
 }
 
-export const useMessagingStore = create<MessagingState>((set) => ({
+interface MessagingState {
+  mutedConversations: Record<string, boolean>;
+  /** Conversations the user has explicitly opened/read in this session. */
+  readConversationIds: Set<string>;
+  /** Optimistic last-message previews written before the server round-trip completes. */
+  conversationPreviews: Map<string, ConversationPreview>;
+  toggleMuteConversation: (conversationId: string) => void;
+  markConversationReadLocally: (conversationId: string) => void;
+  setConversationPreview: (conversationId: string, preview: ConversationPreview) => void;
+  clearConversationPreview: (conversationId: string) => void;
+}
+
+export const useMessagingStore = create<MessagingState>((set, get) => ({
   mutedConversations: {},
+  readConversationIds: new Set<string>(),
+  conversationPreviews: new Map<string, ConversationPreview>(),
+
   toggleMuteConversation: (conversationId) =>
     set((state) => ({
       mutedConversations: {
         ...state.mutedConversations,
         [conversationId]: !state.mutedConversations[conversationId]
       }
-    }))
+    })),
+
+  markConversationReadLocally: (conversationId) =>
+    set((state) => {
+      const next = new Set(state.readConversationIds);
+      next.add(conversationId);
+      return { readConversationIds: next };
+    }),
+
+  setConversationPreview: (conversationId, preview) =>
+    set((state) => {
+      const next = new Map(state.conversationPreviews);
+      next.set(conversationId, preview);
+      return { conversationPreviews: next };
+    }),
+
+  clearConversationPreview: (conversationId) =>
+    set((state) => {
+      const next = new Map(state.conversationPreviews);
+      next.set(conversationId, {
+        lastMessage: 'No messages yet',
+        lastMessageAt: new Date().toISOString()
+      });
+      return { conversationPreviews: next };
+    })
 }));

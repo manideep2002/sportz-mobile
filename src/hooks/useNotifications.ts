@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { notificationService } from '@/services/notificationService';
 import type { SportzNotification } from '@/types/domain';
+
+const NOTIFICATIONS_PAGE_SIZE = 40;
 
 export const notificationKeys = {
   all: ['notifications'] as const,
@@ -12,28 +14,21 @@ export const notificationKeys = {
 export const useNotifications = () =>
   useQuery({
     queryKey: notificationKeys.all,
-    queryFn: async (_ctx: unknown): Promise<SportzNotification[]> => {
-      return notificationService.listNotifications();
-    }
+    queryFn: (): Promise<SportzNotification[]> => notificationService.listNotifications()
   });
 
 export const useInfiniteNotifications = () =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: notificationKeys.infinite,
-    queryFn: async (_ctx: unknown): Promise<SportzNotification[]> => {
-      const results: SportzNotification[] = [];
-      let offset = 0;
-      const limit = 40;
-      let hasMore = true;
-
-      while (hasMore) {
-        const batch = await notificationService.listNotifications(limit, offset);
-        if (batch.length === 0) break;
-        results.push(...batch);
-        if (batch.length < limit) hasMore = false;
-        offset += limit;
-      }
-      return results;
+    queryFn: ({ pageParam }) =>
+      notificationService.listNotifications(NOTIFICATIONS_PAGE_SIZE, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      // Guard against stale or malformed cache entries during hydration
+      if (!Array.isArray(lastPage)) return undefined;
+      return lastPage.length === NOTIFICATIONS_PAGE_SIZE
+        ? lastPageParam + NOTIFICATIONS_PAGE_SIZE
+        : undefined;
     }
   });
 

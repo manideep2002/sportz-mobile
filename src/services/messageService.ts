@@ -1,32 +1,47 @@
 import { supabase } from '@/lib/supabase';
+import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import type { Conversation, ID, Message } from '@/types/domain';
 import { sortConversations } from '@/utils/conversation';
 import { buildConversationPreview } from '@/utils/messages';
 
-const readConversationIds = new Set<string>();
-
-interface ConversationPreview {
-  lastMessage: string;
-  lastMessageAt: string;
+/** Shape of a raw row returned from `conversation_members` with the joined conversation. */
+interface ConversationMemberRow {
+  conversation_id: string;
+  last_read_at: string | null;
+  conversations: {
+    title: string | null;
+    is_group: boolean | null;
+    last_message: string | null;
+    updated_at: string | null;
+  } | null;
 }
 
-const conversationPreviews = new Map<string, ConversationPreview>();
+/** Shape of a member row joined with their profile. */
+interface ConversationParticipantRow {
+  user_id: string;
+  profiles: {
+    id: string | null;
+    username: string | null;
+    display_name: string | null;
+    bio: string | null;
+    city: string | null;
+    country: string | null;
+    primary_sport: string | null;
+    sports: string[] | null;
+    skill_level: string | null;
+    avatar_url: string | null;
+  } | null;
+}
 
-const withReadState = (items: Conversation[]): Conversation[] =>
-  items.map((conversation) => ({
-    ...conversation,
-    unreadCount: readConversationIds.has(conversation.id) ? 0 : conversation.unreadCount
-  }));
-
-const withPreviewState = (items: Conversation[]): Conversation[] => {
-  const merged = items.map((conversation) => {
-    const preview = conversationPreviews.get(conversation.id);
-    return preview ? { ...conversation, ...preview } : conversation;
-  });
-  return sortConversations(merged);
-};
-
-const applyConversationListState = (items: Conversation[]) => withPreviewState(withReadState(items));
+/** Shape of a raw message row returned from the `messages` table. */
+interface MessageRow {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  message_receipts: { user_id: string }[];
+}
 
 /** Derive compact initials from a display name string. */
 const initialsFromName = (name: string) =>
@@ -38,22 +53,9 @@ const initialsFromName = (name: string) =>
     .toUpperCase();
 
 export const messageService = {
-  recordConversationPreview(conversationId: string, body: string, senderId: ID, createdAt: string) {
-    // preview is always stored, UI uses senderId comparison
-    const currentUserId = '';
-    const preview = buildConversationPreview({ body, senderId, createdAt }, currentUserId);
-    conversationPreviews.set(conversationId, preview);
-    return preview;
-  },
-
-  clearConversationPreview(conversationId: string) {
-    conversationPreviews.set(conversationId, {
-      lastMessage: 'No messages yet',
-      lastMessageAt: new Date().toISOString()
-    });
-  },
-
   async getConversation(conversationId: string): Promise<Conversation | null> {
+    assertSupabaseConfigured();
+
     const { data, error } = await supabase
       .from('conversations')
       .select('id, title, is_group, last_message, updated_at')
@@ -69,7 +71,7 @@ export const messageService = {
 
     const participants =
       !membersError && members
-        ? members.map((member: any) => ({
+        ? (members as unknown as ConversationParticipantRow[]).map((member) => ({
             id: member.profiles?.id ?? member.user_id,
             username: member.profiles?.username ?? 'athlete',
             displayName: member.profiles?.display_name ?? 'Athlete',
@@ -79,7 +81,7 @@ export const messageService = {
             country: member.profiles?.country ?? 'IN',
             primarySport: member.profiles?.primary_sport ?? 'Basketball',
             sports: member.profiles?.sports ?? [],
-            skillLevel: member.profiles?.skill_level ?? 'Intermediate',
+            skillLevel: (member.profiles?.skill_level as Conversation['participants'][number]['skillLevel']) ?? 'Intermediate',
             isOnline: false,
             badges: [],
             stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
@@ -97,7 +99,16 @@ export const messageService = {
     };
   },
 
-  async listConversations(): Promise<Conversation[]> {
+  /**
+   * List all conversations for the current user.
+   *
+   * @param readConversationIds - IDs that have been locally marked as read
+   *   (sourced from `useMessagingStore`). Keeps unread badge zeroed without
+   *   waiting for a DB round-trip.
+   */
+  async listConversations(readConversationIds: Set<string> = new Set()): Promise<Conversation[]> {
+    assertSupabaseConfigured();
+
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) return [];
 
@@ -109,32 +120,48 @@ export const messageService = {
 
     if (error || !data) return [];
 
-    const mapped = await Promise.all(
-      data.map(async (row: any) => {
-        const lastReadAt = row.last_read_at ?? '1970-01-01T00:00:00.000Z';
-        const { count, error: countError } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', row.conversation_id)
-          .neq('sender_id', authData.user!.id)
-          .gt('created_at', lastReadAt);
+    const rows = data as unknown as ConversationMemberRow[];
+    const conversationIds = rows.map((r) => r.conversation_id);
 
-        return {
-          id: row.conversation_id,
-          title: row.conversations?.title ?? 'Conversation',
-          participants: [],
-          isGroup: Boolean(row.conversations?.is_group),
-          lastMessage: row.conversations?.last_message ?? '',
-          lastMessageAt: row.conversations?.updated_at ?? new Date().toISOString(),
-          unreadCount: readConversationIds.has(row.conversation_id) ? 0 : countError ? 0 : count ?? 0
-        };
-      })
-    );
+    // Single bulk query for unread counts instead of one COUNT per conversation
+    const { data: unreadRows } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .in('conversation_id', conversationIds)
+      .neq('sender_id', authData.user.id)
+      .gt(
+        'created_at',
+        // Use the earliest last_read_at so we fetch a superset; filter per-row below
+        rows.reduce(
+          (min, r) => (r.last_read_at && r.last_read_at < min ? r.last_read_at : min),
+          '1970-01-01T00:00:00.000Z'
+        )
+      );
 
-    return applyConversationListState(mapped);
+    // Build a per-conversation unread count map from the bulk result
+    const unreadCountMap = new Map<string, number>();
+    for (const msg of unreadRows ?? []) {
+      unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) ?? 0) + 1);
+    }
+
+    const mapped = rows.map((row) => ({
+      id: row.conversation_id,
+      title: row.conversations?.title ?? 'Conversation',
+      participants: [],
+      isGroup: Boolean(row.conversations?.is_group),
+      lastMessage: row.conversations?.last_message ?? '',
+      lastMessageAt: row.conversations?.updated_at ?? new Date().toISOString(),
+      unreadCount: readConversationIds.has(row.conversation_id)
+        ? 0
+        : (unreadCountMap.get(row.conversation_id) ?? 0)
+    }));
+
+    return sortConversations(mapped);
   },
 
   async listMessages(conversationId: string): Promise<Message[]> {
+    assertSupabaseConfigured();
+
     const { data, error } = await supabase
       .from('messages')
       .select('*, message_receipts(user_id)')
@@ -144,9 +171,9 @@ export const messageService = {
 
     if (error || !data) return [];
 
-    return data.map((message: any) => {
+    return (data as unknown as MessageRow[]).map((message) => {
       const receiptUserIds = (message.message_receipts ?? []).map(
-        (receipt: { user_id: string }) => receipt.user_id
+        (receipt) => receipt.user_id
       );
       const readBy = Array.from(new Set([message.sender_id, ...receiptUserIds]));
 
@@ -162,7 +189,7 @@ export const messageService = {
   },
 
   async markConversationRead(conversationId: string): Promise<void> {
-    readConversationIds.add(conversationId);
+    assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) return;
@@ -192,6 +219,8 @@ export const messageService = {
   },
 
   async sendMessage(conversationId: string, body: string): Promise<Message> {
+    assertSupabaseConfigured();
+
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to message.');
@@ -212,7 +241,6 @@ export const messageService = {
       { body: data.body, senderId: data.sender_id, createdAt: data.created_at },
       authData.user.id
     );
-    conversationPreviews.set(conversationId, preview);
 
     await supabase
       .from('conversations')
@@ -233,7 +261,7 @@ export const messageService = {
   },
 
   async clearConversation(conversationId: string): Promise<void> {
-    messageService.clearConversationPreview(conversationId);
+    assertSupabaseConfigured();
 
     const { error } = await supabase.from('messages').delete().eq('conversation_id', conversationId);
     if (error) throw error;
@@ -248,6 +276,8 @@ export const messageService = {
   },
 
   async createDirectConversation(otherUserId: string): Promise<string> {
+    assertSupabaseConfigured();
+
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to start a conversation.');
@@ -259,7 +289,8 @@ export const messageService = {
       .eq('user_id', authData.user.id);
 
     for (const row of existing ?? []) {
-      if ((row.conversations as any)?.is_group) continue;
+      const convData = row.conversations as unknown as { is_group: boolean | null } | null;
+      if (convData?.is_group) continue;
       const { count } = await supabase
         .from('conversation_members')
         .select('*', { count: 'exact', head: true })

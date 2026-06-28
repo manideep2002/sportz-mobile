@@ -27,13 +27,78 @@ interface PostEngagement {
   savedByMe: Set<string>;
 }
 
-const mapPostRow = (row: any, engagement: PostEngagement): Post => ({
+/** Minimal profile shape embedded in a post/comment row. */
+interface EmbeddedProfile {
+  id: string | null;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  cover_url?: string | null;
+  bio?: string | null;
+  city?: string | null;
+  country?: string | null;
+  primary_sport?: string | null;
+  sports?: string[] | null;
+  position?: string | null;
+  skill_level?: string | null;
+  is_verified?: boolean | null;
+  is_hireable?: boolean | null;
+}
+
+/** Shape of a row returned from the `posts` table with joined profile. */
+interface PostRow {
+  id: string;
+  author_id: string;
+  kind: Post['kind'] | null;
+  sport: string | null;
+  body: string;
+  media_url: string | null;
+  media_kind: Post['mediaKind'] | null;
+  stats_line: string | null;
+  created_at: string;
+  /** Supabase returns the joined relation as `profiles` when using `profiles:author_id(*)`. */
+  profiles: EmbeddedProfile | null;
+  /** Fallback flat columns from the `feed_posts` view. */
+  display_name?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  likes_count?: number | null;
+  comments_count?: number | null;
+}
+
+/** Shape of a row returned from the `comments` table with joined profile. */
+interface CommentRow {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  profiles: EmbeddedProfile | null;
+}
+
+/** Shape of a row returned from `likes`. */
+interface LikeRow {
+  entity_id: string;
+  user_id: string;
+}
+
+/** Shape of a row returned from `comments` when only `post_id` is selected. */
+interface CommentCountRow {
+  post_id: string;
+}
+
+/** Shape of a row returned from `saved_posts` when scoped to the current user. */
+interface SavedPostRow {
+  post_id: string;
+}
+
+const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   id: row.id,
-  author: mapProfileRow(row.profiles ?? row.profile ?? {
+  author: mapProfileRow(row.profiles ?? {
     id: row.author_id,
-    display_name: row.display_name,
-    username: row.username,
-    avatar_url: row.avatar_url
+    display_name: row.display_name ?? null,
+    username: row.username ?? null,
+    avatar_url: row.avatar_url ?? null
   }),
   kind: row.kind ?? 'post',
   sport: row.sport ?? 'Basketball',
@@ -60,26 +125,43 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   const engagement = emptyEngagement();
   if (!postIds.length) return engagement;
 
-  const [{ data: authData }, likesResult, commentsResult, savesResult] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.from('likes').select('entity_id, user_id').eq('entity_type', 'post').in('entity_id', postIds),
-    supabase.from('comments').select('post_id').in('post_id', postIds),
-    supabase.from('saved_posts').select('post_id, user_id').in('post_id', postIds)
+  // Single auth call + 3 parallel queries — all scoped to the known post IDs
+  const { data: authData } = await supabase.auth.getUser();
+  const currentUserId = authData.user?.id;
+
+  const [likesResult, commentsResult, savesResult] = await Promise.all([
+    supabase
+      .from('likes')
+      .select('entity_id, user_id')
+      .eq('entity_type', 'post')
+      .in('entity_id', postIds),
+    supabase
+      .from('comments')
+      .select('post_id')
+      .in('post_id', postIds),
+    // Only fetch saves for the current user — no need to load everyone's saves
+    currentUserId
+      ? supabase
+          .from('saved_posts')
+          .select('post_id')
+          .eq('user_id', currentUserId)
+          .in('post_id', postIds)
+      : Promise.resolve({ data: [], error: null })
   ]);
 
   if (likesResult.error) throw likesResult.error;
   if (commentsResult.error) throw commentsResult.error;
   if (savesResult.error) throw savesResult.error;
 
-  for (const like of likesResult.data ?? []) {
+  for (const like of (likesResult.data ?? []) as LikeRow[]) {
     engagement.likes.set(like.entity_id, (engagement.likes.get(like.entity_id) ?? 0) + 1);
-    if (authData.user?.id === like.user_id) engagement.likedByMe.add(like.entity_id);
+    if (currentUserId === like.user_id) engagement.likedByMe.add(like.entity_id);
   }
-  for (const comment of commentsResult.data ?? []) {
+  for (const comment of (commentsResult.data ?? []) as CommentCountRow[]) {
     engagement.comments.set(comment.post_id, (engagement.comments.get(comment.post_id) ?? 0) + 1);
   }
-  for (const save of savesResult.data ?? []) {
-    if (authData.user?.id === save.user_id) engagement.savedByMe.add(save.post_id);
+  for (const save of (savesResult.data ?? []) as SavedPostRow[]) {
+    engagement.savedByMe.add(save.post_id);
   }
 
   return engagement;
@@ -97,8 +179,8 @@ export const postService = {
 
     if (error) throw error;
 
-    const engagement = await loadPostEngagement((data ?? []).map((row: any) => row.id));
-    return (data ?? []).map((row: any) => mapPostRow(row, engagement));
+    const engagement = await loadPostEngagement((data ?? []).map((row: PostRow) => row.id));
+    return (data ?? []).map((row: PostRow) => mapPostRow(row, engagement));
   },
 
   async listCommunityPosts(communityId: string): Promise<Post[]> {
@@ -113,8 +195,8 @@ export const postService = {
 
     if (error) throw error;
 
-    const engagement = await loadPostEngagement((data ?? []).map((row: any) => row.id));
-    return (data ?? []).map((row: any) => mapPostRow(row, engagement));
+    const engagement = await loadPostEngagement((data ?? []).map((row: PostRow) => row.id));
+    return (data ?? []).map((row: PostRow) => mapPostRow(row, engagement));
   },
 
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
@@ -133,8 +215,8 @@ export const postService = {
     const { data, error } = await request;
     if (error) throw error;
 
-    const engagement = await loadPostEngagement((data ?? []).map((row: any) => row.id));
-    const items = (data ?? []).map((row: any) => mapPostRow(row, engagement));
+    const engagement = await loadPostEngagement((data ?? []).map((row: PostRow) => row.id));
+    const items = (data ?? []).map((row: PostRow) => mapPostRow(row, engagement));
 
     return {
       items,
@@ -153,7 +235,7 @@ export const postService = {
     if (error) throw error;
 
     const engagement = await loadPostEngagement([data.id]);
-    return mapPostRow(data, engagement);
+    return mapPostRow(data as unknown as PostRow, engagement);
   },
 
   async createPost(input: CreatePostInput): Promise<Post> {
@@ -184,7 +266,7 @@ export const postService = {
 
     if (error) throw error;
 
-    return mapPostRow(data, emptyEngagement());
+    return mapPostRow(data as unknown as PostRow, emptyEngagement());
   },
 
   async listComments(postId: string): Promise<Comment[]> {
@@ -198,7 +280,7 @@ export const postService = {
 
     if (error) throw error;
 
-    return (data ?? []).map((row: any) => ({
+    return (data ?? []).map((row: CommentRow) => ({
       id: row.id,
       postId: row.post_id,
       author: mapProfileRow(row.profiles ?? { id: row.author_id }),
@@ -229,8 +311,8 @@ export const postService = {
 
     return {
       id: data.id,
-      postId: data.post_id,
-      author: mapProfileRow(data.profiles ?? { id: data.author_id }),
+      postId: (data as unknown as CommentRow).post_id,
+      author: mapProfileRow((data as unknown as CommentRow).profiles ?? { id: (data as unknown as CommentRow).author_id }),
       body: data.body,
       likes: 0,
       createdAt: data.created_at

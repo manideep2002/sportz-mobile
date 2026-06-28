@@ -16,5 +16,8 @@
   "include": [
     "src",
     "index.js"
+  ],
+  "exclude": [
+    "src/__tests__"
   ]
 }

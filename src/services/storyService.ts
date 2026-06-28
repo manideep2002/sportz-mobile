@@ -25,6 +25,14 @@ const loadSeenStories = async () => {
 
 type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
 
+/** Shape of a raw story row returned from the DB. */
+interface StoryRow {
+  id: string;
+  media_url: string | null;
+  created_at: string;
+  profiles: { id: string | null; display_name: string | null } | null;
+}
+
 export const storyService = {
   async listStories(): Promise<Story[]> {
     assertSupabaseConfigured();
@@ -38,19 +46,20 @@ export const storyService = {
 
     if (error) throw error;
 
-    return (data ?? []).map((row: any) => {
-      const displayName = row.profiles?.display_name ?? 'Athlete';
+    return (data ?? []).map((row) => {
+      const storyRow = row as unknown as StoryRow;
+      const displayName = storyRow.profiles?.display_name ?? 'Athlete';
 
       return {
-        id: row.id,
+        id: storyRow.id,
         user: {
-          id: row.profiles?.id ?? '',
+          id: storyRow.profiles?.id ?? '',
           displayName,
           initials: initialsForName(displayName)
         },
-        mediaUrl: row.media_url,
-        seen: seenStoryIds.has(row.id),
-        createdAt: row.created_at
+        mediaUrl: storyRow.media_url,
+        seen: seenStoryIds.has(storyRow.id),
+        createdAt: storyRow.created_at
       };
     });
   },
@@ -76,7 +85,8 @@ export const storyService = {
     if (error) throw error;
 
     // profiles is returned as an array from the select query
-    const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    const profileResult = data as unknown as { id: string; media_url: string | null; created_at: string; profiles: StoryRow['profiles'] | StoryRow['profiles'][] };
+    const profile = Array.isArray(profileResult.profiles) ? profileResult.profiles[0] : profileResult.profiles;
     const displayName = profile?.display_name ?? author?.displayName ?? 'Athlete';
 
     return {
@@ -86,7 +96,7 @@ export const storyService = {
         displayName,
         initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName)
       },
-      mediaUrl: data.media_url,
+      mediaUrl: (data as unknown as StoryRow).media_url,
       seen: false,
       createdAt: data.created_at
     };
