@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Filter } from 'lucide-react-native';
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
 import { AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
@@ -95,11 +95,7 @@ export function NotificationsScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  useRealtimeNotifications(() => {
-    // The query will be invalidated by the realtime subscription
-    // For now, we just refetch to get the new notification
-    void refetch();
-  });
+  useRealtimeNotifications(() => {});
 
   const handleNotificationPress = (notification: SportzNotification) => {
     if (!notification.read) {
@@ -122,7 +118,7 @@ export function NotificationsScreen() {
   if (isLoading) {
     return (
       <Screen contentContainerStyle={styles.loadingContainer}>
-        <View style={styles.loading} />
+        <ActivityIndicator color={colors.orange[500]} size="large" />
       </Screen>
     );
   }
@@ -197,14 +193,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  loading: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: colors.orange[500],
-    borderTopColor: 'transparent',
-    borderRadius: 12
   },
   header: {
     flexDirection: 'row',

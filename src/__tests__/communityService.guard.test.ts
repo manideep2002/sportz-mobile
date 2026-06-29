@@ -14,6 +14,7 @@ jest.mock('@/lib/env', () => ({
   env: { isSupabaseConfigured: false }
 }));
 
+// eslint-disable-next-line import/first
 import { communityService } from '@/services/communityService';
 
 describe('communityService — Supabase guard', () => {

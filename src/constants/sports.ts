@@ -1,5 +1,21 @@
 import type { Sport } from '@/types/domain';
 
+export const allSports: Sport[] = [
+  'Cricket',
+  'Football',
+  'Kabaddi',
+  'Badminton',
+  'Hockey',
+  'Athletics',
+  'Running',
+  'Basketball',
+  'Volleyball',
+  'Tennis',
+  'Table Tennis',
+  'Swimming',
+  'Cycling'
+];
+
 export const sportsFilters = [
   'All',
   'Basketball',
@@ -12,4 +28,5 @@ export const sportsFilters = [
   'Kabaddi'
 ] as const;
 
-export const postSports: Sport[] = sportsFilters.filter((sport) => sport !== 'All');
+export const postSports: Sport[] = allSports;
+export const sportChipFilters = sportsFilters;

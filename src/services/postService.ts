@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
-import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import type { Comment, Post } from '@/types/domain';
 
@@ -13,6 +12,7 @@ export interface CreatePostInput {
   mediaKind?: Post['mediaKind'];
   statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
+  communityId?: string;
 }
 
 export interface FeedPage {
@@ -74,6 +74,11 @@ interface CommentRow {
   body: string;
   created_at: string;
   profiles: EmbeddedProfile | null;
+}
+
+interface CommentEngagement {
+  likes: Map<string, number>;
+  likedByMe: Set<string>;
 }
 
 /** Shape of a row returned from `likes`. */
@@ -169,6 +174,59 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   return engagement;
 };
 
+const loadCommentEngagement = async (commentIds: string[]): Promise<CommentEngagement> => {
+  const engagement: CommentEngagement = { likes: new Map(), likedByMe: new Set() };
+  if (!commentIds.length) return engagement;
+
+  const { data: authData } = await supabase.auth.getUser();
+  const currentUserId = authData.user?.id;
+  const { data, error } = await supabase
+    .from('likes')
+    .select('entity_id, user_id')
+    .eq('entity_type', 'comment')
+    .in('entity_id', commentIds);
+  if (error) throw error;
+
+  for (const like of (data ?? []) as LikeRow[]) {
+    engagement.likes.set(like.entity_id, (engagement.likes.get(like.entity_id) ?? 0) + 1);
+    if (like.user_id === currentUserId) engagement.likedByMe.add(like.entity_id);
+  }
+
+  return engagement;
+};
+
+const parseStatsLine = (statsLine?: string) => {
+  if (!statsLine) return { points: 0, rebounds: 0 };
+  const points = Number(statsLine.match(/(\d+)\s*PTS?/i)?.[1] ?? 0);
+  const rebounds = Number(statsLine.match(/(\d+)\s*REB/i)?.[1] ?? 0);
+  return { points, rebounds };
+};
+
+const updateProfileStatsFromPosts = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('posts')
+    .select('stats_line')
+    .eq('author_id', userId)
+    .eq('kind', 'stats');
+  if (error) throw error;
+
+  const parsed = (data ?? []).map((row: { stats_line: string | null }) => parseStatsLine(row.stats_line ?? undefined));
+  const gamesPlayed = parsed.length;
+  const bestPoints = parsed.reduce((best, item) => Math.max(best, item.points), 0);
+  const totalRebounds = parsed.reduce((sum, item) => sum + item.rebounds, 0);
+  const avgRebounds = gamesPlayed ? Number((totalRebounds / gamesPlayed).toFixed(2)) : 0;
+
+  await supabase
+    .from('profiles')
+    .update({
+      games_played: gamesPlayed,
+      best_points: bestPoints || null,
+      avg_rebounds: avgRebounds,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
+};
+
 export const postService = {
   async listUserPosts(userId: string): Promise<Post[]> {
     assertSupabaseConfigured();
@@ -261,14 +319,39 @@ export const postService = {
         media_url: mediaUrl,
         media_kind: input.mediaKind ?? (mediaUrl ? 'image' : 'none'),
         stats_line: input.statsLine ?? null,
-        visibility: input.visibility ?? 'public'
+        visibility: input.visibility ?? 'public',
+        community_id: input.communityId ?? null
       })
       .select('*, profiles:author_id(*)')
       .single();
 
     if (error) throw error;
+    if ((input.kind ?? 'post') === 'stats') {
+      await updateProfileStatsFromPosts(authData.user.id);
+    }
 
     return mapPostRow(data as unknown as PostRow, emptyEngagement());
+  },
+
+  async listSavedPosts(): Promise<Post[]> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return [];
+
+    const { data, error } = await supabase
+      .from('saved_posts')
+      .select('post_id, created_at, posts:post_id(*, profiles:author_id(*))')
+      .eq('user_id', authData.user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const rows = (data ?? [])
+      .map((row) => (row as unknown as { posts: PostRow | null }).posts)
+      .filter((row): row is PostRow => Boolean(row));
+    const engagement = await loadPostEngagement(rows.map((row) => row.id));
+    return rows.map((row) => mapPostRow(row, engagement));
   },
 
   async listComments(postId: string): Promise<Comment[]> {
@@ -282,14 +365,17 @@ export const postService = {
 
     if (error) throw error;
 
+    const engagement = await loadCommentEngagement((data ?? []).map((row: CommentRow) => row.id));
+
     return (data ?? []).map((row: CommentRow) => ({
       id: row.id,
       postId: row.post_id,
       author: mapProfileRow(row.profiles ?? { id: row.author_id }),
       body: row.body,
-      likes: 0,
+      likes: engagement.likes.get(row.id) ?? 0,
+      likedByMe: engagement.likedByMe.has(row.id),
       createdAt: row.created_at
-    }));
+    } as Comment));
   },
 
   async createComment(postId: string, body: string): Promise<Comment> {
@@ -369,6 +455,46 @@ export const postService = {
     });
     // Ignore duplicate (23505) and missing table (42P01)
     if (error && error.code !== '23505' && error.code !== '42P01') throw error;
+  },
+
+  async toggleCommentLike(commentId: string, liked: boolean): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to like comments.');
+
+    if (liked) {
+      const { error } = await supabase.from('likes').delete().match({
+        user_id: authData.user.id,
+        entity_type: 'comment',
+        entity_id: commentId
+      });
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from('likes').insert({
+      user_id: authData.user.id,
+      entity_type: 'comment',
+      entity_id: commentId
+    });
+    if (error && error.code !== '23505') throw error;
+  },
+
+  async deleteComment(commentId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to delete comments.');
+
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId)
+      .eq('author_id', authData.user.id);
+    if (error) throw error;
   },
 
   async deletePost(postId: string): Promise<void> {

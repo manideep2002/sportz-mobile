@@ -5,8 +5,10 @@ import { Camera, ChevronLeft, Calendar, Clock } from 'lucide-react-native';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
+import { allSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -14,7 +16,7 @@ import type { Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const sports: Sport[] = ['Basketball', 'Football', 'Tennis', 'Cricket', 'Badminton'];
+const sports: Sport[] = allSports;
 const eventTypes = ['Pickup Game', 'Tournament', 'Training', 'Friendly'];
 
 export function CreateEventScreen() {
@@ -78,8 +80,13 @@ export function CreateEventScreen() {
     try {
       const durationHours = Number(duration) || 2;
       const endsAt = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
+      if (endsAt <= startDate) {
+        Alert.alert('Invalid time', 'Event end time must be after the start time.');
+        return;
+      }
+      const [geocoded] = await Location.geocodeAsync(`${locationName.trim()}, ${city.trim()}`);
       
-      await createEvent.mutateAsync({
+      const created = await createEvent.mutateAsync({
         title: title.trim(),
         sport,
         description: description.trim(),
@@ -87,13 +94,13 @@ export function CreateEventScreen() {
         endsAt: endsAt.toISOString(),
         locationName: locationName.trim(),
         city: city.trim(),
+        latitude: geocoded?.latitude,
+        longitude: geocoded?.longitude,
         maxPlayers: Number(maxPlayers),
         entryFeeCents: Math.round(Number(entryFee) * 100),
         visibility: 'public'
       });
-      Alert.alert('Success', 'Event created successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      navigation.replace('EventDetail', { eventId: created.id });
     } catch (error) {
       Alert.alert('Could not create event', error instanceof Error ? error.message : 'Please try again.');
     }

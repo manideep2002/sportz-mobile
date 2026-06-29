@@ -1,10 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { courtService } from '@/services/courtService';
-import type { Sport } from '@/types/domain';
+import { courtService, type CourtFilters } from '@/services/courtService';
 
-export const useCourts = (sport?: Sport) =>
+export const useCourts = (filters: CourtFilters = {}) =>
   useQuery({
-    queryKey: ['courts', sport ?? 'all'],
-    queryFn: () => courtService.listNearbyCourts(sport)
+    queryKey: ['courts', filters],
+    queryFn: () => courtService.listNearbyCourts(filters)
+  });
+
+export const useCourt = (courtId: string) =>
+  useQuery({
+    queryKey: ['courts', courtId],
+    queryFn: () => courtService.getCourt(courtId),
+    enabled: Boolean(courtId)
   });

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, ImagePlus } from 'lucide-react-native';
+import { Camera, ChevronLeft, ImagePlus } from 'lucide-react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { Alert, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Button, IconButton } from '@/components/ui';
 import { colors, radii, spacing } from '@/design/tokens';
@@ -20,6 +20,7 @@ export function CreateStoryScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [mediaAssets, setMediaAssets] = useState<ImagePickerAsset[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [caption, setCaption] = useState('');
   const createStories = useCreateStories();
   const selectedAsset = mediaAssets[selectedIndex];
 
@@ -45,10 +46,21 @@ export function CreateStoryScreen() {
         displayName: profile.displayName,
         initials: profile.initials
       };
-      const stories = await createStories.mutateAsync({ assets: mediaAssets, author });
+      const stories = await createStories.mutateAsync({ assets: mediaAssets, author, body: caption });
       navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl ?? undefined });
     } catch (error) {
       Alert.alert('Could not share story', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const handleCapture = async () => {
+    try {
+      const captured = await storageService.captureMedia();
+      if (!captured) return;
+      setMediaAssets((old) => [...old, captured].slice(0, 10));
+      setSelectedIndex(mediaAssets.length);
+    } catch (error) {
+      Alert.alert('Camera failed', error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
@@ -63,7 +75,14 @@ export function CreateStoryScreen() {
       </View>
       <Pressable accessibilityRole="button" style={styles.canvas} onPress={handlePickMedia}>
         {selectedAsset ? (
-          <Image source={{ uri: selectedAsset.uri }} resizeMode="cover" style={styles.preview} />
+          <>
+            <Image source={{ uri: selectedAsset.uri }} resizeMode="cover" style={styles.preview} />
+            {caption.trim() ? (
+              <View pointerEvents="none" style={styles.captionOverlay}>
+                <AppText style={styles.captionText}>{caption}</AppText>
+              </View>
+            ) : null}
+          </>
         ) : (
           <View style={styles.empty}>
             <View style={styles.icon}>
@@ -74,6 +93,14 @@ export function CreateStoryScreen() {
           </View>
         )}
       </Pressable>
+      <TextInput
+        value={caption}
+        onChangeText={setCaption}
+        placeholder="Add caption"
+        placeholderTextColor={colors.text.tertiary}
+        style={styles.captionInput}
+        maxLength={180}
+      />
       {mediaAssets.length ? (
         <FlatList
           horizontal
@@ -98,6 +125,9 @@ export function CreateStoryScreen() {
           Add more photos
         </Button>
       ) : null}
+      <Button variant="ghost" full icon={Camera} onPress={handleCapture}>
+        Capture with camera
+      </Button>
     </View>
   );
 }
@@ -128,6 +158,31 @@ const styles = StyleSheet.create({
   preview: {
     width: '100%',
     height: '100%'
+  },
+  captionOverlay: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.xl,
+    alignItems: 'center'
+  },
+  captionText: {
+    color: colors.light[0],
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 10
+  },
+  captionInput: {
+    minHeight: 46,
+    borderRadius: radii.md,
+    backgroundColor: colors.dark[800],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md
   },
   thumbnails: {
     gap: spacing.sm,

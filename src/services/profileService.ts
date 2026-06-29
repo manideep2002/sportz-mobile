@@ -4,7 +4,7 @@ import { mapProfileRow } from '@/services/profileMapper';
 import type { UserProfile } from '@/types/domain';
 
 export type ProfileUpdateInput = Partial<
-  Pick<UserProfile, 'displayName' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable'>
+  Pick<UserProfile, 'username' | 'displayName' | 'avatarUrl' | 'coverUrl' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable' | 'isPrivate'>
 >;
 
 async function loadProfileCounts(
@@ -47,13 +47,19 @@ export const profileService = {
     return mapProfileRow(profileResult.data, counts);
   },
 
-  async listPlayers(query?: string): Promise<UserProfile[]> {
+  async listPlayers(query?: string, sport?: string, page = 0, pageSize = 30): Promise<UserProfile[]> {
     assertSupabaseConfigured();
 
-    let request = supabase.from('profiles').select('*').limit(30);
+    let request = supabase
+      .from('profiles')
+      .select('*')
+      .range(page * pageSize, page * pageSize + pageSize - 1);
     if (query?.trim()) {
       const normalized = query.trim();
       request = request.or(`display_name.ilike.%${normalized}%,username.ilike.%${normalized}%,primary_sport.ilike.%${normalized}%`);
+    }
+    if (sport?.trim()) {
+      request = request.eq('primary_sport', sport.trim());
     }
 
     const { data, error } = await request;
@@ -69,6 +75,9 @@ export const profileService = {
       .from('profiles')
       .update({
         display_name: input.displayName,
+        username: input.username,
+        avatar_url: input.avatarUrl,
+        cover_url: input.coverUrl,
         bio: input.bio,
         city: input.city,
         primary_sport: input.primarySport,
@@ -76,11 +85,38 @@ export const profileService = {
         position: input.position,
         skill_level: input.skillLevel,
         is_hireable: input.isHireable,
+        is_private: input.isPrivate,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
 
     if (error) throw error;
+  },
+
+  async listFollowers(userId: string): Promise<UserProfile[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('follows')
+      .select('profiles:follower_id(*)')
+      .eq('following_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data ?? []).map((row) => mapProfileRow((row as { profiles: Record<string, any> | null }).profiles));
+  },
+
+  async listFollowing(userId: string): Promise<UserProfile[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('follows')
+      .select('profiles:following_id(*)')
+      .eq('follower_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data ?? []).map((row) => mapProfileRow((row as { profiles: Record<string, any> | null }).profiles));
   },
 
   async isFollowing(targetId: string): Promise<boolean> {

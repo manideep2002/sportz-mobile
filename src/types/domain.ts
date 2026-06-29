@@ -23,6 +23,7 @@ export interface UserProfile {
   isOnline: boolean;
   isVerified?: boolean;
   isHireable?: boolean;
+  isPrivate?: boolean;
   badges: string[];
   stats: ProfileStats;
 }
@@ -41,6 +42,7 @@ export interface Story {
   id: ID;
   user: Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
   mediaUrl?: string | null;
+  body?: string | null;
   seen: boolean;
   createdAt: string;
 }
@@ -71,6 +73,7 @@ export interface Comment {
   author: UserProfile;
   body: string;
   likes: number;
+  likedByMe?: boolean;
   createdAt: string;
 }
 
@@ -139,6 +142,14 @@ export interface Message {
   pending?: boolean;
 }
 
+export interface EventMessage {
+  id: ID;
+  eventId: ID;
+  sender: UserProfile;
+  body: string;
+  createdAt: string;
+}
+
 export type NotificationKind =
   | 'like'
   | 'comment'
@@ -172,6 +183,7 @@ export interface Community {
   memberCount: number;
   followerCount?: number;
   isAdmin?: boolean;
+  isMember?: boolean;
   isVerified?: boolean;
   latestPost?: string;
 }

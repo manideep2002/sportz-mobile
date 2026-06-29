@@ -15,19 +15,19 @@ type SettingsItemConfig = {
   label: string;
   detail?: string;
   icon: LucideIcon;
-  route?: 'EditProfile';
+  route?: keyof AppStackParamList;
 };
 
 const accountItems: SettingsItemConfig[] = [
   { label: 'Profile Settings', detail: 'Edit name, bio, sport, position', icon: UserRound, route: 'EditProfile' as const },
-  { label: 'Privacy & Security', detail: 'Account visibility, block list', icon: Lock },
-  { label: 'Notifications', detail: 'Push, email, activity alerts', icon: Bell }
+  { label: 'Privacy & Security', detail: 'Account visibility, block list', icon: Lock, route: 'Privacy' },
+  { label: 'Notifications', detail: 'Push, email, activity alerts', icon: Bell, route: 'NotificationSettings' }
 ];
 
 const preferenceItems: SettingsItemConfig[] = [
-  { label: 'Language & Region', detail: 'English - India', icon: Globe },
-  { label: 'Appearance', detail: 'Dark mode - Orange accent', icon: Moon },
-  { label: 'Sports Interests', detail: 'Basketball, Football, Tennis', icon: Heart }
+  { label: 'Language & Region', detail: 'English - India', icon: Globe, route: 'Language' },
+  { label: 'Appearance', detail: 'Dark mode - Orange accent', icon: Moon, route: 'Appearance' },
+  { label: 'Sports Interests', detail: 'Basketball, Football, Tennis', icon: Heart, route: 'SportsInterests' }
 ];
 
 export function SettingsScreen() {
@@ -64,7 +64,7 @@ export function SettingsScreen() {
         </View>
       </Pressable>
       <AppText variant="caption" style={styles.sectionTitle}>Support</AppText>
-      <SettingsItem label="Help & Support" icon={HelpCircle} />
+      <SettingsItem label="Help & Support" icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
       <Pressable style={styles.item} onPress={handleSignOut}>
         <View style={[styles.itemIcon, styles.dangerIcon]}><LogOut size={18} color={colors.semantic.danger} /></View>
         <View style={{ flex: 1 }}>
@@ -86,7 +86,7 @@ function Section({ title, items, navigation }: { title: string; items: SettingsI
           detail={item.detail}
           icon={item.icon}
           onPress={() => {
-            if (item.route) navigation.navigate(item.route);
+            if (item.route) navigation.navigate(item.route as never);
           }}
         />
       ))}

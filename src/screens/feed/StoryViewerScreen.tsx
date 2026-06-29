@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Trash2, X } from 'lucide-react-native';
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, IconButton, ProgressBar } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { messageService } from '@/services/messageService';
 import { timeAgo } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -27,6 +28,8 @@ export function StoryViewerScreen() {
 
   const [currentStoryId, setCurrentStoryId] = useState(route.params.storyId);
   const [elapsed, setElapsed] = useState(0);
+  const [reply, setReply] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
 
   // Track the displayed media URL in state so it is seeded immediately from
   // route params (set by CreateStoryScreen) and updated when we navigate
@@ -109,6 +112,20 @@ export function StoryViewerScreen() {
     );
   };
 
+  const sendReply = async (body: string) => {
+    if (!story?.user.id || story.user.id === currentProfile?.id || !body.trim()) return;
+    setSendingReply(true);
+    try {
+      const conversationId = await messageService.createDirectConversation(story.user.id);
+      await messageService.sendMessage(conversationId, body.trim());
+      setReply('');
+    } catch (error) {
+      Alert.alert('Reply failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   const isOwnStory =
     story?.user.id !== undefined &&
     currentProfile?.id !== undefined &&
@@ -184,6 +201,40 @@ export function StoryViewerScreen() {
           </AppText>
         </View>
       ) : null}
+      {!isOwnStory && story?.user.id ? (
+        <View style={styles.replyBar}>
+          <View style={styles.reactions}>
+            {['🔥', '❤️', '👏', '🏆'].map((reaction) => (
+              <Pressable
+                key={reaction}
+                style={styles.reactionButton}
+                disabled={sendingReply}
+                onPress={() => void sendReply(reaction)}
+              >
+                <AppText style={styles.reactionText}>{reaction}</AppText>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.replyRow}>
+            <TextInput
+              value={reply}
+              onChangeText={setReply}
+              placeholder="Reply to story..."
+              placeholderTextColor={colors.light[100]}
+              style={styles.replyInput}
+              returnKeyType="send"
+              onSubmitEditing={() => void sendReply(reply)}
+            />
+            <Pressable
+              style={[styles.sendReply, !reply.trim() || sendingReply ? styles.sendReplyDisabled : null]}
+              disabled={!reply.trim() || sendingReply}
+              onPress={() => void sendReply(reply)}
+            >
+              <AppText style={styles.sendReplyText}>Send</AppText>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -232,5 +283,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md
+  },
+  replyBar: {
+    position: 'absolute',
+    left: spacing.screen,
+    right: spacing.screen,
+    bottom: 28,
+    gap: spacing.sm
+  },
+  reactions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm
+  },
+  reactionButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(10,9,7,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  reactionText: {
+    fontSize: 20
+  },
+  replyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
+  replyInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(10,9,7,0.55)',
+    color: colors.light[0],
+    paddingHorizontal: spacing.md
+  },
+  sendReply: {
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: colors.orange[500],
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sendReplyDisabled: {
+    opacity: 0.55
+  },
+  sendReplyText: {
+    color: colors.light[0],
+    fontWeight: '700'
   }
 });

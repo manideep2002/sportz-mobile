@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
 import { colors, typography } from '@/design/tokens';
@@ -11,6 +11,7 @@ interface AvatarProps {
   size?: number;
   tone?: AvatarTone;
   online?: boolean;
+  uri?: string | null;
 }
 
 const gradients: Record<AvatarTone, [string, string]> = {
@@ -22,12 +23,19 @@ const gradients: Record<AvatarTone, [string, string]> = {
   dark: [colors.dark[700], colors.dark[600]]
 };
 
-export function Avatar({ initials, size = 42, tone = 'orange', online = false }: AvatarProps) {
+export function Avatar({ initials, size = 42, tone = 'orange', online = false, uri }: AvatarProps) {
   return (
     <View style={{ width: size, height: size }}>
-      <LinearGradient colors={gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-        <AppText style={[styles.initials, { fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
-      </LinearGradient>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+        />
+      ) : (
+        <LinearGradient colors={gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
+          <AppText style={[styles.initials, { fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
+        </LinearGradient>
+      )}
       {online ? <View style={[styles.online, { width: size * 0.24, height: size * 0.24, borderRadius: size * 0.12 }]} /> : null}
     </View>
   );

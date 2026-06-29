@@ -28,6 +28,14 @@ export interface RegisterInput {
   secondarySports: Sport[];
 }
 
+export const normalizeIndianPhoneNumber = (value: string) => {
+  const stripped = value.replace(/[\s\-().]/g, '');
+  if (!stripped) return '';
+  if (stripped.startsWith('+')) return stripped;
+  const withoutLeadingZero = stripped.replace(/^0+/, '');
+  return `+91${withoutLeadingZero}`;
+};
+
 export const authService = {
   async getSession(): Promise<AuthResult> {
     assertSupabaseConfigured();
@@ -64,7 +72,7 @@ export const authService = {
           display_name: `${input.firstName.trim()} ${input.lastName.trim()}`,
           username,
           city: input.city.trim(),
-          mobile_number: input.mobileNumber.trim(),
+          mobile_number: normalizeIndianPhoneNumber(input.mobileNumber),
           mobile_otp_verified: Boolean(input.mobileOtp?.trim()),
           date_of_birth: input.dateOfBirth,
           gender: input.gender,
@@ -83,7 +91,7 @@ export const authService = {
   async generateMobileOtp(mobileNumber: string): Promise<{ demoCode?: string }> {
     assertSupabaseConfigured();
 
-    const phone = mobileNumber.trim();
+    const phone = normalizeIndianPhoneNumber(mobileNumber);
     if (!phone) {
       throw new Error('Enter a mobile number before generating an OTP.');
     }
@@ -126,6 +134,16 @@ export const authService = {
     const { data: sessionData, error: sessionError } = await supabase.auth.getUser();
     if (sessionError) throw sessionError;
     if (!sessionData.user) throw new Error('You must be signed in to load your profile.');
+
+    return profileService.getProfile(sessionData.user.id);
+  },
+
+  async maybeGetCurrentProfile(): Promise<UserProfile | null> {
+    assertSupabaseConfigured();
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getUser();
+    if (sessionError) throw sessionError;
+    if (!sessionData.user) return null;
 
     return profileService.getProfile(sessionData.user.id);
   }

@@ -6,9 +6,10 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useSearch } from '@/hooks/useSearch';
+import { useSearch, useTrendingTags } from '@/hooks/useSearch';
+import { blockService } from '@/services/blockService';
+import { useQuery } from '@tanstack/react-query';
 import type { AppStackParamList } from '@/navigation/routes';
-import { searchService } from '@/services/searchService';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -27,8 +28,11 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const { data = [] } = useSearch(query);
+  const { data: trendingTags = [] } = useTrendingTags();
+  const { data: blockedIds = new Set<string>() } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
   const selectedType = filterTypes[selectedFilter];
-  const filteredData = selectedType ? data.filter((result) => result.type === selectedType) : data;
+  const visibleData = data.filter((result) => !(result.type === 'player' && blockedIds.has(result.id)));
+  const filteredData = selectedType ? visibleData.filter((result) => result.type === selectedType) : visibleData;
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -53,7 +57,7 @@ export function SearchScreen() {
       <View style={styles.section}>
         <SectionHeader title="Trending" />
         <View style={styles.trending}>
-          {searchService.getTrending().map((tag) => (
+          {trendingTags.map((tag) => (
             <Pressable key={tag} accessibilityRole="button" onPress={() => setQuery(tag.replace('#', ''))}>
               <Badge>{tag}</Badge>
             </Pressable>

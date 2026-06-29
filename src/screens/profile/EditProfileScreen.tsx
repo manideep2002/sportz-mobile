@@ -2,18 +2,21 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft } from 'lucide-react-native';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
+import { allSports } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
+import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
 import type { SkillLevel, Sport } from '@/types/domain';
+import { normalizeUsername } from '@/utils/authValidation';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const sports: Sport[] = ['Basketball', 'Football', 'Tennis', 'Cricket'];
+const sports: Sport[] = allSports;
 const levels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
 
 export function EditProfileScreen() {
@@ -27,15 +30,56 @@ export function EditProfileScreen() {
   const [sport, setSport] = useState<Sport>(profile?.primarySport ?? 'Basketball');
   const [position, setPosition] = useState(profile?.position ?? '');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>(profile?.skillLevel ?? 'Advanced');
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl ?? null);
+  const [coverUrl, setCoverUrl] = useState(profile?.coverUrl ?? null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const uploadProfileMedia = async (kind: 'avatar' | 'cover') => {
+    if (!profile) return;
+    setError(null);
+    try {
+      const picked = await storageService.pickMedia();
+      if (!picked) return;
+      const url = await storageService.uploadMedia(picked, kind === 'avatar' ? 'avatars' : 'post-media', profile.id);
+      if (kind === 'avatar') {
+        await profileService.updateProfile(profile.id, { avatarUrl: url });
+        setAvatarUrl(url);
+        setProfile({ ...profile, avatarUrl: url });
+      } else {
+        await profileService.updateProfile(profile.id, { coverUrl: url });
+        setCoverUrl(url);
+        setProfile({ ...profile, coverUrl: url });
+      }
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Could not update media.');
+    }
+  };
 
   const handleSave = async () => {
     if (!profile) return;
+    setSaving(true);
+    setError(null);
     try {
-      await profileService.updateProfile(profile.id, { displayName, bio, city, primarySport: sport, sports: [sport], position, skillLevel });
-      setProfile({ ...profile, displayName, username: username.replace('@', ''), bio, city, primarySport: sport, sports: [sport], position, skillLevel });
+      const normalizedUsername = normalizeUsername(username);
+      await profileService.updateProfile(profile.id, {
+        displayName,
+        username: normalizedUsername,
+        bio,
+        city,
+        primarySport: sport,
+        sports: [sport],
+        position,
+        skillLevel,
+        avatarUrl,
+        coverUrl
+      });
+      setProfile({ ...profile, displayName, username: normalizedUsername, bio, city, primarySport: sport, sports: [sport], position, skillLevel, avatarUrl, coverUrl });
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Save failed', error instanceof Error ? error.message : 'Please try again.');
+      setError(error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -44,16 +88,17 @@ export function EditProfileScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Edit Profile</AppText>
-        <Button size="sm" onPress={handleSave}>Save</Button>
+        <Button size="sm" loading={saving} onPress={handleSave}>Save</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.avatarEdit}>
-          <Avatar initials={profile?.initials ?? 'MK'} size={84} />
+        <Pressable style={styles.avatarEdit} onPress={() => void uploadProfileMedia('avatar')} accessibilityRole="button" accessibilityLabel="Change profile photo">
+          <Avatar initials={profile?.initials ?? 'MK'} uri={avatarUrl} size={84} />
           <View style={styles.camera}>
             <Camera size={14} color={colors.light[0]} />
           </View>
-        </View>
-        <Button variant="ghost" size="sm" style={styles.coverButton}>Change Cover Photo</Button>
+        </Pressable>
+        <Button variant="ghost" size="sm" style={styles.coverButton} onPress={() => void uploadProfileMedia('cover')}>Change Cover Photo</Button>
+        {error ? <AppText style={styles.error}>{error}</AppText> : null}
         <Input label="Display Name" value={displayName} onChangeText={setDisplayName} />
         <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
         <Input label="Bio" value={bio} onChangeText={setBio} multiline numberOfLines={3} />
@@ -119,5 +164,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
     marginBottom: -6
+  },
+  error: {
+    color: colors.semantic.danger,
+    textAlign: 'center',
+    fontSize: 12
   }
 });

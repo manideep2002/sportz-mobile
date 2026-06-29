@@ -119,6 +119,22 @@ export const storageService = {
     return result.assets;
   },
 
+  async captureMedia(): Promise<ImagePicker.ImagePickerAsset | null> {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error('Camera permission is required.');
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.86,
+      allowsEditing: false
+    });
+
+    if (result.canceled) return null;
+    return result.assets[0];
+  },
+
   /**
    * Upload a media asset to Supabase Storage and return its public URL.
    *

@@ -17,6 +17,8 @@ import {
 import { AppProviders } from './AppProviders';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthBootstrap } from '@/hooks/useAuthBootstrap';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { usePresence } from '@/hooks/usePresence';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuthStore } from '@/store/authStore';
 import { AppText } from '@/components/ui';
@@ -26,7 +28,18 @@ void SplashScreen.preventAutoHideAsync();
 
 function AppContent() {
   usePushNotifications();
-  return <RootNavigator />;
+  usePresence();
+  const { isOffline } = useNetworkStatus();
+  return (
+    <View style={styles.appShell}>
+      {isOffline ? (
+        <View style={styles.offlineBanner}>
+          <AppText style={styles.offlineText}>You&apos;re offline. Some content may be outdated.</AppText>
+        </View>
+      ) : null}
+      <RootNavigator />
+    </View>
+  );
 }
 
 function LoadingSplash() {
@@ -73,10 +86,29 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  appShell: {
+    flex: 1
+  },
   loadingContainer: {
     flex: 1,
     backgroundColor: colors.dark[950],
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  offlineBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    backgroundColor: colors.orange[500],
+    paddingTop: 4,
+    paddingBottom: 6,
+    alignItems: 'center'
+  },
+  offlineText: {
+    color: colors.light[0],
+    fontSize: 12,
+    fontWeight: '700'
   }
 });

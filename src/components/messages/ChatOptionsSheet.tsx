@@ -8,7 +8,6 @@ import {
   Eraser,
   Flag,
   LogOut,
-  Search,
   UserRound,
   Users,
   type LucideIcon
@@ -17,6 +16,9 @@ import {
 import { AppText, BottomSheet } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
+import { blockService } from '@/services/blockService';
+import { communityService } from '@/services/communityService';
+import { reportReasons, reportService } from '@/services/reportService';
 import { useMessagingStore } from '@/store/messagingStore';
 
 interface ChatOptionsSheetProps {
@@ -96,15 +98,6 @@ export function ChatOptionsSheet({
       }
     },
     {
-      label: 'Search in conversation',
-      detail: 'Find messages, dates, and media',
-      icon: Search,
-      onPress: () => {
-        onClose();
-        Alert.alert('Search in conversation', 'Message search will be available in a future update.');
-      }
-    },
-    {
       label: 'Clear chat',
       detail: 'Remove messages from this device',
       icon: Eraser,
@@ -126,9 +119,12 @@ export function ChatOptionsSheet({
       destructive: true,
       onPress: () => {
         confirm('Leave group?', `You will no longer receive messages from ${participantName}.`, () => {
-          onClose();
-          navigation.goBack();
-          Alert.alert('Left group', `You left ${participantName}.`);
+          void (async () => {
+            if (communityId) await communityService.leaveCommunity(communityId);
+            onClose();
+            navigation.goBack();
+            Alert.alert('Left group', `You left ${participantName}.`);
+          })();
         });
       }
     });
@@ -140,9 +136,11 @@ export function ChatOptionsSheet({
       destructive: true,
       onPress: () => {
         confirm('Block user?', `${participantName} will not be able to message you.`, () => {
-          onClose();
-          navigation.goBack();
-          Alert.alert('User blocked', `${participantName} has been blocked.`);
+          void blockService.blockUser(otherUserId).then(() => {
+            onClose();
+            navigation.goBack();
+            Alert.alert('User blocked', `${participantName} has been blocked.`);
+          });
         });
       }
     });
@@ -154,10 +152,17 @@ export function ChatOptionsSheet({
     icon: Flag,
     destructive: true,
     onPress: () => {
-      confirm('Report chat?', 'Our team will review this conversation.', () => {
-        onClose();
-        Alert.alert('Report submitted', 'Thanks for helping keep SPORTZ safe.');
-      });
+      Alert.alert('Report chat', 'Choose a reason.', [
+        ...reportReasons.map((reason) => ({
+          text: reason,
+          onPress: async () => {
+            await reportService.reportEntity(isGroup ? 'community' : 'user', isGroup ? communityId ?? conversationId : otherUserId ?? conversationId, reason);
+            onClose();
+            Alert.alert('Report submitted', 'Thanks for helping keep SPORTZ safe.');
+          }
+        })),
+        { text: 'Cancel', style: 'cancel' as const }
+      ]);
     }
   });
 

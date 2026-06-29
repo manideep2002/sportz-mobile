@@ -113,13 +113,17 @@ export const useUpdateProfile = () => {
       const merge = (old: UserProfile): UserProfile => ({
         ...old,
         displayName: input.displayName ?? old.displayName,
+        username: input.username ?? old.username,
+        avatarUrl: input.avatarUrl ?? old.avatarUrl,
+        coverUrl: input.coverUrl ?? old.coverUrl,
         bio: input.bio ?? old.bio,
         city: input.city ?? old.city,
         primarySport: input.primarySport ?? old.primarySport,
         sports: input.sports ?? old.sports,
         position: input.position ?? old.position,
         skillLevel: input.skillLevel ?? old.skillLevel,
-        isHireable: input.isHireable ?? old.isHireable
+        isHireable: input.isHireable ?? old.isHireable,
+        isPrivate: input.isPrivate ?? old.isPrivate
       });
 
       queryClient.setQueryData<UserProfile>(profileKeys.detail(id), (old) =>

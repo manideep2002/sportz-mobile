@@ -24,6 +24,8 @@ export type AppStackParamList = {
   Settings: undefined;
   EditProfile: undefined;
   EventDetail: { eventId: string };
+  EventChat: { eventId: string };
+  ManageEvent: { eventId: string };
   CreateEvent: undefined;
   UserProfile: { userId: string };
   StoryViewer: { storyId: string; mediaUrl?: string };
@@ -31,10 +33,21 @@ export type AppStackParamList = {
   NewMessage: undefined;
   Chat: { conversationId: string };
   FindPlayers: undefined;
-  CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight' } | undefined;
+  CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight'; communityId?: string } | undefined;
   PostDetail: { postId: string };
   GroupDetail: { communityId: string };
   PageDetail: { communityId: string };
+  SavedPosts: undefined;
+  Followers: { userId: string; mode: 'followers' | 'following' };
+  CourtDetail: { courtId: string };
+  CourtBooking: { courtId: string };
+  CreateCommunity: undefined;
+  Privacy: undefined;
+  NotificationSettings: undefined;
+  Language: undefined;
+  Appearance: undefined;
+  SportsInterests: undefined;
+  Help: undefined;
 };
 
 export type RootStackParamList = {
@@ -44,6 +57,7 @@ export type RootStackParamList = {
 
 declare global {
   namespace ReactNavigation {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface RootParamList extends RootStackParamList {}
   }
 }

@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { memo, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
@@ -20,7 +21,7 @@ interface PostCardProps {
   onMediaPress?: () => void;
 }
 
-export function PostCard({
+function PostCardComponent({
   post,
   onPress,
   onAuthorPress,
@@ -32,6 +33,8 @@ export function PostCard({
   onPrimaryAction,
   onMediaPress
 }: PostCardProps) {
+  const [mediaLoading, setMediaLoading] = useState(Boolean(post.mediaUrl));
+  const [mediaError, setMediaError] = useState(false);
   const runAction = (event: GestureResponderEvent, action?: () => void) => {
     event.stopPropagation();
     action?.();
@@ -42,7 +45,7 @@ export function PostCard({
       <Card style={styles.card} padded={false}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
-            <Avatar initials={post.author.initials} size={40} tone="orange" online={post.author.isOnline} />
+            <Avatar initials={post.author.initials} uri={post.author.avatarUrl} size={40} tone="orange" online={post.author.isOnline} />
           </Pressable>
           <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
             <AppText style={styles.authorName}>{post.author.displayName}</AppText>
@@ -60,9 +63,29 @@ export function PostCard({
         <AppText variant="bodyMuted" style={styles.body}>
           {post.body}
         </AppText>
+        {post.kind === 'stats' && post.statsLine ? (
+          <View style={styles.statsLine}>
+            <AppText style={styles.statsLineText}>{post.statsLine}</AppText>
+          </View>
+        ) : null}
         {post.mediaKind === 'image' && post.mediaUrl ? (
           <View style={styles.media}>
-            <Image source={{ uri: post.mediaUrl }} style={styles.mediaImage} />
+            {mediaLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.mediaLoader} /> : null}
+            {mediaError ? (
+              <View style={styles.mediaFallback}>
+                <AppText variant="small">Media unavailable</AppText>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: post.mediaUrl }}
+                style={styles.mediaImage}
+                onLoadEnd={() => setMediaLoading(false)}
+                onError={() => {
+                  setMediaLoading(false);
+                  setMediaError(true);
+                }}
+              />
+            )}
           </View>
         ) : null}
         {post.mediaKind === 'video' && post.mediaUrl ? (
@@ -144,6 +167,8 @@ export function PostCard({
   );
 }
 
+export const PostCard = memo(PostCardComponent);
+
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: spacing.screen,
@@ -173,6 +198,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 10
   },
+  statsLine: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    borderRadius: 10,
+    backgroundColor: colors.overlays.orangeSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.overlays.orangeBorder,
+    padding: 10
+  },
+  statsLineText: {
+    color: colors.orange[300],
+    fontFamily: typography.headingBold,
+    fontSize: 17
+  },
   media: {
     marginHorizontal: 14,
     marginTop: 10
@@ -181,6 +220,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 10
+  },
+  mediaLoader: {
+    position: 'absolute',
+    zIndex: 1,
+    alignSelf: 'center',
+    top: 88
+  },
+  mediaFallback: {
+    height: 200,
+    borderRadius: 10,
+    backgroundColor: colors.dark[700],
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   mediaVideoContainer: {
     width: '100%',

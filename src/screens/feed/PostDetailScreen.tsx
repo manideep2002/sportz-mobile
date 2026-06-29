@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Send } from 'lucide-react-native';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ChevronLeft, Heart, Send } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useComments, useCreateComment, useDeletePost, useOptimisticPostLike, useOptimisticPostSave, usePost } from '@/hooks/useFeed';
+import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -18,7 +19,7 @@ type Route = RouteProp<AppStackParamList, 'PostDetail'>;
 export function PostDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: post } = usePost(route.params.postId);
+  const { data: post, isLoading: postLoading } = usePost(route.params.postId);
   const { data: comments = [] } = useComments(route.params.postId);
   const profile = useAuthStore((state) => state.profile);
   const [commentBody, setCommentBody] = useState('');
@@ -27,6 +28,8 @@ export function PostDetailScreen() {
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
   const deletePostMutation = useDeletePost();
+  const likeCommentMutation = useOptimisticCommentLike(route.params.postId);
+  const deleteCommentMutation = useDeleteComment(route.params.postId);
   const openAuthor = () => {
     if (!post) return;
     if (post.author.id.startsWith('page-')) {
@@ -34,6 +37,19 @@ export function PostDetailScreen() {
       return;
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
+  };
+  const reportPost = () => {
+    if (!post) return;
+    Alert.alert('Report Post', 'Choose a reason.', [
+      ...reportReasons.map((reason) => ({
+        text: reason,
+        onPress: async () => {
+          await reportService.reportEntity('post', post.id, reason);
+          Alert.alert('Report submitted', 'Thank you. We will review this post.');
+        }
+      })),
+      { text: 'Cancel', style: 'cancel' as const }
+    ]);
   };
   const submitComment = async () => {
     const body = commentBody.trim();
@@ -55,6 +71,7 @@ export function PostDetailScreen() {
         <AppText variant="h3">Post</AppText>
         <View style={{ width: 40 }} />
       </View>
+      {postLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
       {post ? (
         <PostCard
           post={post}
@@ -74,7 +91,9 @@ export function PostDetailScreen() {
             Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: openAuthor },
               { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
+              { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
               { text: 'Share', onPress: () => void sharePost(post) },
+              { text: 'Report Post', onPress: reportPost },
               ...(isOwnPost ? [{
                 text: 'Delete',
                 style: 'destructive' as const,
@@ -107,17 +126,40 @@ export function PostDetailScreen() {
           key={comment.id}
           accessibilityRole="button"
           style={styles.commentRow}
-          onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
+          onPress={() => {
+            setCommentBody(`@${comment.author.username} `);
+            commentInputRef.current?.focus();
+          }}
+          onLongPress={() => {
+            if (comment.author.id !== profile?.id) return;
+            Alert.alert('Delete comment', 'Remove your comment?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
+            ]);
+          }}
         >
-          <Avatar initials={comment.author.initials} size={36} tone="green" />
+          <Pressable onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}>
+            <Avatar initials={comment.author.initials} uri={comment.author.avatarUrl} size={36} tone="green" />
+          </Pressable>
           <View style={styles.commentBody}>
             <AppText style={styles.commentAuthor}>{comment.author.displayName}</AppText>
             <AppText variant="bodyMuted">{comment.body}</AppText>
+            <Pressable
+              style={styles.commentLike}
+              onPress={() => likeCommentMutation.mutate({ commentId: comment.id, liked: Boolean(comment.likedByMe) })}
+            >
+              <Heart
+                size={14}
+                color={comment.likedByMe ? colors.orange[400] : colors.text.tertiary}
+                fill={comment.likedByMe ? colors.orange[400] : 'transparent'}
+              />
+              <AppText variant="small">{comment.likes}</AppText>
+            </Pressable>
           </View>
         </Pressable>
       ))}
       <View style={styles.commentInput}>
-        <Avatar initials={profile?.initials ?? 'MK'} size={36} />
+        <Avatar initials={profile?.initials ?? 'MK'} uri={profile?.avatarUrl} size={36} />
         <View style={styles.inputWrap}>
           <Input
             ref={commentInputRef}
@@ -156,6 +198,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     marginBottom: 12
   },
+  loader: {
+    paddingVertical: spacing.xl
+  },
   commentRow: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -175,6 +220,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold,
     fontSize: 13,
     marginBottom: 2
+  },
+  commentLike: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8
   },
   commentInput: {
     flexDirection: 'row',

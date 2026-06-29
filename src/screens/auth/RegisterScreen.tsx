@@ -1,82 +1,24 @@
 import { useState } from 'react';
 import * as Location from 'expo-location';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronDown, ChevronLeft, LocateFixed, Phone, ShieldCheck } from 'lucide-react-native';
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, LocateFixed, Phone, ShieldCheck, X } from 'lucide-react-native';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+import { allSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { AuthStackParamList } from '@/navigation/routes';
 import { authService } from '@/services/authService';
+import { profileService } from '@/services/profileService';
+import { storageService } from '@/services/storageService';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 import { useAuthStore } from '@/store/authStore';
 import type { Gender, SkillLevel, Sport } from '@/types/domain';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
-const sports: Sport[] = [
-  'Cricket',
-  'Football',
-  'Kabaddi',
-  'Badminton',
-  'Hockey',
-  'Athletics',
-  'Running',
-  'Basketball',
-  'Volleyball',
-  'Tennis',
-  'Table Tennis',
-  'Swimming',
-  'Cycling',
-  'Chess',
-  'Wrestling',
-  'Boxing',
-  'Weightlifting',
-  'Shooting',
-  'Archery',
-  'Kho Kho',
-  'Carrom',
-  'Squash',
-  'Golf',
-  'Rugby',
-  'Handball',
-  'Throwball',
-  'Netball',
-  'Skating',
-  'Roller Skating',
-  'Gymnastics',
-  'Yoga',
-  'Mallakhamb',
-  'Judo',
-  'Karate',
-  'Taekwondo',
-  'Wushu',
-  'Fencing',
-  'Rowing',
-  'Sailing',
-  'Canoeing',
-  'Kayaking',
-  'Equestrian',
-  'Polo',
-  'Motorsports',
-  'Esports',
-  'Pickleball',
-  'Ultimate Frisbee',
-  'Baseball',
-  'Softball',
-  'Snooker',
-  'Billiards',
-  'Powerlifting',
-  'Bodybuilding',
-  'CrossFit',
-  'MMA',
-  'Kickboxing',
-  'Muay Thai',
-  'Sport Climbing',
-  'Trekking',
-  'Marathon',
-  'Triathlon'
-];
+const sports: Sport[] = allSports;
 const experienceLevels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
 const genders: Gender[] = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -186,24 +128,26 @@ export function RegisterScreen({ navigation }: Props) {
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [primarySportPickerVisible, setPrimarySportPickerVisible] = useState(false);
   const [secondarySportPickerVisible, setSecondarySportPickerVisible] = useState(false);
-  const [firstName, setFirstName] = useState('Marcus');
-  const [lastName, setLastName] = useState('King');
-  const [username, setUsername] = useState('@marcusk');
-  const [email, setEmail] = useState('demo@sportz.app');
-  const [password, setPassword] = useState('Sportz@1234');
-  const [confirmPassword, setConfirmPassword] = useState('Sportz@1234');
-  const [mobileNumber, setMobileNumber] = useState('+91 98765 43210');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [mobileOtp, setMobileOtp] = useState('');
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
-  const [dateOfBirth, setDateOfBirth] = useState('1996-05-14');
-  const [calendarMonth, setCalendarMonth] = useState(() => parseDate('1996-05-14'));
-  const [gender, setGender] = useState<Gender>('Male');
-  const [city, setCity] = useState('Bengaluru, Karnataka');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(2000, 0, 1));
+  const [gender, setGender] = useState<Gender>('Prefer not to say');
+  const [city, setCity] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [sportQuery, setSportQuery] = useState('');
   const [primarySport, setPrimarySport] = useState<Sport>('Cricket');
   const [primarySportExperienceLevel, setPrimarySportExperienceLevel] = useState<SkillLevel>('Intermediate');
-  const [secondarySports, setSecondarySports] = useState<Sport[]>(['Football', 'Badminton']);
+  const [secondarySports, setSecondarySports] = useState<Sport[]>([]);
+  const [confirmationVisible, setConfirmationVisible] = useState(false);
+  const [avatarAsset, setAvatarAsset] = useState<ImagePickerAsset | null>(null);
 
   const passwordStatus = passwordRules.map((rule) => ({ ...rule, valid: rule.test(password) }));
   const passwordIsValid = passwordStatus.every((rule) => rule.valid);
@@ -283,6 +227,15 @@ export function RegisterScreen({ navigation }: Props) {
     }
   };
 
+  const handlePickAvatar = async () => {
+    try {
+      const picked = await storageService.pickMedia();
+      if (picked) setAvatarAsset(picked);
+    } catch (error) {
+      Alert.alert('Avatar upload', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
   const handleDetectLocation = async () => {
     setDetectingLocation(true);
     try {
@@ -343,6 +296,15 @@ export function RegisterScreen({ navigation }: Props) {
         primarySportExperienceLevel,
         secondarySports
       });
+      const createdProfile = useAuthStore.getState().profile;
+      if (createdProfile && avatarAsset) {
+        const avatarUrl = await storageService.uploadMedia(avatarAsset, 'avatars', createdProfile.id);
+        await profileService.updateProfile(createdProfile.id, { avatarUrl });
+        useAuthStore.getState().setProfile({ ...createdProfile, avatarUrl });
+      }
+      if (!createdProfile) {
+        setConfirmationVisible(true);
+      }
     } catch (error) {
       Alert.alert('Could not create profile', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -356,6 +318,10 @@ export function RegisterScreen({ navigation }: Props) {
         <AppText variant="bodyMuted" style={styles.subtitle}>
           Create your athlete profile
         </AppText>
+        <Pressable style={styles.avatarPicker} onPress={handlePickAvatar} accessibilityRole="button" accessibilityLabel="Choose profile photo">
+          <Avatar initials="SP" uri={avatarAsset?.uri} size={76} />
+          <View style={styles.avatarCamera}><Camera size={15} color={colors.light[0]} /></View>
+        </Pressable>
         <View style={styles.form}>
           <View style={styles.row}>
             <Input label="First Name" value={firstName} onChangeText={setFirstName} style={styles.flexInput} />
@@ -365,17 +331,31 @@ export function RegisterScreen({ navigation }: Props) {
           <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
           <Input label="Password" value={password} onChangeText={setPassword} secureTextEntry />
           <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-          <AppText
-            variant="small"
-            style={[
-              styles.passwordHint,
-              passwordIsValid && passwordMatches ? styles.passwordHintValid : null,
-              confirmPassword && !passwordMatches ? styles.passwordHintError : null
-            ]}
-          >
-            {passwordHint}
-            {confirmPassword && !passwordMatches ? ' Passwords must match.' : ''}
-          </AppText>
+          <View style={styles.passwordRules}>
+            {passwordStatus.map((rule) => (
+              <View key={rule.label} style={styles.passwordRule}>
+                {rule.valid ? (
+                  <Check size={14} color={colors.semantic.success} />
+                ) : (
+                  <X size={14} color={colors.semantic.danger} />
+                )}
+                <AppText style={[styles.passwordRuleText, rule.valid ? styles.passwordHintValid : styles.passwordHintError]}>
+                  {rule.label}
+                </AppText>
+              </View>
+            ))}
+            <AppText
+              variant="small"
+              style={[
+                styles.passwordHint,
+                passwordIsValid && passwordMatches ? styles.passwordHintValid : null,
+                confirmPassword && !passwordMatches ? styles.passwordHintError : null
+              ]}
+            >
+              {passwordHint}
+              {confirmPassword && !passwordMatches ? ' Passwords must match.' : ''}
+            </AppText>
+          </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Mobile Verification</AppText>
             <View style={styles.otpRow}>
@@ -399,7 +379,7 @@ export function RegisterScreen({ navigation }: Props) {
             <AppText style={styles.label}>DOB</AppText>
             <Pressable style={styles.selectInput} onPress={() => setCalendarVisible(true)}>
               <CalendarDays size={17} color={colors.text.tertiary} strokeWidth={2} />
-              <AppText style={styles.selectText}>{dateOfBirth}</AppText>
+              <AppText style={styles.selectText}>{dateOfBirth || 'Select date of birth'}</AppText>
             </Pressable>
           </View>
           <View style={styles.group}>
@@ -511,6 +491,23 @@ export function RegisterScreen({ navigation }: Props) {
         onSecondaryToggle={toggleSecondarySport}
         onClose={() => setSecondarySportPickerVisible(false)}
       />
+      <Modal visible={confirmationVisible} transparent animationType="fade" onRequestClose={() => setConfirmationVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.calendarCard}>
+            <AppText variant="h3">Check your inbox</AppText>
+            <AppText variant="bodyMuted">Confirm your email address before signing in to SPORTZ.</AppText>
+            <Button
+              full
+              onPress={() => {
+                setConfirmationVisible(false);
+                navigation.navigate('Login');
+              }}
+            >
+              Back to Sign In
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -669,7 +666,7 @@ interface CalendarModalProps {
 }
 
 function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSelect, onClose }: CalendarModalProps) {
-  const selected = parseDate(selectedDate);
+  const selected = selectedDate ? parseDate(selectedDate) : null;
   const days = getCalendarDays(monthDate);
   const monthLabel = `${monthNames[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
 
@@ -698,7 +695,7 @@ function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSele
             ))}
             {days.map((day, index) => {
               const date = day ? new Date(monthDate.getFullYear(), monthDate.getMonth(), day) : null;
-              const isSelected = Boolean(date && formatDate(date) === formatDate(selected));
+              const isSelected = Boolean(date && selected && formatDate(date) === formatDate(selected));
 
               return (
                 <Pressable
@@ -736,6 +733,23 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.md
   },
+  avatarPicker: {
+    alignSelf: 'center',
+    marginBottom: spacing.md
+  },
+  avatarCamera: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.orange[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.dark[950]
+  },
   row: {
     flexDirection: 'row',
     gap: 12
@@ -746,6 +760,18 @@ const styles = StyleSheet.create({
   passwordHint: {
     color: colors.text.tertiary,
     marginTop: -10
+  },
+  passwordRules: {
+    gap: 5,
+    marginTop: -8
+  },
+  passwordRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  passwordRuleText: {
+    fontSize: 12
   },
   passwordHintValid: {
     color: colors.semantic.success

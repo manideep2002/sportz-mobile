@@ -14,12 +14,12 @@ export function ForgotPasswordScreen({ navigation }: Props) {
   const resetPassword = useAuthStore((state) => state.resetPassword);
   const loading = useAuthStore((state) => state.loading);
   const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
 
   const handleReset = async () => {
     try {
       await resetPassword(email.trim());
-      Alert.alert('Check your inbox', 'Password reset instructions have been sent.');
-      navigation.goBack();
+      setSent(true);
     } catch (error) {
       Alert.alert('Reset failed', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -30,12 +30,20 @@ export function ForgotPasswordScreen({ navigation }: Props) {
       <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} style={styles.back} />
       <AppText variant="h2">Reset password</AppText>
       <AppText variant="bodyMuted" style={styles.subtitle}>
-        Enter your email and SPORTZ will send a secure reset link.
+        {sent ? 'Password reset instructions have been sent.' : 'Enter your email and SPORTZ will send a secure reset link.'}
       </AppText>
-      <Input label="Email" icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-      <Button full size="lg" loading={loading} onPress={handleReset}>
-        Send Reset Link
-      </Button>
+      {sent ? (
+        <Button full size="lg" onPress={() => navigation.goBack()}>
+          Back to Sign In
+        </Button>
+      ) : (
+        <>
+          <Input label="Email" icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <Button full size="lg" loading={loading} onPress={handleReset}>
+            Send Reset Link
+          </Button>
+        </>
+      )}
     </Screen>
   );
 }

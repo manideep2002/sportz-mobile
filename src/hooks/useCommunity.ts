@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { communityService } from '@/services/communityService';
-import type { Community } from '@/types/domain';
 
 const communityKeys = {
   all: ['communities'] as const,

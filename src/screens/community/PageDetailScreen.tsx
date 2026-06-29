@@ -2,12 +2,12 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, MoreHorizontal, Share2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
-import { useCommunity } from '@/hooks/useCommunities';
+import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
 import { useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 
@@ -19,6 +19,8 @@ export function PageDetailScreen() {
   const route = useRoute<Route>();
   const { data: community, isLoading } = useCommunity(route.params.communityId);
   const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+  const followPage = useJoinCommunity(route.params.communityId);
+  const unfollowPage = useLeaveCommunity(route.params.communityId);
 
   if (isLoading || !community) {
     return (
@@ -49,14 +51,26 @@ export function PageDetailScreen() {
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
         <View style={styles.actions}>
-          <Button variant="dark" style={styles.actionButton}>Following</Button>
-          <Button style={styles.actionButton}>Message</Button>
-          <IconButton icon={Share2} />
+          <Button
+            variant={community.isMember ? 'dark' : 'primary'}
+            style={styles.actionButton}
+            loading={followPage.isPending || unfollowPage.isPending}
+            onPress={() => {
+              if (community.isMember) unfollowPage.mutate();
+              else followPage.mutate('follower');
+            }}
+          >
+            {community.isMember ? 'Following' : 'Follow'}
+          </Button>
+          {community.isAdmin ? (
+            <Button style={styles.actionButton} onPress={() => navigation.navigate('CreatePost', { communityId: community.id })}>New Post</Button>
+          ) : null}
+          <IconButton icon={Share2} onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })} />
         </View>
         <AppText variant="h4">Latest Posts</AppText>
       </View>
       {posts.slice(0, 3).map((post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard key={post.id} post={post} onPress={() => navigation.navigate('PostDetail', { postId: post.id })} />
       ))}
     </Screen>
   );

@@ -6,6 +6,7 @@ import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Users, X, type Luci
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
+import { postSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -17,7 +18,7 @@ import type { Post, Sport, UserProfile } from '@/types/domain';
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CreatePost'>;
 
-const sports: Sport[] = ['Basketball', 'Football', 'Tennis', 'Cricket'];
+const sports: Sport[] = postSports;
 const visibilityOptions = ['Public', 'Followers'] as const;
 
 export function CreatePostScreen() {
@@ -27,6 +28,7 @@ export function CreatePostScreen() {
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<Post['mediaKind']>('none');
   const [kind, setKind] = useState<Post['kind']>(route.params?.initialKind ?? 'post');
   const [statsLine, setStatsLine] = useState('');
@@ -37,7 +39,6 @@ export function CreatePostScreen() {
   const [taggedUsers, setTaggedUsers] = useState<UserProfile[]>([]);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [tagSearchResults, setTagSearchResults] = useState<UserProfile[]>([]);
-  const [tagSearching, setTagSearching] = useState(false);
   const createPost = useCreatePost();
   const canPublish = Boolean(
     body.trim() ||
@@ -51,6 +52,7 @@ export function CreatePostScreen() {
     try {
       const media = await storageService.pickMedia();
       setMediaUri(media?.uri ?? null);
+      setThumbnailUri((media as { thumbnail?: string; thumbnailUri?: string } | null)?.thumbnail ?? (media as { thumbnailUri?: string } | null)?.thumbnailUri ?? null);
       setMediaKind(media?.type === 'video' ? 'video' : media ? 'image' : 'none');
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
@@ -79,8 +81,8 @@ export function CreatePostScreen() {
   };
 
   const handlePublish = async () => {
+    const mentions = taggedUsers.map((user) => `@${user.username}`).join(' ');
     const additions = [
-      taggedUsers.length ? `With ${taggedUsers.map((user) => `@${user.username}`).join(', ')}` : '',
       locationLabel ? `At ${locationLabel}` : ''
     ].filter(Boolean);
     const fallbackBody =
@@ -91,7 +93,7 @@ export function CreatePostScreen() {
             ? 'Shared a new highlight.'
             : 'Shared a new sports update.'
           : '';
-    const publishedBody = [body.trim() || fallbackBody, ...additions].filter(Boolean).join('\n');
+    const publishedBody = [mentions, body.trim() || fallbackBody, ...additions].filter(Boolean).join('\n');
     if (!canPublish) {
       Alert.alert('Add something to share', 'Write an update or choose a photo or video.');
       return;
@@ -105,7 +107,8 @@ export function CreatePostScreen() {
         mediaUrl: mediaUri,
         mediaKind,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
-        visibility: visibility.toLowerCase() as 'public' | 'followers'
+        visibility: visibility.toLowerCase() as 'public' | 'followers',
+        communityId: route.params?.communityId
       });
       navigation.goBack();
     } catch (error) {
@@ -124,7 +127,7 @@ export function CreatePostScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.author}>
-          <Avatar initials={profile?.initials ?? '??'} size={42} />
+          <Avatar initials={profile?.initials ?? '??'} uri={profile?.avatarUrl} size={42} />
           <View style={styles.authorMeta}>
             <AppText style={styles.authorName}>{profile?.displayName ?? 'Athlete'}</AppText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -155,8 +158,8 @@ export function CreatePostScreen() {
         ) : null}
         {mediaUri ? (
           <View style={styles.mediaPreview}>
-            {mediaKind === 'image' ? (
-              <Image source={{ uri: mediaUri }} style={styles.previewImage} />
+            {mediaKind === 'image' || thumbnailUri ? (
+              <Image source={{ uri: thumbnailUri ?? mediaUri }} style={styles.previewImage} />
             ) : (
               <View style={styles.videoPreview}>
                 <AppText variant="h4">Video selected</AppText>
@@ -170,6 +173,7 @@ export function CreatePostScreen() {
               style={styles.removeMedia}
               onPress={() => {
                 setMediaUri(null);
+                setThumbnailUri(null);
                 setMediaKind('none');
               }}
             />
@@ -178,6 +182,7 @@ export function CreatePostScreen() {
         <View style={styles.mediaActions}>
           <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
           <ComposerAction icon={BarChart3} label="Stats" selected={kind === 'stats'} onPress={() => setKind(kind === 'stats' ? 'post' : 'stats')} />
+          <ComposerAction icon={BarChart3} label="Highlight" selected={kind === 'highlight'} onPress={() => setKind(kind === 'highlight' ? 'post' : 'highlight')} />
           <ComposerAction icon={MapPin} label={detectingLocation ? 'Locating...' : locationLabel || 'Location'} selected={Boolean(locationLabel)} onPress={() => void handleDetectLocation()} />
         </View>
         <AppText style={styles.label}>Tag Sport</AppText>
@@ -208,11 +213,10 @@ export function CreatePostScreen() {
               onChangeText={async (q) => {
                 setTagSearchQuery(q);
                 if (!q.trim()) { setTagSearchResults([]); return; }
-                setTagSearching(true);
                 try {
                   const results = await profileService.listPlayers(q.trim());
                   setTagSearchResults(results.filter((p) => !taggedUsers.some((t) => t.id === p.id)));
-                } catch { /* ignore */ } finally { setTagSearching(false); }
+                } catch { /* ignore */ }
               }}
             />
             {tagSearchResults.map((user) => (
@@ -221,6 +225,10 @@ export function CreatePostScreen() {
                 style={styles.tagOption}
                 onPress={() => {
                   setTaggedUsers((old) => [...old, user]);
+                  setBody((old) => {
+                    const mention = `@${user.username}`;
+                    return old.includes(mention) ? old : `${mention} ${old}`.trimEnd();
+                  });
                   setTagSearchResults([]);
                   setTagSearchQuery('');
                 }}

@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import { useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, Search } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
@@ -14,10 +15,19 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function MessagesScreen() {
   const navigation = useNavigation<Navigation>();
+  const [query, setQuery] = useState('');
   const { data: conversations = [] } = useConversations();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
-  const pinned = conversations.filter((conversation) => conversation.pinned);
-  const rest = conversations.filter((conversation) => !conversation.pinned);
+  const filteredConversations = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return conversations;
+    return conversations.filter((conversation) =>
+      conversation.title.toLowerCase().includes(normalized) ||
+      conversation.lastMessage.toLowerCase().includes(normalized)
+    );
+  }, [conversations, query]);
+  const pinned = filteredConversations.filter((conversation) => conversation.pinned);
+  const rest = filteredConversations.filter((conversation) => !conversation.pinned);
 
   return (
     <Screen withTabPadding contentContainerStyle={styles.content}>
@@ -27,7 +37,7 @@ export function MessagesScreen() {
         </AppText>
         <IconButton icon={Plus} onPress={() => navigation.navigate('NewMessage')} />
       </View>
-      <Input icon={Search} placeholder="Search messages..." />
+      <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search messages..." />
       {pinned.length ? (
         <View style={styles.section}>
           <SectionHeader title="Pinned" />

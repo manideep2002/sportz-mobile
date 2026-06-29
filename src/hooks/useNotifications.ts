@@ -55,13 +55,34 @@ export const useMarkNotificationRead = () => {
 };
 
 export const useRealtimeNotifications = (onNewNotification: (notification: SportzNotification) => void) => {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     let mounted = true;
     let subscription: { unsubscribe: () => void } | null = null;
 
     const setupSubscription = async () => {
       const sub = await notificationService.subscribeToNotifications((notification) => {
-        if (mounted) onNewNotification(notification);
+        if (!mounted) return;
+        queryClient.setQueryData<SportzNotification[]>(notificationKeys.all, (old = []) => [
+          notification,
+          ...old.filter((item) => item.id !== notification.id)
+        ]);
+        queryClient.setQueryData<{
+          pages: SportzNotification[][];
+          pageParams: unknown[];
+        }>(notificationKeys.infinite, (old) =>
+          old
+            ? {
+                ...old,
+                pages: [
+                  [notification, ...(old.pages[0] ?? []).filter((item) => item.id !== notification.id)],
+                  ...old.pages.slice(1)
+                ]
+              }
+            : { pages: [[notification]], pageParams: [0] }
+        );
+        onNewNotification(notification);
       });
       subscription = sub;
     };
@@ -74,5 +95,5 @@ export const useRealtimeNotifications = (onNewNotification: (notification: Sport
         subscription.unsubscribe();
       }
     };
-  }, [onNewNotification]);
+  }, [onNewNotification, queryClient]);
 };

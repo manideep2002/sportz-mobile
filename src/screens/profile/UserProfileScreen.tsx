@@ -12,6 +12,8 @@ import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { UserProfile } from '@/types/domain';
 import { messageService } from '@/services/messageService';
+import { blockService } from '@/services/blockService';
+import { reportReasons, reportService } from '@/services/reportService';
 import { compactNumber } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -26,9 +28,7 @@ export function UserProfileScreen() {
   const { data: isFollowing = false } = useIsFollowing(userId);
   const toggleFollow = useToggleFollow(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
-
-  const conversationId = profile ? messageService.getConversationIdForUser(profile.id) : null;
-
+  const [messageLoading, setMessageLoading] = useState(false);
 
   const handleFollow = () => {
     toggleFollow.mutate(isFollowing, {
@@ -38,11 +38,45 @@ export function UserProfileScreen() {
     });
   };
 
-  const openChat = () => {
-    if (conversationId) {
+  const openChat = async () => {
+    if (!profile) return;
+    setMessageLoading(true);
+    try {
+      const conversationId = await messageService.createDirectConversation(profile.id);
       navigation.navigate('Chat', { conversationId });
-    } else {
-      navigation.navigate('NewMessage');
+    } catch (error) {
+      Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const reportProfile = () => {
+    if (!profile) return;
+    Alert.alert('Report User', 'Choose a reason.', [
+      ...reportReasons.map((reason) => ({
+        text: reason,
+        onPress: async () => {
+          try {
+            await reportService.reportEntity('user', profile.id, reason);
+            Alert.alert('Report submitted', 'Thank you. We will review this profile.');
+          } catch (error) {
+            Alert.alert('Report failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }
+      })),
+      { text: 'Cancel', style: 'cancel' as const }
+    ]);
+  };
+
+  const blockProfile = async () => {
+    if (!profile) return;
+    try {
+      await blockService.blockUser(profile.id);
+      Alert.alert('Blocked', `${profile.displayName} has been blocked.`);
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert('Block failed', error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
@@ -57,17 +91,17 @@ export function UserProfileScreen() {
           if (index === 0) {
             void Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` });
           } else if (index === 1) {
-            Alert.alert('Report', 'Thank you. We will review this profile.');
+            reportProfile();
           } else if (index === 2) {
-            Alert.alert('Blocked', `${profile?.displayName} has been blocked.`);
+            void blockProfile();
           }
         }
       );
     } else {
       Alert.alert('Options', undefined, [
         { text: 'Share Profile', onPress: () => Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` }) },
-        { text: 'Report User', onPress: () => Alert.alert('Report', 'Thank you. We will review this profile.') },
-        { text: 'Block User', style: 'destructive', onPress: () => Alert.alert('Blocked', `${profile?.displayName} has been blocked.`) },
+        { text: 'Report User', onPress: reportProfile },
+        { text: 'Block User', style: 'destructive', onPress: () => void blockProfile() },
         { text: 'Cancel', style: 'cancel' }
       ]);
     }
@@ -111,7 +145,7 @@ export function UserProfileScreen() {
       </View>
       <LinearGradient colors={['#0A1A08', '#18381A']} style={styles.cover} />
       <View style={styles.avatarWrap}>
-        <Avatar initials={profile.initials} size={80} online={profile.isOnline} />
+        <Avatar initials={profile.initials} uri={profile.avatarUrl} size={80} online={profile.isOnline} />
       </View>
       <View style={styles.body}>
         <View style={styles.nameRow}>
@@ -137,8 +171,12 @@ export function UserProfileScreen() {
         <AppText variant="bodyMuted">{profile.bio}</AppText>
 
         <View style={styles.stats}>
-          <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
-          <StatCard value={profile.stats.following} label="Following" />
+          <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'followers' })}>
+            <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
+          </Pressable>
+          <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'following' })}>
+            <StatCard value={profile.stats.following} label="Following" />
+          </Pressable>
           <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
         </View>
 
@@ -156,7 +194,8 @@ export function UserProfileScreen() {
           <Button
             style={styles.actionButton}
             variant="ghost"
-            onPress={openChat}
+            loading={messageLoading}
+            onPress={() => void openChat()}
           >
             Message
           </Button>
@@ -375,6 +414,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
     marginTop: spacing.xs
+  },
+  statTap: {
+    flex: 1
   },
   actions: {
     flexDirection: 'row',

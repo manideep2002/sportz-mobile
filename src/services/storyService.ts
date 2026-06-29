@@ -29,6 +29,7 @@ type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
 interface StoryRow {
   id: string;
   media_url: string | null;
+  body: string | null;
   created_at: string;
   profiles: { id: string | null; display_name: string | null } | null;
 }
@@ -40,7 +41,7 @@ export const storyService = {
 
     const { data, error } = await supabase
       .from('stories')
-      .select('id, media_url, created_at, profiles:author_id(id, display_name)')
+      .select('id, media_url, body, created_at, profiles:author_id(id, display_name)')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
@@ -58,13 +59,14 @@ export const storyService = {
           initials: initialsForName(displayName)
         },
         mediaUrl: storyRow.media_url,
+        body: storyRow.body,
         seen: seenStoryIds.has(storyRow.id),
         createdAt: storyRow.created_at
       };
     });
   },
 
-  async createStory(asset: ImagePickerAsset, author?: StoryAuthor): Promise<Story> {
+  async createStory(asset: ImagePickerAsset, author?: StoryAuthor, body?: string): Promise<Story> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -77,9 +79,10 @@ export const storyService = {
       .insert({
         author_id: authData.user.id,
         media_url: mediaUrl,
-        media_kind: asset.type === 'video' ? 'video' : 'image'
+        media_kind: asset.type === 'video' ? 'video' : 'image',
+        body: body?.trim() || null
       })
-      .select('id, media_url, created_at, profiles:author_id(id, display_name)')
+      .select('id, media_url, body, created_at, profiles:author_id(id, display_name)')
       .single();
 
     if (error) throw error;
@@ -97,15 +100,16 @@ export const storyService = {
         initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName)
       },
       mediaUrl: (data as unknown as StoryRow).media_url,
+      body: (data as unknown as StoryRow).body,
       seen: false,
       createdAt: data.created_at
     };
   },
 
-  async createStories(assets: ImagePickerAsset[], author?: StoryAuthor): Promise<Story[]> {
+  async createStories(assets: ImagePickerAsset[], author?: StoryAuthor, body?: string): Promise<Story[]> {
     const createdStories: Story[] = [];
     for (const asset of assets) {
-      createdStories.push(await storyService.createStory(asset, author));
+      createdStories.push(await storyService.createStory(asset, author, body));
     }
 
     return createdStories;

@@ -1,10 +1,11 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { sportzDarkTheme, sportzLightTheme } from '@/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { MainTabs } from './MainTabs';
+import { navigationRef } from './navigationRef';
 import type { AppStackParamList, AuthStackParamList, RootStackParamList } from './routes';
 import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
@@ -17,6 +18,8 @@ import { NotificationsScreen } from '@/screens/notifications/NotificationsScreen
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
 import { EventDetailScreen } from '@/screens/events/EventDetailScreen';
+import { EventChatScreen } from '@/screens/events/EventChatScreen';
+import { ManageEventScreen } from '@/screens/events/ManageEventScreen';
 import { CreateEventScreen } from '@/screens/events/CreateEventScreen';
 import { UserProfileScreen } from '@/screens/profile/UserProfileScreen';
 import { ChatScreen } from '@/screens/messages/ChatScreen';
@@ -28,10 +31,41 @@ import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
 import { StoryViewerScreen } from '@/screens/feed/StoryViewerScreen';
 import { GroupDetailScreen } from '@/screens/community/GroupDetailScreen';
 import { PageDetailScreen } from '@/screens/community/PageDetailScreen';
+import { SavedPostsScreen } from '@/screens/profile/SavedPostsScreen';
+import { FollowersScreen } from '@/screens/profile/FollowersScreen';
+import { CourtBookingScreen } from '@/screens/courts/CourtBookingScreen';
+import { CourtDetailScreen } from '@/screens/courts/CourtDetailScreen';
+import { CreateCommunityScreen } from '@/screens/community/CreateCommunityScreen';
+import { PrivacyScreen } from '@/screens/settings/PrivacyScreen';
+import { NotificationSettingsScreen } from '@/screens/settings/NotificationSettingsScreen';
+import { LanguageScreen } from '@/screens/settings/LanguageScreen';
+import { AppearanceScreen } from '@/screens/settings/AppearanceScreen';
+import { SportsInterestsScreen } from '@/screens/settings/SportsInterestsScreen';
+import { HelpScreen } from '@/screens/settings/HelpScreen';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
 const App = createNativeStackNavigator<AppStackParamList>();
+
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['sportz://'],
+  config: {
+    screens: {
+      Auth: {
+        screens: {
+          ForgotPassword: 'reset-password'
+        }
+      },
+      App: {
+        screens: {
+          PostDetail: 'post/:postId',
+          UserProfile: 'profile/:userId',
+          EventDetail: 'event/:eventId'
+        }
+      }
+    }
+  }
+};
 
 function AuthNavigator() {
   return (
@@ -55,6 +89,8 @@ function AppNavigator() {
       <App.Screen name="Settings" component={SettingsScreen} />
       <App.Screen name="EditProfile" component={EditProfileScreen} />
       <App.Screen name="EventDetail" component={EventDetailScreen} />
+      <App.Screen name="EventChat" component={EventChatScreen} />
+      <App.Screen name="ManageEvent" component={ManageEventScreen} />
       <App.Screen name="CreateEvent" component={CreateEventScreen} />
       <App.Screen name="UserProfile" component={UserProfileScreen} />
       <App.Screen name="StoryViewer" component={StoryViewerScreen} options={{ animation: 'fade' }} />
@@ -66,6 +102,17 @@ function AppNavigator() {
       <App.Screen name="PostDetail" component={PostDetailScreen} />
       <App.Screen name="GroupDetail" component={GroupDetailScreen} />
       <App.Screen name="PageDetail" component={PageDetailScreen} />
+      <App.Screen name="SavedPosts" component={SavedPostsScreen} />
+      <App.Screen name="Followers" component={FollowersScreen} />
+      <App.Screen name="CourtDetail" component={CourtDetailScreen} />
+      <App.Screen name="CourtBooking" component={CourtBookingScreen} />
+      <App.Screen name="CreateCommunity" component={CreateCommunityScreen} />
+      <App.Screen name="Privacy" component={PrivacyScreen} />
+      <App.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <App.Screen name="Language" component={LanguageScreen} />
+      <App.Screen name="Appearance" component={AppearanceScreen} />
+      <App.Screen name="SportsInterests" component={SportsInterestsScreen} />
+      <App.Screen name="Help" component={HelpScreen} />
     </App.Navigator>
   );
 }
@@ -76,7 +123,7 @@ export function RootNavigator() {
   const theme = themeMode === 'light' ? sportzLightTheme : sportzDarkTheme;
 
   return (
-    <NavigationContainer theme={theme}>
+    <NavigationContainer ref={navigationRef} theme={theme} linking={linking}>
       <Root.Navigator screenOptions={{ headerShown: false }}>
         {profile ? <Root.Screen name="App" component={AppNavigator} /> : <Root.Screen name="Auth" component={AuthNavigator} />}
       </Root.Navigator>

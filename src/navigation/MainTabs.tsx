@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 
 import { colors, layout, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
+import { useNotifications } from '@/hooks/useNotifications';
 import { useUiStore } from '@/store/uiStore';
 import type { MainTabParamList } from './routes';
 import { FeedScreen } from '@/screens/feed/FeedScreen';
@@ -18,7 +19,9 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export function MainTabs() {
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
   const { data: conversations = [] } = useConversations();
+  const { data: notifications = [] } = useNotifications();
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
+  const unreadNotifications = notifications.some((notification) => !notification.read);
 
   return (
     <>
@@ -70,7 +73,16 @@ export function MainTabs() {
              tabBarBadgeStyle: styles.badge
            }}
          />
-         <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profile', tabBarIcon: TabIcon(UserRound) }} />
+         <Tab.Screen
+           name="ProfileTab"
+           component={ProfileScreen}
+           options={{
+             title: 'Profile',
+             tabBarIcon: TabIcon(UserRound),
+             tabBarBadge: unreadNotifications ? '' : undefined,
+             tabBarBadgeStyle: styles.dotBadge
+           }}
+         />
       </Tab.Navigator>
       <CreateActionSheet />
     </>
@@ -170,6 +182,16 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 1.5,
+    borderColor: colors.dark[950]
+  },
+  dotBadge: {
+    backgroundColor: colors.semantic.danger,
+    minWidth: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    color: 'transparent',
+    borderWidth: 1,
     borderColor: colors.dark[950]
   }
 });

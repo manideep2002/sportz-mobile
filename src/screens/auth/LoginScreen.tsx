@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, Lock, Mail } from 'lucide-react-native';
-import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ChevronLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
+import { Alert, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
@@ -17,8 +17,10 @@ export function LoginScreen({ navigation }: Props) {
   const signIn = useAuthStore((state) => state.signIn);
   const signInWithIdToken = useAuthStore((state) => state.signInWithIdToken);
   const loading = useAuthStore((state) => state.loading);
-  const [email, setEmail] = useState('demo@sportz.app');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     iosClientId: env.googleIosClientId,
@@ -36,10 +38,21 @@ export function LoginScreen({ navigation }: Props) {
   }, [response, signInWithIdToken]);
 
   const handleEmailLogin = async () => {
+    const nextErrors: typeof errors = {};
+    if (!email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Enter a valid email address.';
+    if (!password) nextErrors.password = 'Password is required.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+
     try {
       await signIn(email.trim(), password);
     } catch (error) {
-      Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Please try again.');
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      const friendly = /email not confirmed/i.test(message)
+        ? 'Check your inbox and confirm your email before signing in.'
+        : message;
+      setErrors({ form: friendly });
     }
   };
 
@@ -59,13 +72,14 @@ export function LoginScreen({ navigation }: Props) {
 
   return (
     <Screen keyboard contentContainerStyle={styles.content}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
       <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} style={styles.back} />
       <AppText variant="h2">Welcome back</AppText>
       <AppText variant="bodyMuted" style={styles.subtitle}>
         Sign in to your SPORTZ account
       </AppText>
       <View style={styles.form}>
-        <Button variant="dark" full size="lg" disabled={!request} onPress={() => void promptAsync()}>
+        <Button variant="dark" full size="lg" loading={!request} disabled={!request} onPress={() => void promptAsync()}>
           Continue with Google
         </Button>
         {Platform.OS === 'ios' ? (
@@ -78,8 +92,28 @@ export function LoginScreen({ navigation }: Props) {
           <AppText variant="small">or email</AppText>
           <View style={styles.divider} />
         </View>
-        <Input label="Email" icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Input label="Password" icon={Lock} value={password} onChangeText={setPassword} secureTextEntry />
+        <Input label="Email" icon={Mail} value={email} onChangeText={(value) => { setEmail(value); setErrors((old) => ({ ...old, email: undefined, form: undefined })); }} keyboardType="email-address" autoCapitalize="none" accessibilityLabel="Email" />
+        {errors.email ? <AppText style={styles.error}>{errors.email}</AppText> : null}
+        <View>
+          <Input
+            label="Password"
+            icon={Lock}
+            value={password}
+            onChangeText={(value) => { setPassword(value); setErrors((old) => ({ ...old, password: undefined, form: undefined })); }}
+            secureTextEntry={!showPassword}
+            accessibilityLabel="Password"
+          />
+          <IconButton
+            icon={showPassword ? EyeOff : Eye}
+            size={34}
+            iconSize={16}
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            style={styles.passwordToggle}
+            onPress={() => setShowPassword((value) => !value)}
+          />
+        </View>
+        {errors.password ? <AppText style={styles.error}>{errors.password}</AppText> : null}
+        {errors.form ? <AppText style={styles.error}>{errors.form}</AppText> : null}
         <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
           <AppText style={styles.forgot}>Forgot password?</AppText>
         </Pressable>
@@ -124,6 +158,17 @@ const styles = StyleSheet.create({
     color: colors.orange[400],
     fontSize: 13,
     textAlign: 'right'
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 8,
+    bottom: 7,
+    backgroundColor: colors.dark[700]
+  },
+  error: {
+    color: colors.semantic.danger,
+    fontSize: 12,
+    marginTop: -10
   },
   switch: {
     flexDirection: 'row',

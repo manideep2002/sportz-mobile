@@ -1,10 +1,17 @@
-import { StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { AppText } from '@/components/ui';
 import { colors, radii, typography } from '@/design/tokens';
+import type { Court } from '@/types/domain';
 
-export function CourtMapPreview() {
+export function CourtMapPreview({ court }: { court?: Court }) {
+  const openMaps = () => {
+    if (!court) return;
+    const query = encodeURIComponent(`${court.latitude},${court.longitude}`);
+    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  };
+
   return (
     <View style={styles.map}>
       <Svg viewBox="0 0 350 160" width="100%" height="160">
@@ -31,9 +38,9 @@ export function CourtMapPreview() {
       <View style={styles.count}>
         <AppText style={styles.countText}>12 courts nearby</AppText>
       </View>
-      <View style={styles.expand}>
-        <AppText style={styles.expandText}>Expand Map</AppText>
-      </View>
+      <Pressable style={styles.expand} onPress={openMaps} disabled={!court}>
+        <AppText style={styles.expandText}>View on Maps</AppText>
+      </Pressable>
     </View>
   );
 }

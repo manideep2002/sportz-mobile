@@ -2,14 +2,18 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, MoreHorizontal, Plus, UserPlus, type LucideIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Badge, IconButton, Screen } from '@/components/ui';
+import { AppText, Avatar, Badge, Button, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
-import { useCommunity } from '@/hooks/useCommunities';
+import { useCommunity, useJoinCommunity } from '@/hooks/useCommunities';
 import { useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import { communityService } from '@/services/communityService';
+import { profileService } from '@/services/profileService';
+import type { UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'GroupDetail'>;
@@ -19,6 +23,10 @@ export function GroupDetailScreen() {
   const route = useRoute<Route>();
   const { data: community, isLoading } = useCommunity(route.params.communityId);
   const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+  const joinCommunity = useJoinCommunity(route.params.communityId);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteQuery, setInviteQuery] = useState('');
+  const [inviteResults, setInviteResults] = useState<UserProfile[]>([]);
 
   if (isLoading || !community) {
     return (
@@ -46,15 +54,20 @@ export function GroupDetailScreen() {
           {community.sport} - Public Group - {community.city}
         </AppText>
         <View style={styles.badges}>
-          <Badge tone="orange">Admin</Badge>
+          {community.isAdmin ? <Badge tone="orange">Admin</Badge> : null}
           <Badge>{community.memberCount} Members</Badge>
           <Badge tone="green">Active</Badge>
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
+        {!community.isMember ? (
+          <Button loading={joinCommunity.isPending} onPress={() => joinCommunity.mutate('member')} full>
+            Join Group
+          </Button>
+        ) : null}
         <View style={styles.quickActions}>
-          <Action icon={CalendarDays} label="Schedule" />
-          <Action icon={Plus} label="New Post" primary />
-          <Action icon={UserPlus} label="Invite" />
+          <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent')} />
+          <Action icon={Plus} label="New Post" primary onPress={() => navigation.navigate('CreatePost', { communityId: community.id })} />
+          <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} />
         </View>
         <AppText variant="h4">Recent Posts</AppText>
       </View>
@@ -65,16 +78,58 @@ export function GroupDetailScreen() {
           onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
         />
       ))}
+      <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => setInviteOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setInviteOpen(false)}>
+          <Pressable style={styles.inviteCard}>
+            <AppText variant="h3">Invite players</AppText>
+            <Input
+              value={inviteQuery}
+              onChangeText={async (value) => {
+                setInviteQuery(value);
+                if (!value.trim()) {
+                  setInviteResults([]);
+                  return;
+                }
+                setInviteResults(await profileService.listPlayers(value));
+              }}
+              placeholder="Search players"
+            />
+            <ScrollView style={styles.inviteList}>
+              {inviteResults.map((player) => (
+                <Pressable
+                  key={player.id}
+                  style={styles.inviteRow}
+                  onPress={async () => {
+                    try {
+                      await communityService.inviteMember(community.id, player.id);
+                      Alert.alert('Invited', `${player.displayName} was added to ${community.name}.`);
+                    } catch (error) {
+                      Alert.alert('Invite failed', error instanceof Error ? error.message : 'Please try again.');
+                    }
+                  }}
+                >
+                  <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
+                  <View style={{ flex: 1 }}>
+                    <AppText style={styles.inviteName}>{player.displayName}</AppText>
+                    <AppText variant="small">@{player.username}</AppText>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Button full variant="ghost" onPress={() => setInviteOpen(false)}>Done</Button>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
 
-function Action({ icon: Icon, label, primary = false }: { icon: LucideIcon; label: string; primary?: boolean }) {
+function Action({ icon: Icon, label, primary = false, onPress }: { icon: LucideIcon; label: string; primary?: boolean; onPress?: () => void }) {
   return (
-    <View style={[styles.action, primary ? styles.actionPrimary : null]}>
+    <Pressable style={[styles.action, primary ? styles.actionPrimary : null]} onPress={onPress}>
       <Icon size={18} color={primary ? colors.light[0] : colors.orange[500]} />
       <AppText style={[styles.actionLabel, primary ? styles.actionPrimaryLabel : null]}>{label}</AppText>
-    </View>
+    </Pressable>
   );
 }
 
@@ -131,5 +186,32 @@ const styles = StyleSheet.create({
   },
   actionPrimaryLabel: {
     color: colors.light[0]
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlays.scrim,
+    justifyContent: 'center',
+    padding: spacing.screen
+  },
+  inviteCard: {
+    backgroundColor: colors.dark[900],
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    padding: spacing.md,
+    gap: spacing.md
+  },
+  inviteList: {
+    maxHeight: 300
+  },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm
+  },
+  inviteName: {
+    color: colors.text.primary,
+    fontWeight: '700'
   }
 });

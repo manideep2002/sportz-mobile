@@ -1,4 +1,4 @@
-import { CalendarPlus, Radio, Star, Trophy, Users } from 'lucide-react-native';
+import { CalendarPlus, Camera, Search, Trophy } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -9,11 +9,10 @@ import { useUiStore } from '@/store/uiStore';
 import type { AppStackParamList } from './routes';
 
 const actions = [
-  { label: 'Post', detail: 'Share a photo, video or text update', icon: Trophy, route: 'CreatePost', kind: 'post' },
-  { label: 'Share Stats', detail: 'Post game stats and performance', icon: Star, route: 'CreatePost', kind: 'stats' },
-  { label: 'Create Event', detail: 'Schedule a game or practice', icon: CalendarPlus, route: 'CreateEvent' },
-  { label: 'Explore Groups / Pages', detail: 'Find sports communities', icon: Users, route: 'Community' },
-  { label: 'Share Highlight', detail: 'Publish a photo or video highlight', icon: Radio, route: 'CreatePost', kind: 'highlight' }
+  { label: 'New Post', detail: 'Share a photo, video or text update', icon: Trophy, route: 'CreatePost', kind: 'post' },
+  { label: 'New Story', detail: 'Share a 24-hour moment', icon: Camera, route: 'CreateStory' },
+  { label: 'New Event', detail: 'Schedule a game or practice', icon: CalendarPlus, route: 'CreateEvent' },
+  { label: 'Find Players', detail: 'Browse athletes and teammates', icon: Search, route: 'FindPlayers' }
 ] as const;
 
 export function CreateActionSheet() {
@@ -32,10 +31,12 @@ export function CreateActionSheet() {
               close();
               if (action.route === 'CreatePost') {
                 navigation.navigate('CreatePost', { initialKind: action.kind });
+              } else if (action.route === 'CreateStory') {
+                navigation.navigate('CreateStory');
               } else if (action.route === 'CreateEvent') {
                 navigation.navigate('CreateEvent');
               } else {
-                navigation.navigate('Community');
+                navigation.navigate('FindPlayers');
               }
             }}
           >

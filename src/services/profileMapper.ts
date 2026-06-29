@@ -36,12 +36,17 @@ export function mapProfileRow(
     sports: Array.isArray(row?.sports) && row.sports.length ? row.sports : [row?.primary_sport ?? 'Basketball'],
     position: row?.position ?? undefined,
     skillLevel: row?.skill_level ?? 'Intermediate',
-    isOnline: false,
+    isOnline: Boolean(row?.is_online),
     isVerified: Boolean(row?.is_verified),
     isHireable: Boolean(row?.is_hireable),
+    isPrivate: Boolean(row?.is_private),
     badges: [],
     stats: {
       ...emptyStats,
+      games: Number(row?.games_played ?? 0),
+      winRate: Number(row?.win_rate ?? 0),
+      bestPoints: row?.best_points ?? undefined,
+      avgRebounds: row?.avg_rebounds === null || row?.avg_rebounds === undefined ? undefined : Number(row.avg_rebounds),
       ...counts
     }
   };

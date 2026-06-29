@@ -1,5 +1,5 @@
 import { Check, CheckCheck, Clock } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar } from '@/components/ui';
 import { colors, radii, spacing } from '@/design/tokens';
@@ -12,6 +12,7 @@ interface MessageBubbleProps {
   currentUserId: string;
   recipientId: string;
   sender?: UserProfile;
+  onLongPress?: () => void;
 }
 
 function ReadReceipt({ status }: { status: MessageReadStatus }) {
@@ -26,17 +27,27 @@ function ReadReceipt({ status }: { status: MessageReadStatus }) {
   return <Check size={14} color={colors.text.tertiary} strokeWidth={2.2} />;
 }
 
-export function MessageBubble({ message, currentUserId, recipientId, sender }: MessageBubbleProps) {
+export function MessageBubble({ message, currentUserId, recipientId, sender, onLongPress }: MessageBubbleProps) {
   const mine = message.senderId === currentUserId;
   const readStatus = mine ? getMessageReadStatus(message, currentUserId, recipientId) : null;
+  const mediaUrl = message.body.match(/^\[media:(.+)\]$/)?.[1];
+  const location = message.body.match(/^\[location:([-\d.]+),([-\d.]+)\]$/);
 
   return (
     <View style={[styles.row, mine ? styles.mineRow : null]}>
-      {!mine && sender ? <Avatar initials={sender.initials} size={32} /> : null}
+      {!mine && sender ? <Avatar initials={sender.initials} uri={sender.avatarUrl} size={32} /> : null}
       <View style={[styles.column, mine ? styles.mineColumn : null]}>
-        <View style={[styles.bubble, mine ? styles.mine : styles.them]}>
-          <AppText style={[styles.text, mine ? styles.mineText : null]}>{message.body}</AppText>
-        </View>
+        <Pressable style={[styles.bubble, mine ? styles.mine : styles.them]} onLongPress={onLongPress}>
+          {mediaUrl ? (
+            <Image source={{ uri: mediaUrl }} style={styles.media} />
+          ) : location ? (
+            <Pressable onPress={() => void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${location[1]},${location[2]}`)}>
+              <AppText style={[styles.text, mine ? styles.mineText : null]}>View shared location</AppText>
+            </Pressable>
+          ) : (
+            <AppText style={[styles.text, mine ? styles.mineText : null]}>{message.body}</AppText>
+          )}
+        </Pressable>
         {mine ? (
           <View style={styles.meta}>
             <AppText style={styles.metaTime}>{formatTime(message.createdAt)}</AppText>
@@ -81,6 +92,11 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontSize: 13,
     lineHeight: 19
+  },
+  media: {
+    width: 190,
+    height: 150,
+    borderRadius: radii.md
   },
   mineText: {
     color: colors.light[0]

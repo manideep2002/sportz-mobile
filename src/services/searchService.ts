@@ -65,7 +65,26 @@ export const searchService = {
     ];
   },
 
-  getTrending() {
-    return ['#BLRBallers', '#WeekendLeague', '#Basketball', '#CourtLife'];
+  async getTrending(): Promise<string[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('posts')
+      .select('body')
+      .gte('created_at', new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+
+    const counts = new Map<string, number>();
+    for (const post of data ?? []) {
+      const tags = ((post.body as string).match(/#[A-Za-z0-9_]+/g) ?? []).map((tag: string) => tag.toLowerCase());
+      for (const tag of tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([tag]) => tag);
   }
 };

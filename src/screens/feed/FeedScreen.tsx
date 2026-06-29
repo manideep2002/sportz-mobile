@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQuery } from '@tanstack/react-query';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
+import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
@@ -13,6 +15,9 @@ import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPos
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { eventService } from '@/services/eventService';
+import { blockService } from '@/services/blockService';
+import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 import type { Post } from '@/types/domain';
 
@@ -24,7 +29,15 @@ export function FeedScreen() {
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const { data, isLoading, isError, error, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
   const { data: stories = [], refetch: refetchStories } = useStories();
-  const feed = data?.pages.flatMap((page) => page.items) ?? [];
+  const { data: liveEvents = [] } = useQuery({
+    queryKey: ['events', 'live'],
+    queryFn: eventService.listLiveEvents
+  });
+  const { data: blockedIds = new Set<string>() } = useQuery({
+    queryKey: ['blocks', 'ids'],
+    queryFn: blockService.listBlockedIds
+  });
+  const feed = (data?.pages.flatMap((page) => page.items) ?? []).filter((post) => !blockedIds.has(post.author.id));
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
@@ -46,6 +59,18 @@ export function FeedScreen() {
       return;
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
+  };
+  const reportPost = (post: Post) => {
+    Alert.alert('Report Post', 'Choose a reason.', [
+      ...reportReasons.map((reason) => ({
+        text: reason,
+        onPress: async () => {
+          await reportService.reportEntity('post', post.id, reason);
+          Alert.alert('Report submitted', 'Thank you. We will review this post.');
+        }
+      })),
+      { text: 'Cancel', style: 'cancel' as const }
+    ]);
   };
 
   return (
@@ -97,6 +122,12 @@ export function FeedScreen() {
           Community
         </Button>
       </View>
+
+      {liveEvents[0] ? (
+        <View style={styles.liveBanner}>
+          <LiveMatchBanner event={liveEvents[0]} onPress={() => navigation.navigate('EventDetail', { eventId: liveEvents[0].id })} />
+        </View>
+      ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {sportsFilters.map((sport) => (
@@ -152,7 +183,9 @@ export function FeedScreen() {
             Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: () => openAuthor(post) },
               { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
+              { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
               { text: 'Share', onPress: () => void sharePost(post) },
+              { text: 'Report Post', onPress: () => reportPost(post) },
               ...(isOwnPost ? [{
                 text: 'Delete',
                 style: 'destructive' as const,
@@ -222,6 +255,10 @@ const styles = StyleSheet.create({
   quickRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    marginBottom: 14
+  },
+  liveBanner: {
     paddingHorizontal: spacing.screen,
     marginBottom: 14
   },

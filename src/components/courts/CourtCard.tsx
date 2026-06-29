@@ -7,11 +7,13 @@ import { currency } from '@/utils/format';
 
 interface CourtCardProps {
   court: Court;
+  onBook?: () => void;
+  onPress?: () => void;
 }
 
-export function CourtCard({ court }: CourtCardProps) {
+export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
   return (
-    <Card style={[styles.card, !court.availableNow ? styles.disabled : null]}>
+    <Card style={[styles.card, !court.availableNow ? styles.disabled : null]} onTouchEnd={onPress}>
       <View style={styles.sportIcon}>
         <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
       </View>
@@ -28,7 +30,7 @@ export function CourtCard({ court }: CourtCardProps) {
           <Badge tone={court.availableNow ? 'green' : 'red'}>{court.availabilityLabel}</Badge>
         </View>
       </View>
-      <Button variant={court.availableNow ? 'primary' : 'dark'} size="sm">
+      <Button variant={court.availableNow ? 'primary' : 'dark'} size="sm" onPress={onBook}>
         {court.availableNow ? 'Book' : 'Notify'}
       </Button>
     </Card>

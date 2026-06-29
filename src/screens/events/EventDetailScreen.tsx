@@ -151,7 +151,7 @@ export function EventDetailScreen() {
         
         {hasJoined ? (
           <>
-            <Button full size="lg" variant="ghost" icon={MessageCircle}>
+            <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
               Event Chat
             </Button>
             <Button full size="lg" variant="dark" onPress={handleLeave}>
@@ -159,7 +159,7 @@ export function EventDetailScreen() {
             </Button>
           </>
         ) : isOrganizer ? (
-          <Button full size="lg" variant="dark">
+          <Button full size="lg" variant="dark" onPress={() => navigation.navigate('ManageEvent', { eventId: event.id })}>
             Manage Event
           </Button>
         ) : event.status === 'cancelled' ? (

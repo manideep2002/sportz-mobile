@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { profileService } from '@/services/profileService';
-import type { SportEvent } from '@/types/domain';
+import type { EventMessage, SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
   title: string;
@@ -71,6 +71,15 @@ interface AttendeeRow {
   } | null;
 }
 
+interface EventMessageRow {
+  id: string;
+  event_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  profiles: SportEventRow['profiles'];
+}
+
 const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) =>
   (cents ?? 0) > 0 ? `${currency ?? 'INR'} ${(cents ?? 0) / 100}` : 'Free';
 
@@ -121,6 +130,20 @@ export const eventService = {
     }
 
     return (data ?? []).map((row) => mapEventRow(row as unknown as SportEventRow, counts.get(row.id) ?? 0));
+  },
+
+  async listLiveEvents(): Promise<SportEvent[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('sport_events')
+      .select('*, profiles:organizer_id(*)')
+      .eq('status', 'live')
+      .order('starts_at', { ascending: true })
+      .limit(5);
+    if (error) throw error;
+
+    return (data ?? []).map((row) => mapEventRow(row as unknown as SportEventRow));
   },
 
   async getEvent(eventId: string): Promise<SportEvent> {
@@ -177,6 +200,12 @@ export const eventService = {
       .single();
 
     if (error) throw error;
+
+    await supabase.from('event_attendees').upsert({
+      event_id: data.id,
+      user_id: authData.user.id,
+      status: 'going'
+    });
 
     const organizer = await profileService.getProfile(authData.user.id);
     return {
@@ -246,6 +275,8 @@ export const eventService = {
       ends_at: string;
       location_name: string;
       city: string;
+      latitude: number | null;
+      longitude: number | null;
       max_players: number;
       entry_fee_cents: number;
     }> = {};
@@ -256,6 +287,8 @@ export const eventService = {
     if (updates.endsAt) updateData.ends_at = updates.endsAt;
     if (updates.locationName) updateData.location_name = updates.locationName;
     if (updates.city) updateData.city = updates.city;
+    if (updates.latitude !== undefined) updateData.latitude = updates.latitude ?? null;
+    if (updates.longitude !== undefined) updateData.longitude = updates.longitude ?? null;
     if (updates.maxPlayers) updateData.max_players = updates.maxPlayers;
     if (updates.entryFeeCents !== undefined) updateData.entry_fee_cents = updates.entryFeeCents;
 
@@ -321,5 +354,89 @@ export const eventService = {
 
     if (error) throw error;
     return new Set((data ?? []).map((row: { event_id: string }) => row.event_id));
+  },
+
+  async listEventMessages(eventId: string): Promise<EventMessage[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('event_messages')
+      .select('*, profiles:sender_id(*)')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true })
+      .limit(100);
+    if (error) throw error;
+
+    return (data ?? []).map((row) => {
+      const message = row as unknown as EventMessageRow;
+      return {
+        id: message.id,
+        eventId: message.event_id,
+        sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
+        body: message.body,
+        createdAt: message.created_at
+      };
+    });
+  },
+
+  async sendEventMessage(eventId: string, body: string): Promise<EventMessage> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to chat.');
+
+    const { data, error } = await supabase
+      .from('event_messages')
+      .insert({
+        event_id: eventId,
+        sender_id: authData.user.id,
+        body
+      })
+      .select('*, profiles:sender_id(*)')
+      .single();
+    if (error) throw error;
+
+    const message = data as unknown as EventMessageRow;
+    return {
+      id: message.id,
+      eventId: message.event_id,
+      sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
+      body: message.body,
+      createdAt: message.created_at
+    };
+  },
+
+  subscribeToEventMessages(eventId: string, callback: (message: EventMessage) => void) {
+    const channel = supabase
+      .channel(`event-messages-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'event_messages', filter: `event_id=eq.${eventId}` },
+        async (payload) => {
+          const row = payload.new as { id: string };
+          const { data } = await supabase
+            .from('event_messages')
+            .select('*, profiles:sender_id(*)')
+            .eq('id', row.id)
+            .single();
+          if (!data) return;
+          const message = data as unknown as EventMessageRow;
+          callback({
+            id: message.id,
+            eventId: message.event_id,
+            sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
+            body: message.body,
+            createdAt: message.created_at
+          });
+        }
+      )
+      .subscribe();
+
+    return {
+      unsubscribe: () => {
+        void supabase.removeChannel(channel);
+      }
+    };
   }
 };

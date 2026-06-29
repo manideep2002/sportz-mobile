@@ -3,17 +3,20 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import * as Location from 'expo-location';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
-import { AppText, Avatar, IconButton } from '@/components/ui';
+import { AppText, Avatar, BottomSheet, Button, IconButton } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
 import { messageService } from '@/services/messageService';
+import { storageService } from '@/services/storageService';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import type { Message } from '@/types/domain';
 import { getOtherParticipant, getParticipantById } from '@/utils/conversation';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -26,6 +29,8 @@ export function ChatScreen() {
   const conversationId = route.params.conversationId;
   const [body, setBody] = useState('');
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
@@ -47,7 +52,61 @@ export function ChatScreen() {
     const trimmed = body.trim();
     if (!trimmed) return;
     setBody('');
-    sendMessage.mutate(trimmed);
+    if (editingId) {
+      const messageId = editingId;
+      setEditingId(null);
+      void messageService.updateMessage(messageId, trimmed).then(() => {
+        queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
+          old.map((message) => (message.id === messageId ? { ...message, body: trimmed } : message))
+        );
+      });
+    } else {
+      sendMessage.mutate(trimmed);
+    }
+  };
+
+  const sendMedia = async () => {
+    setAttachmentOpen(false);
+    const picked = await storageService.pickMedia();
+    if (!picked) return;
+    const ownerId = currentUserId || 'chat';
+    const url = await storageService.uploadMedia(picked, 'post-media', ownerId);
+    sendMessage.mutate(`[media:${url}]`);
+  };
+
+  const sendLocation = async () => {
+    setAttachmentOpen(false);
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert('Location needed', 'Allow location access to share your current location.');
+      return;
+    }
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    sendMessage.mutate(`[location:${current.coords.latitude},${current.coords.longitude}]`);
+  };
+
+  const openMessageActions = (message: Message) => {
+    if (message.senderId !== currentUserId || message.body === '[deleted]') return;
+    Alert.alert('Message options', undefined, [
+      {
+        text: 'Edit',
+        onPress: () => {
+          setEditingId(message.id);
+          setBody(message.body);
+        }
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await messageService.deleteMessage(message.id);
+          queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
+            old.map((item) => (item.id === message.id ? { ...item, body: '[deleted]' } : item))
+          );
+        }
+      },
+      { text: 'Cancel', style: 'cancel' }
+    ]);
   };
 
   const handleClearChat = () => {
@@ -62,7 +121,7 @@ export function ChatScreen() {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <Avatar initials={headerInitials} size={40} online={showOnlineStatus} />
+        <Avatar initials={headerInitials} uri={otherParticipant?.avatarUrl} size={40} online={showOnlineStatus} />
         <View style={{ flex: 1 }}>
           <AppText style={styles.title}>{headerTitle}</AppText>
           <AppText style={[styles.status, showOnlineStatus ? styles.online : null]}>{statusLabel}</AppText>
@@ -79,6 +138,12 @@ export function ChatScreen() {
         onClose={() => setOptionsOpen(false)}
         onClearChat={handleClearChat}
       />
+      <BottomSheet open={attachmentOpen} title="Attach" onClose={() => setAttachmentOpen(false)}>
+        <View style={styles.attachmentSheet}>
+          <Button full variant="dark" onPress={() => void sendMedia()}>Photo / Video</Button>
+          <Button full variant="dark" onPress={() => void sendLocation()}>Location</Button>
+        </View>
+      </BottomSheet>
       <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
         <View style={styles.today}>
           <AppText variant="small">Today</AppText>
@@ -98,16 +163,17 @@ export function ChatScreen() {
               currentUserId={currentUserId}
               recipientId={recipientId}
               sender={sender}
+              onLongPress={() => openMessageActions(message)}
             />
           );
         })}
       </ScrollView>
       <View style={styles.composer}>
-        <IconButton icon={Plus} />
+        <IconButton icon={Plus} onPress={() => setAttachmentOpen(true)} accessibilityLabel="Attach media or location" />
         <TextInput
           value={body}
           onChangeText={setBody}
-          placeholder="Message..."
+          placeholder={editingId ? 'Edit message...' : 'Message...'}
           placeholderTextColor={colors.text.tertiary}
           style={styles.input}
         />
@@ -175,5 +241,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     color: colors.text.primary,
     fontFamily: typography.bodyFamily
+  },
+  attachmentSheet: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md
   }
 });

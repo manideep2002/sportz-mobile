@@ -62,7 +62,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true, error: null });
     try {
       const { session, user } = await authService.signUp(input);
-      const profile = await authService.getCurrentProfile();
+      const profile = session && user ? await authService.maybeGetCurrentProfile() : null;
       set({ session, user, profile, loading: false });
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : 'Sign up failed.' });

@@ -30,6 +30,7 @@ interface ConversationParticipantRow {
     sports: string[] | null;
     skill_level: string | null;
     avatar_url: string | null;
+    is_online?: boolean | null;
   } | null;
 }
 
@@ -76,13 +77,14 @@ export const messageService = {
             username: member.profiles?.username ?? 'athlete',
             displayName: member.profiles?.display_name ?? 'Athlete',
             initials: initialsFromName(member.profiles?.display_name ?? 'Athlete'),
+            avatarUrl: member.profiles?.avatar_url ?? null,
             bio: member.profiles?.bio ?? '',
             city: member.profiles?.city ?? '',
             country: member.profiles?.country ?? 'IN',
             primarySport: member.profiles?.primary_sport ?? 'Basketball',
             sports: member.profiles?.sports ?? [],
             skillLevel: (member.profiles?.skill_level as Conversation['participants'][number]['skillLevel']) ?? 'Intermediate',
-            isOnline: false,
+            isOnline: Boolean(member.profiles?.is_online),
             badges: [],
             stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
           }))
@@ -310,6 +312,7 @@ export const messageService = {
       .from('conversations')
       .insert({
         is_group: false,
+        created_by: authData.user.id,
         title: otherProfile?.display_name ?? 'New Conversation',
         last_message: ''
       })
@@ -324,6 +327,36 @@ export const messageService = {
     ]);
 
     return conv.id;
+  },
+
+  async updateMessage(messageId: string, body: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to edit messages.');
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ body, edited_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .eq('sender_id', authData.user.id);
+    if (error) throw error;
+  },
+
+  async deleteMessage(messageId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to delete messages.');
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ body: '[deleted]', edited_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .eq('sender_id', authData.user.id);
+    if (error) throw error;
   },
 
   /** @deprecated Use Supabase membership instead. Only kept for legacy nav usage. */
