@@ -91,6 +91,7 @@ export interface SportEvent {
   sport: Sport;
   status: EventStatus;
   description: string;
+  coverUrl?: string | null;
   startsAt: string;
   endsAt: string;
   locationName: string;

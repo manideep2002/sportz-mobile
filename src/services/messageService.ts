@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
-import type { Conversation, ID, Message } from '@/types/domain';
+import type { Conversation, Message } from '@/types/domain';
 import { sortConversations } from '@/utils/conversation';
 import { buildConversationPreview } from '@/utils/messages';
 
@@ -357,10 +357,5 @@ export const messageService = {
       .eq('id', messageId)
       .eq('sender_id', authData.user.id);
     if (error) throw error;
-  },
-
-  /** @deprecated Use Supabase membership instead. Only kept for legacy nav usage. */
-  getConversationIdForUser(_userId: ID): string | undefined {
-    return undefined;
   }
 };

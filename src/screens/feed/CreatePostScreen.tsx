@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Users, X, type LucideIcon } from 'lucide-react-native';
+import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
@@ -162,8 +162,11 @@ export function CreatePostScreen() {
               <Image source={{ uri: thumbnailUri ?? mediaUri }} style={styles.previewImage} />
             ) : (
               <View style={styles.videoPreview}>
-                <AppText variant="h4">Video selected</AppText>
-                <AppText variant="small">It will be uploaded with your post.</AppText>
+                <View style={styles.videoIcon}>
+                  <Play size={22} color={colors.light[0]} fill={colors.light[0]} />
+                </View>
+                <AppText variant="h4">Video ready</AppText>
+                <AppText variant="small">A preview will appear after upload.</AppText>
               </View>
             )}
             <IconButton
@@ -355,6 +358,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs
+  },
+  videoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.orange[500],
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   removeMedia: {
     position: 'absolute',

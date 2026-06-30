@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft, Calendar, Clock } from 'lucide-react-native';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -48,7 +48,7 @@ export function CreateEventScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.8
@@ -96,6 +96,7 @@ export function CreateEventScreen() {
         city: city.trim(),
         latitude: geocoded?.latitude,
         longitude: geocoded?.longitude,
+        coverImageUri: coverImage,
         maxPlayers: Number(maxPlayers),
         entryFeeCents: Math.round(Number(entryFee) * 100),
         visibility: 'public'
@@ -128,6 +129,7 @@ export function CreateEventScreen() {
         <Pressable style={styles.cover} onPress={handlePickImage}>
           {coverImage ? (
             <View style={styles.coverImageContainer}>
+              <Image source={{ uri: coverImage }} resizeMode="cover" style={styles.coverImage} />
               <AppText variant="small" style={styles.changeCover}>Tap to change</AppText>
             </View>
           ) : (
@@ -275,6 +277,9 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  coverImage: {
+    ...StyleSheet.absoluteFillObject
   },
   changeCover: {
     color: colors.text.secondary

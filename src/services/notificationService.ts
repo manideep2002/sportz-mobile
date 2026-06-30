@@ -112,7 +112,19 @@ export const notificationService = {
             table: 'notifications',
             filter: `user_id=eq.${authData.user.id}`
           },
-          (payload) => {
+          async (payload) => {
+            const row = payload.new as { id?: string };
+            if (row.id) {
+              const { data } = await supabase
+                .from('notifications')
+                .select('*, actor:actor_id(*)')
+                .eq('id', row.id)
+                .single();
+              if (data) {
+                callback(mapNotificationRow(data as unknown as NotificationRow));
+                return;
+              }
+            }
             callback(mapNotificationRow(payload.new as unknown as NotificationRow));
           }
         )

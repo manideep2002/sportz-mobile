@@ -100,6 +100,22 @@ export const storageService = {
     return result.assets[0];
   },
 
+  async pickImage(): Promise<ImagePicker.ImagePickerAsset | null> {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error('Photo library permission is required.');
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.86,
+      allowsEditing: true
+    });
+
+    if (result.canceled) return null;
+    return result.assets[0];
+  },
+
   async pickMultipleImages(): Promise<ImagePicker.ImagePickerAsset[]> {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {

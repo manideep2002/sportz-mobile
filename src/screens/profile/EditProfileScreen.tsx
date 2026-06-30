@@ -39,7 +39,7 @@ export function EditProfileScreen() {
     if (!profile) return;
     setError(null);
     try {
-      const picked = await storageService.pickMedia();
+      const picked = await storageService.pickImage();
       if (!picked) return;
       const url = await storageService.uploadMedia(picked, kind === 'avatar' ? 'avatars' : 'post-media', profile.id);
       if (kind === 'avatar') {

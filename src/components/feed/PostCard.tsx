@@ -54,7 +54,7 @@ function PostCardComponent({
             </AppText>
           </Pressable>
           <View style={styles.headerActions}>
-            {post.kind === 'stats' ? <Badge tone="orange">MVP</Badge> : null}
+            {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
               <MoreHorizontal size={18} color={colors.text.tertiary} />
             </Pressable>
@@ -96,7 +96,9 @@ function PostCardComponent({
             onPress={(event) => runAction(event, onMediaPress)}
           >
             <View style={styles.mediaVideoContainer}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1546519638-68e109498ffc' }} style={styles.mediaImage} />
+              <View style={styles.videoFallback}>
+                <AppText style={styles.videoLabel}>Video</AppText>
+              </View>
               <View style={styles.playButtonOverlay}>
                 <Play size={22} color="#0A0907" fill="#0A0907" />
               </View>
@@ -240,6 +242,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative'
+  },
+  videoFallback: {
+    flex: 1,
+    backgroundColor: colors.dark[700],
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  videoLabel: {
+    color: colors.text.secondary,
+    fontFamily: typography.bodyBold,
+    fontSize: 13,
+    textTransform: 'uppercase'
   },
   playButtonOverlay: {
     position: 'absolute',

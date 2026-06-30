@@ -7,28 +7,32 @@ import { Bell, ChevronLeft } from 'lucide-react-native';
 
 import { AppText, IconButton, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { pushNotificationsEnabledKey } from '@/lib/notifications';
+import {
+  defaultNotificationPreferences,
+  notificationPreferencesKey,
+  pushNotificationsEnabledKey,
+  type NotificationPreferenceKey
+} from '@/lib/notifications';
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
-const preferenceKey = 'sportz.notification.preferences';
-const notificationTypes = ['likes', 'comments', 'follows', 'events'] as const;
+const notificationTypes: NotificationPreferenceKey[] = ['likes', 'comments', 'follows', 'events'];
 
 export function NotificationSettingsScreen() {
   const navigation = useNavigation<Navigation>();
   const [enabled, setEnabled] = useState(true);
-  const [preferences, setPreferences] = useState<Record<string, boolean>>({
-    likes: true,
-    comments: true,
-    follows: true,
-    events: true
-  });
+  const [preferences, setPreferences] = useState<Record<NotificationPreferenceKey, boolean>>(defaultNotificationPreferences);
 
   useEffect(() => {
     void (async () => {
       setEnabled((await AsyncStorage.getItem(pushNotificationsEnabledKey)) !== 'false');
-      const saved = await AsyncStorage.getItem(preferenceKey);
-      if (saved) setPreferences(JSON.parse(saved) as Record<string, boolean>);
+      const saved = await AsyncStorage.getItem(notificationPreferencesKey);
+      if (saved) {
+        setPreferences({
+          ...defaultNotificationPreferences,
+          ...(JSON.parse(saved) as Partial<Record<NotificationPreferenceKey, boolean>>)
+        });
+      }
     })();
   }, []);
 
@@ -38,10 +42,10 @@ export function NotificationSettingsScreen() {
     await AsyncStorage.setItem(pushNotificationsEnabledKey, String(next));
   };
 
-  const togglePreference = async (key: string) => {
+  const togglePreference = async (key: NotificationPreferenceKey) => {
     const next = { ...preferences, [key]: !preferences[key] };
     setPreferences(next);
-    await AsyncStorage.setItem(preferenceKey, JSON.stringify(next));
+    await AsyncStorage.setItem(notificationPreferencesKey, JSON.stringify(next));
   };
 
   return (
@@ -84,4 +88,3 @@ const styles = StyleSheet.create({
   knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.light[0] },
   knobActive: { marginLeft: 'auto' }
 });
-

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { profileService } from '@/services/profileService';
+import { storageService } from '@/services/storageService';
 import type { EventMessage, SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
@@ -14,6 +15,7 @@ export interface CreateEventInput {
   city: string;
   latitude?: number;
   longitude?: number;
+  coverImageUri?: string | null;
   maxPlayers: number;
   entryFeeCents: number;
   visibility: 'public' | 'group' | 'invite';
@@ -27,6 +29,7 @@ interface SportEventRow {
   sport: string;
   status: SportEvent['status'];
   description: string | null;
+  cover_url?: string | null;
   starts_at: string;
   ends_at: string;
   location_name: string;
@@ -89,6 +92,7 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
   sport: row.sport,
   status: row.status,
   description: row.description ?? '',
+  coverUrl: row.cover_url ?? null,
   startsAt: row.starts_at,
   endsAt: row.ends_at,
   locationName: row.location_name,
@@ -177,6 +181,10 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to create events.');
 
+    const coverUrl = input.coverImageUri
+      ? await storageService.uploadMedia(input.coverImageUri, 'event-covers', authData.user.id)
+      : null;
+
     const { data, error } = await supabase
       .from('sport_events')
       .insert({
@@ -184,6 +192,7 @@ export const eventService = {
         title: input.title,
         sport: input.sport,
         description: input.description,
+        cover_url: coverUrl,
         starts_at: input.startsAt,
         ends_at: input.endsAt,
         location_name: input.locationName,

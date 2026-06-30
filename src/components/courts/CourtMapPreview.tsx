@@ -36,7 +36,7 @@ export function CourtMapPreview({ court }: { court?: Court }) {
         <Circle cx="72" cy="120" r="3.5" fill="white" />
       </Svg>
       <View style={styles.count}>
-        <AppText style={styles.countText}>12 courts nearby</AppText>
+        <AppText style={styles.countText}>{court?.name ?? 'Court location'}</AppText>
       </View>
       <Pressable style={styles.expand} onPress={openMaps} disabled={!court}>
         <AppText style={styles.expandText}>View on Maps</AppText>

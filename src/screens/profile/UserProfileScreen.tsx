@@ -205,7 +205,7 @@ export function UserProfileScreen() {
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
         {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
         {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
-        {tab === 'Highlights' ? <HighlightsPanel /> : null}
+        {tab === 'Highlights' ? <HighlightsPanel userId={profile.id} /> : null}
       </View>
     </Screen>
   );
@@ -340,31 +340,70 @@ function StatsPanel({ profile }: { profile: UserProfile }) {
 
 // ── HighlightsPanel ──────────────────────────────────────────────────────────
 
-function HighlightsPanel() {
+function currentPostStreak(posts: { createdAt: string }[]) {
+  const dates = new Set(posts.map((post) => post.createdAt.slice(0, 10)));
+  let streak = 0;
+  const cursor = new Date();
+  while (dates.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function HighlightsPanel({ userId }: { userId: string }) {
+  const navigation = useNavigation<Navigation>();
+  const { data: postsList = [] } = useUserPosts(userId);
+  const [filterKind, setFilterKind] = useState<'stats' | 'highlight' | null>(null);
+  const topStats = postsList
+    .filter((post) => post.kind === 'stats')
+    .sort((a, b) => b.likes + b.comments - (a.likes + a.comments))[0];
+  const streak = currentPostStreak(postsList);
+  const filteredPosts = filterKind
+    ? postsList.filter((post) => post.kind === filterKind)
+    : postsList.filter((post) => post.kind === 'highlight');
+
   return (
     <View style={styles.panel}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {['Add', 'Season', 'Best Plays', 'Goals', 'Streaks'].map((item, index) => (
-          <View key={item} style={styles.highlightPill}>
+        {[
+          { label: 'Add', kind: null },
+          { label: 'Season', kind: 'stats' as const },
+          { label: 'Best Plays', kind: 'highlight' as const }
+        ].map((item, index) => (
+          <Pressable
+            key={item.label}
+            style={styles.highlightPill}
+            onPress={() => {
+              if (item.label === 'Add') navigation.navigate('CreatePost', { initialKind: 'highlight' });
+              else setFilterKind(item.kind);
+            }}
+          >
             <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null]}>
-              <AppText variant="h3">{index === 0 ? '+' : item.slice(0, 1)}</AppText>
+              <AppText variant="h3">{index === 0 ? '+' : item.label.slice(0, 1)}</AppText>
             </View>
-            <AppText variant="small">{item}</AppText>
-          </View>
+            <AppText variant="small">{item.label}</AppText>
+          </Pressable>
         ))}
       </ScrollView>
       <View style={styles.highlightCards}>
         <LinearGradient colors={['#1A0800', '#2A1200']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.orange[500]}>MVP</AppText>
-          <AppText style={styles.highlightTitle}>Match vs Challengers</AppText>
-          <Badge tone="orange">34 PTS</Badge>
+          <AppText variant="h2" color={colors.orange[500]}>{topStats ? 'TOP' : 'ADD'}</AppText>
+          <AppText style={styles.highlightTitle}>{topStats?.body || 'No stats posts yet'}</AppText>
+          <Badge tone="orange">{topStats?.statsLine ?? 'STATS'}</Badge>
         </LinearGradient>
         <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.semantic.success}>30</AppText>
-          <AppText style={styles.highlightTitle}>Day Training Streak</AppText>
+          <AppText variant="h2" color={colors.semantic.success}>{streak}</AppText>
+          <AppText style={styles.highlightTitle}>Day Activity Streak</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
       </View>
+      {filteredPosts.slice(0, 4).map((post) => (
+        <Pressable key={post.id} style={styles.highlightListItem} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
+          <AppText style={styles.highlightTitle}>{post.body}</AppText>
+          <Badge>{post.kind}</Badge>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -603,5 +642,12 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 13
+  },
+  highlightListItem: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    padding: spacing.sm,
+    gap: spacing.xs
   }
 });

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Badge, Button, Card } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -13,27 +13,36 @@ interface CourtCardProps {
 
 export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
   return (
-    <Card style={[styles.card, !court.availableNow ? styles.disabled : null]} onTouchEnd={onPress}>
-      <View style={styles.sportIcon}>
-        <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
-      </View>
-      <View style={styles.meta}>
-        <AppText style={styles.name}>{court.name}</AppText>
-        <AppText variant="small">
-          {court.distanceKm} km - {court.surface} - {court.rating.toFixed(1)}
-        </AppText>
-        <View style={styles.priceRow}>
-          <AppText style={[styles.price, !court.availableNow ? styles.mutedPrice : null]}>
-            {currency(court.hourlyPrice, court.currency)}
-            <AppText variant="small">/hr</AppText>
-          </AppText>
-          <Badge tone={court.availableNow ? 'green' : 'red'}>{court.availabilityLabel}</Badge>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
+      <Card style={[styles.card, !court.availableNow ? styles.disabled : null]}>
+        <View style={styles.sportIcon}>
+          <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
         </View>
-      </View>
-      <Button variant={court.availableNow ? 'primary' : 'dark'} size="sm" onPress={onBook}>
-        {court.availableNow ? 'Book' : 'Notify'}
-      </Button>
-    </Card>
+        <View style={styles.meta}>
+          <AppText style={styles.name}>{court.name}</AppText>
+          <AppText variant="small">
+            {court.distanceKm} km - {court.surface} - {court.rating.toFixed(1)}
+          </AppText>
+          <View style={styles.priceRow}>
+            <AppText style={[styles.price, !court.availableNow ? styles.mutedPrice : null]}>
+              {currency(court.hourlyPrice, court.currency)}
+              <AppText variant="small">/hr</AppText>
+            </AppText>
+            <Badge tone={court.availableNow ? 'green' : 'red'}>{court.availabilityLabel}</Badge>
+          </View>
+        </View>
+        <Button
+          variant={court.availableNow ? 'primary' : 'dark'}
+          size="sm"
+          onPress={(event) => {
+            event.stopPropagation();
+            onBook?.();
+          }}
+        >
+          {court.availableNow ? 'Book' : 'Notify'}
+        </Button>
+      </Card>
+    </Pressable>
   );
 }
 

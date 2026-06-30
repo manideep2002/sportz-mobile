@@ -229,7 +229,7 @@ export function RegisterScreen({ navigation }: Props) {
 
   const handlePickAvatar = async () => {
     try {
-      const picked = await storageService.pickMedia();
+      const picked = await storageService.pickImage();
       if (picked) setAvatarAsset(picked);
     } catch (error) {
       Alert.alert('Avatar upload', error instanceof Error ? error.message : 'Please try again.');

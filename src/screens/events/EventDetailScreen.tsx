@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
 import { CourtArt } from '@/components/feed/CourtArt';
@@ -97,7 +97,11 @@ export function EventDetailScreen() {
         <IconButton icon={Share2} onPress={handleShare} />
       </View>
       <View style={styles.hero}>
-        <CourtArt />
+        {event.coverUrl ? (
+          <Image source={{ uri: event.coverUrl }} style={styles.coverImage} resizeMode="cover" />
+        ) : (
+          <CourtArt />
+        )}
         <LinearGradient colors={['transparent', colors.dark[950]]} style={styles.heroGradient} />
         {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
         {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
@@ -149,7 +153,18 @@ export function EventDetailScreen() {
           </Button>
         </View>
         
-        {hasJoined ? (
+        {isOrganizer ? (
+          <>
+            <Button full size="lg" variant="dark" onPress={() => navigation.navigate('ManageEvent', { eventId: event.id })}>
+              Manage Event
+            </Button>
+            {hasJoined ? (
+              <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
+                Event Chat
+              </Button>
+            ) : null}
+          </>
+        ) : hasJoined ? (
           <>
             <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
               Event Chat
@@ -158,10 +173,6 @@ export function EventDetailScreen() {
               Leave Event
             </Button>
           </>
-        ) : isOrganizer ? (
-          <Button full size="lg" variant="dark" onPress={() => navigation.navigate('ManageEvent', { eventId: event.id })}>
-            Manage Event
-          </Button>
         ) : event.status === 'cancelled' ? (
           <Button full size="lg" variant="dark" disabled>
             Event Cancelled
@@ -205,6 +216,10 @@ const styles = StyleSheet.create({
     height: 220,
     marginTop: -52,
     backgroundColor: '#0A1A08'
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%'
   },
   heroGradient: {
     position: 'absolute',

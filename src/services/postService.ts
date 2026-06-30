@@ -196,10 +196,13 @@ const loadCommentEngagement = async (commentIds: string[]): Promise<CommentEngag
 };
 
 const parseStatsLine = (statsLine?: string) => {
-  if (!statsLine) return { points: 0, rebounds: 0 };
+  if (!statsLine) return { points: 0, rebounds: 0, result: undefined as 'win' | 'loss' | undefined };
+  const normalized = statsLine.toUpperCase();
   const points = Number(statsLine.match(/(\d+)\s*PTS?/i)?.[1] ?? 0);
   const rebounds = Number(statsLine.match(/(\d+)\s*REB/i)?.[1] ?? 0);
-  return { points, rebounds };
+  const isLoss = /\b(L|LOSS)\b/.test(normalized);
+  const isWin = !isLoss && /\b(W|WIN)\b/.test(normalized);
+  return { points, rebounds, result: isWin ? 'win' as const : isLoss ? 'loss' as const : undefined };
 };
 
 const updateProfileStatsFromPosts = async (userId: string) => {
@@ -215,11 +218,15 @@ const updateProfileStatsFromPosts = async (userId: string) => {
   const bestPoints = parsed.reduce((best, item) => Math.max(best, item.points), 0);
   const totalRebounds = parsed.reduce((sum, item) => sum + item.rebounds, 0);
   const avgRebounds = gamesPlayed ? Number((totalRebounds / gamesPlayed).toFixed(2)) : 0;
+  const decidedGames = parsed.filter((item) => item.result);
+  const wins = decidedGames.filter((item) => item.result === 'win').length;
+  const winRate = decidedGames.length ? Number(((wins / decidedGames.length) * 100).toFixed(2)) : 0;
 
   await supabase
     .from('profiles')
     .update({
       games_played: gamesPlayed,
+      win_rate: winRate,
       best_points: bestPoints || null,
       avg_rebounds: avgRebounds,
       updated_at: new Date().toISOString()

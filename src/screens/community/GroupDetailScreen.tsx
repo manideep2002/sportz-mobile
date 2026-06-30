@@ -67,7 +67,7 @@ export function GroupDetailScreen() {
         <View style={styles.quickActions}>
           <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent')} />
           <Action icon={Plus} label="New Post" primary onPress={() => navigation.navigate('CreatePost', { communityId: community.id })} />
-          <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} />
+          {community.isAdmin ? <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} /> : null}
         </View>
         <AppText variant="h4">Recent Posts</AppText>
       </View>

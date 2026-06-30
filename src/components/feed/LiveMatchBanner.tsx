@@ -10,6 +10,12 @@ interface LiveMatchBannerProps {
 }
 
 export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(event.startsAt).getTime()) / 60000)
+  );
+  const attendanceLabel = `${event.playerCount}/${event.maxPlayers}`;
+
   return (
     <Pressable accessibilityRole="button" onPress={onPress}>
       <Card style={styles.card}>
@@ -21,11 +27,11 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
               <AppText style={styles.liveText}>LIVE NOW</AppText>
             </View>
             <AppText variant="h3">{event.title}</AppText>
-            <AppText variant="small">{event.locationName} - 3.2 km</AppText>
+            <AppText variant="small">{event.locationName}{event.city ? ` - ${event.city}` : ''}</AppText>
           </View>
           <View style={styles.scoreBox}>
-            <AppText style={styles.score}>2-1</AppText>
-            <AppText variant="small">42 MIN</AppText>
+            <AppText style={styles.score}>{attendanceLabel}</AppText>
+            <AppText variant="small">{elapsedMinutes} MIN</AppText>
           </View>
         </View>
         <View style={styles.bottom}>
@@ -36,7 +42,7 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
               </View>
             ))}
           </View>
-          <AppText variant="small">+7 watching</AppText>
+          <AppText variant="small">{event.playerCount} attending</AppText>
           <Button
             size="sm"
             style={styles.watch}
