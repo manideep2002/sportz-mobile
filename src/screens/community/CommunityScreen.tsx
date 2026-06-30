@@ -18,6 +18,10 @@ export function CommunityScreen() {
   const [tab, setTab] = useState<Tab>('Groups');
   const { data: communities = [], isLoading, isError, refetch } = useCommunities();
   const filtered = communities.filter((community) => (tab === 'Groups' ? community.type === 'group' : community.type === 'page'));
+  const openCommunity = (community: (typeof communities)[number]) => {
+    if (community.type === 'group') navigation.navigate('GroupDetail', { communityId: community.id });
+    else navigation.navigate('PageDetail', { communityId: community.id });
+  };
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -44,11 +48,15 @@ export function CommunityScreen() {
           <CommunityCard
             key={community.id}
             community={community}
-            onPress={() =>
-              community.type === 'group'
-                ? navigation.navigate('GroupDetail', { communityId: community.id })
-                : navigation.navigate('PageDetail', { communityId: community.id })
-            }
+            onPress={() => openCommunity(community)}
+            onViewPosts={() => openCommunity(community)}
+            onAction={() => {
+              if (community.type === 'group' || community.isAdmin) {
+                navigation.navigate('CreatePost', { communityId: community.id });
+              } else {
+                openCommunity(community);
+              }
+            }}
           />
         ))}
       </View>

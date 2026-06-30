@@ -2,7 +2,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, MoreHorizontal, Plus, UserPlus, type LucideIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
@@ -41,7 +41,11 @@ export function GroupDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={MoreHorizontal} />
+        <IconButton
+          icon={MoreHorizontal}
+          accessibilityLabel="Group options"
+          onPress={() => void Share.share({ message: `Join ${community.name} on SPORTZ.` })}
+        />
       </View>
       <LinearGradient colors={['#0A1A08', '#1a3a18', '#0A1A08']} style={styles.cover}>
         <AppText variant="hero" style={styles.coverMark}>

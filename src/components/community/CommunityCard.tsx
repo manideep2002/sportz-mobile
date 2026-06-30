@@ -8,9 +8,11 @@ import type { Community } from '@/types/domain';
 interface CommunityCardProps {
   community: Community;
   onPress: () => void;
+  onViewPosts?: () => void;
+  onAction?: () => void;
 }
 
-export function CommunityCard({ community, onPress }: CommunityCardProps) {
+export function CommunityCard({ community, onPress, onViewPosts, onAction }: CommunityCardProps) {
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.card}>
@@ -37,11 +39,26 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
           </View>
         ) : null}
         <View style={styles.actions}>
-          <Button variant="dark" size="sm" style={styles.actionButton}>
+          <Button
+            variant="dark"
+            size="sm"
+            style={styles.actionButton}
+            onPress={(event) => {
+              event.stopPropagation();
+              (onViewPosts ?? onPress)();
+            }}
+          >
             View Posts
           </Button>
-          <Button size="sm" style={styles.actionButton}>
-            {community.type === 'group' ? 'Post Opening' : 'Message'}
+          <Button
+            size="sm"
+            style={styles.actionButton}
+            onPress={(event) => {
+              event.stopPropagation();
+              (onAction ?? onPress)();
+            }}
+          >
+            {community.type === 'group' ? 'Post Opening' : community.isAdmin ? 'New Post' : 'Open Page'}
           </Button>
         </View>
       </Card>

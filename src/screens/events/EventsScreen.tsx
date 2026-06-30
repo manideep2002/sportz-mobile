@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { addDays, format, isSameDay, startOfDay } from 'date-fns';
+import { addDays, format, isAfter, isSameDay, startOfDay } from 'date-fns';
 
 import { EventCard } from '@/components/events/EventCard';
 import { AppText, Button, Card, SectionHeader, Screen, IconButton } from '@/components/ui';
@@ -72,14 +72,9 @@ export function EventsScreen() {
     isSameDay(new Date(e.startsAt), selectedDay)
   );
 
-  /* Upcoming events: everything after the selected day */
-  const upcomingEvents = sportFiltered.filter(
-    (e) => startOfDay(new Date(e.startsAt)) > selectedDay
+  const upcomingEvents = sportFiltered.filter((event) =>
+    isAfter(startOfDay(new Date(event.startsAt)), selectedDay)
   );
-
-  /* If nothing matches the day filter, fall back to showing first 2 for "Today" */
-  const todayDisplay = todayEvents.length > 0 ? todayEvents : sportFiltered.slice(0, 2);
-  const upcomingDisplay = upcomingEvents.length > 0 ? upcomingEvents : sportFiltered.slice(2);
 
   return (
     <Screen withTabPadding contentContainerStyle={styles.content}>
@@ -165,12 +160,12 @@ export function EventsScreen() {
             Could not load events. Pull down to retry.
           </AppText>
         ) : null}
-        {!isLoading && !isError && todayDisplay.length === 0 ? (
+        {!isLoading && !isError && todayEvents.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>
             No events on this day. Try another day or sport.
           </AppText>
         ) : null}
-        {todayDisplay.map((event) => (
+        {todayEvents.map((event) => (
           <EventCard
             key={event.id}
             event={event}
@@ -181,7 +176,7 @@ export function EventsScreen() {
         ))}
       </View>
 
-      {upcomingDisplay.length > 0 ? (
+      {upcomingEvents.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader
             title="Upcoming"
@@ -189,7 +184,7 @@ export function EventsScreen() {
             onAction={() => setShowAllUpcoming(!showAllUpcoming)}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {(showAllUpcoming ? upcomingDisplay : upcomingDisplay.slice(0, 5)).map((event) => (
+            {(showAllUpcoming ? upcomingEvents : upcomingEvents.slice(0, 5)).map((event) => (
               <Pressable
                 key={event.id}
                 onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}

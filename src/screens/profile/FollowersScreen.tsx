@@ -8,6 +8,7 @@ import { AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
+import { useAuthStore } from '@/store/authStore';
 import type { UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -17,13 +18,20 @@ export function FollowersScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const { userId, mode } = route.params;
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [followLoadingId, setFollowLoadingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      setProfiles(mode === 'followers' ? await profileService.listFollowers(userId) : await profileService.listFollowing(userId));
+      const nextProfiles = mode === 'followers'
+        ? await profileService.listFollowers(userId)
+        : await profileService.listFollowing(userId);
+      setProfiles(nextProfiles);
+      setFollowedIds(await profileService.listFollowedIds(nextProfiles.map((profile) => profile.id)));
     } catch (error) {
       Alert.alert('Could not load profiles', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -35,6 +43,28 @@ export function FollowersScreen() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, userId]);
+
+  const toggleFollow = async (profile: UserProfile) => {
+    const isFollowing = followedIds.has(profile.id);
+    setFollowLoadingId(profile.id);
+    try {
+      if (isFollowing) {
+        await profileService.unfollowProfile(profile.id);
+        setFollowedIds((old) => {
+          const next = new Set(old);
+          next.delete(profile.id);
+          return next;
+        });
+      } else {
+        await profileService.followProfile(profile.id);
+        setFollowedIds((old) => new Set([...old, profile.id]));
+      }
+    } catch (error) {
+      Alert.alert('Follow failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setFollowLoadingId(null);
+    }
+  };
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -62,16 +92,19 @@ export function FollowersScreen() {
             <AppText style={styles.name}>{profile.displayName}</AppText>
             <AppText variant="small">@{profile.username} - {profile.primarySport}</AppText>
           </View>
-          <Button
-            size="sm"
-            variant="ghost"
-            onPress={async (event) => {
-              event.stopPropagation();
-              await profileService.followProfile(profile.id);
-            }}
-          >
-            Follow
-          </Button>
+          {profile.id !== currentUserId ? (
+            <Button
+              size="sm"
+              variant={followedIds.has(profile.id) ? 'dark' : 'ghost'}
+              loading={followLoadingId === profile.id}
+              onPress={(event) => {
+                event.stopPropagation();
+                void toggleFollow(profile);
+              }}
+            >
+              {followedIds.has(profile.id) ? 'Following' : 'Follow'}
+            </Button>
+          ) : null}
         </Pressable>
       ))}
     </Screen>
@@ -111,4 +144,3 @@ const styles = StyleSheet.create({
     fontSize: 14
   }
 });
-

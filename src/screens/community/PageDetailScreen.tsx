@@ -35,7 +35,11 @@ export function PageDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={MoreHorizontal} />
+        <IconButton
+          icon={MoreHorizontal}
+          accessibilityLabel="Page options"
+          onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })}
+        />
       </View>
       <LinearGradient colors={['#1A0800', colors.orange[600], '#1A0800']} style={styles.cover}>
         <AppText variant="h1" color={colors.light[0]}>

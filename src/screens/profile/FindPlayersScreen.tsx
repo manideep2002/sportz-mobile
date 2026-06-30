@@ -31,12 +31,17 @@ export function FindPlayersScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sport]);
 
-  const loadPlayers = async (nextPage = 0, replace = false, nextQuery = query) => {
+  const loadPlayers = async (
+    nextPage = 0,
+    replace = false,
+    nextQuery = query,
+    nextSport: 'All Sports' | Sport = sport
+  ) => {
     setLoading(true);
     try {
       const results = await profileService.listPlayers(
         nextQuery,
-        sport === 'All Sports' ? undefined : sport,
+        nextSport === 'All Sports' ? undefined : nextSport,
         nextPage,
         PAGE_SIZE
       );
@@ -53,6 +58,12 @@ export function FindPlayersScreen() {
   const handleSearch = (value: string) => {
     setQuery(value);
     void loadPlayers(0, true, value);
+  };
+
+  const resetFilters = () => {
+    setQuery('');
+    setSport('All Sports');
+    void loadPlayers(0, true, '', 'All Sports');
   };
 
   const openMessage = async (player: UserProfile) => {
@@ -72,7 +83,7 @@ export function FindPlayersScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Find Players</AppText>
-        <IconButton icon={SlidersHorizontal} />
+        <IconButton icon={SlidersHorizontal} accessibilityLabel="Reset player filters" onPress={resetFilters} />
       </View>
       <Input icon={Search} value={query} onChangeText={handleSearch} placeholder="Search by name, sport..." />
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -96,7 +107,7 @@ export function FindPlayersScreen() {
           <AppText style={styles.bannerTitle}>Hire for Your Team</AppText>
           <AppText variant="small">Browse available athletes and send offers</AppText>
         </View>
-        <Button size="sm">Browse</Button>
+        <Button size="sm" onPress={resetFilters}>Browse</Button>
       </View>
       {players.map((player) => (
         <View key={player.id} style={styles.playerCard}>

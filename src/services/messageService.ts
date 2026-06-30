@@ -283,50 +283,14 @@ export const messageService = {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to start a conversation.');
+    if (authData.user.id === otherUserId) throw new Error('Choose another player to message.');
 
-    // Check if a 1-on-1 conversation already exists
-    const { data: existing } = await supabase
-      .from('conversation_members')
-      .select('conversation_id, conversations!inner(is_group)')
-      .eq('user_id', authData.user.id);
-
-    for (const row of existing ?? []) {
-      const convData = row.conversations as unknown as { is_group: boolean | null } | null;
-      if (convData?.is_group) continue;
-      const { count } = await supabase
-        .from('conversation_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', row.conversation_id)
-        .eq('user_id', otherUserId);
-      if ((count ?? 0) > 0) return row.conversation_id;
-    }
-
-    // Create new conversation
-    const { data: otherProfile } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', otherUserId)
-      .single();
-
-    const { data: conv, error: convError } = await supabase
-      .from('conversations')
-      .insert({
-        is_group: false,
-        created_by: authData.user.id,
-        title: otherProfile?.display_name ?? 'New Conversation',
-        last_message: ''
-      })
-      .select('id')
-      .single();
-
-    if (convError) throw convError;
-
-    await supabase.from('conversation_members').insert([
-      { conversation_id: conv.id, user_id: authData.user.id },
-      { conversation_id: conv.id, user_id: otherUserId }
-    ]);
-
-    return conv.id;
+    const { data, error } = await supabase.rpc('create_direct_conversation', {
+      other_user_id: otherUserId
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Could not start a conversation.');
+    return data as string;
   },
 
   async updateMessage(messageId: string, body: string): Promise<void> {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -25,7 +25,11 @@ export function NewMessageScreen() {
       return;
     }
     const timer = setTimeout(async () => {
-      setPlayers(await profileService.listPlayers(query));
+      try {
+        setPlayers(await profileService.listPlayers(query));
+      } catch (error) {
+        Alert.alert('Search failed', error instanceof Error ? error.message : 'Please try again.');
+      }
     }, 250);
     return () => clearTimeout(timer);
   }, [query]);
@@ -35,6 +39,8 @@ export function NewMessageScreen() {
     try {
       const conversationId = await messageService.createDirectConversation(player.id);
       navigation.replace('Chat', { conversationId });
+    } catch (error) {
+      Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setLoadingId(null);
     }

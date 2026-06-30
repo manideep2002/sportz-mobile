@@ -50,10 +50,14 @@ export const profileService = {
   async listPlayers(query?: string, sport?: string, page = 0, pageSize = 30): Promise<UserProfile[]> {
     assertSupabaseConfigured();
 
+    const { data: authData } = await supabase.auth.getUser();
     let request = supabase
       .from('profiles')
       .select('*')
       .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (authData.user) {
+      request = request.neq('id', authData.user.id);
+    }
     if (query?.trim()) {
       const normalized = query.trim();
       request = request.or(`display_name.ilike.%${normalized}%,username.ilike.%${normalized}%,primary_sport.ilike.%${normalized}%`);
@@ -66,6 +70,24 @@ export const profileService = {
     if (error) throw error;
 
     return (data ?? []).map((profile) => mapProfileRow(profile, { followers: 0, following: 0, posts: 0 }));
+  },
+
+  async listFollowedIds(profileIds: string[]): Promise<Set<string>> {
+    assertSupabaseConfigured();
+    if (!profileIds.length) return new Set();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return new Set();
+
+    const { data, error } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', authData.user.id)
+      .in('following_id', profileIds);
+    if (error) throw error;
+
+    return new Set((data ?? []).map((row) => row.following_id as string));
   },
 
   async updateProfile(id: string, input: ProfileUpdateInput): Promise<void> {
@@ -142,6 +164,7 @@ export const profileService = {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to follow players.');
+    if (authData.user.id === profileId) throw new Error('You cannot follow yourself.');
 
     const { error } = await supabase.from('follows').insert({
       follower_id: authData.user.id,

@@ -113,7 +113,7 @@ export const eventService = {
     const { data, error } = await supabase
       .from('sport_events')
       .select('*, profiles:organizer_id(*)')
-      .gte('starts_at', new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString())
+      .gte('ends_at', new Date().toISOString())
       .order('starts_at', { ascending: true })
       .limit(40);
 
