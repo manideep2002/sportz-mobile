@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { blockService } from '@/services/blockService';
 import { profileService, type ProfileUpdateInput } from '@/services/profileService';
 import { useAuthStore } from '@/store/authStore';
 import type { UserProfile } from '@/types/domain';
@@ -7,6 +8,7 @@ import type { UserProfile } from '@/types/domain';
 export const profileKeys = {
   detail: (id: string) => ['profile', id] as const,
   isFollowing: (id: string) => ['profile', 'isFollowing', id] as const,
+  isBlocked: (id: string) => ['profile', 'isBlocked', id] as const,
   players: (query?: string) => ['profile', 'players', query ?? ''] as const
 };
 
@@ -32,6 +34,14 @@ export const useIsFollowing = (targetId: string) =>
     queryKey: profileKeys.isFollowing(targetId),
     queryFn: () => profileService.isFollowing(targetId),
     staleTime: 2 * 60 * 1000,
+    enabled: Boolean(targetId)
+  });
+
+export const useIsBlocked = (targetId: string) =>
+  useQuery({
+    queryKey: profileKeys.isBlocked(targetId),
+    queryFn: () => blockService.isBlocked(targetId),
+    staleTime: 30 * 1000,
     enabled: Boolean(targetId)
   });
 
@@ -93,6 +103,37 @@ export const useToggleFollow = (targetId: string) => {
       // Refetch to sync with server truth
       void queryClient.invalidateQueries({ queryKey: profileKeys.detail(targetId) });
       void queryClient.invalidateQueries({ queryKey: profileKeys.isFollowing(targetId) });
+    }
+  });
+};
+
+export const useToggleBlock = (targetId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (currentlyBlocked: boolean) => {
+      if (currentlyBlocked) {
+        await blockService.unblockUser(targetId);
+      } else {
+        await blockService.blockUser(targetId);
+      }
+      return !currentlyBlocked;
+    },
+    onMutate: async (currentlyBlocked) => {
+      await queryClient.cancelQueries({ queryKey: profileKeys.isBlocked(targetId) });
+      const previousIsBlocked = queryClient.getQueryData<boolean>(profileKeys.isBlocked(targetId));
+      queryClient.setQueryData<boolean>(profileKeys.isBlocked(targetId), !currentlyBlocked);
+      return { previousIsBlocked };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousIsBlocked !== undefined) {
+        queryClient.setQueryData(profileKeys.isBlocked(targetId), context.previousIsBlocked);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: profileKeys.isBlocked(targetId) });
+      void queryClient.invalidateQueries({ queryKey: ['blocks'] });
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
     }
   });
 };

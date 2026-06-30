@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus } from 'lucide-react-native';
+import { Ban, ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useProfile, useIsFollowing, useToggleFollow } from '@/hooks/useProfile';
+import { useProfile, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { UserProfile } from '@/types/domain';
 import { messageService } from '@/services/messageService';
-import { blockService } from '@/services/blockService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { compactNumber } from '@/utils/format';
 
@@ -26,11 +25,18 @@ export function UserProfileScreen() {
 
   const { data: profile, isLoading, isError } = useProfile(userId);
   const { data: isFollowing = false } = useIsFollowing(userId);
+  const { data: isBlocked = false, isLoading: isBlockedLoading } = useIsBlocked(userId);
   const toggleFollow = useToggleFollow(userId);
+  const toggleBlock = useToggleBlock(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
   const [messageLoading, setMessageLoading] = useState(false);
+  const blockActionLoading = isBlockedLoading || toggleBlock.isPending;
 
   const handleFollow = () => {
+    if (isBlocked) {
+      Alert.alert('Profile blocked', `Unblock ${profile?.displayName ?? 'this profile'} before following.`);
+      return;
+    }
     toggleFollow.mutate(isFollowing, {
       onError: () => {
         Alert.alert('Error', 'Could not update follow status. Please try again.');
@@ -40,6 +46,10 @@ export function UserProfileScreen() {
 
   const openChat = async () => {
     if (!profile) return;
+    if (isBlocked) {
+      Alert.alert('Profile blocked', `Unblock ${profile.displayName} before messaging.`);
+      return;
+    }
     setMessageLoading(true);
     try {
       const conversationId = await messageService.createDirectConversation(profile.id);
@@ -69,31 +79,58 @@ export function UserProfileScreen() {
     ]);
   };
 
-  const blockProfile = async () => {
+  const runBlockToggle = (currentlyBlocked: boolean) => {
     if (!profile) return;
-    try {
-      await blockService.blockUser(profile.id);
-      Alert.alert('Blocked', `${profile.displayName} has been blocked.`);
-      navigation.goBack();
-    } catch (error) {
-      Alert.alert('Block failed', error instanceof Error ? error.message : 'Please try again.');
+    toggleBlock.mutate(currentlyBlocked, {
+      onSuccess: (nextBlocked) => {
+        Alert.alert(
+          nextBlocked ? 'Blocked' : 'Unblocked',
+          nextBlocked
+            ? `${profile.displayName} has been blocked.`
+            : `${profile.displayName} has been unblocked.`
+        );
+      },
+      onError: (error) => {
+        Alert.alert(
+          currentlyBlocked ? 'Unblock failed' : 'Block failed',
+          error instanceof Error ? error.message : 'Please try again.'
+        );
+      }
+    });
+  };
+
+  const handleBlockToggle = () => {
+    if (!profile) return;
+    if (isBlocked) {
+      runBlockToggle(true);
+      return;
     }
+
+    Alert.alert('Block User', `Block ${profile.displayName}? Their posts will be hidden from your feed.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Block', style: 'destructive', onPress: () => runBlockToggle(false) }
+    ]);
   };
 
   const openMore = () => {
-    const options = ['Share Profile', 'Report User', 'Block User', 'Cancel'];
+    const blockOption = isBlocked ? 'Unblock User' : 'Block User';
+    const options = ['Share Profile', 'Report User', blockOption, 'Cancel'];
     const destructiveIndex = 2;
     const cancelIndex = 3;
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options, destructiveButtonIndex: destructiveIndex, cancelButtonIndex: cancelIndex },
+        {
+          options,
+          cancelButtonIndex: cancelIndex,
+          ...(isBlocked ? {} : { destructiveButtonIndex: destructiveIndex })
+        },
         (index) => {
           if (index === 0) {
             void Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` });
           } else if (index === 1) {
             reportProfile();
           } else if (index === 2) {
-            void blockProfile();
+            handleBlockToggle();
           }
         }
       );
@@ -101,7 +138,7 @@ export function UserProfileScreen() {
       Alert.alert('Options', undefined, [
         { text: 'Share Profile', onPress: () => Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` }) },
         { text: 'Report User', onPress: reportProfile },
-        { text: 'Block User', style: 'destructive', onPress: () => void blockProfile() },
+        { text: blockOption, style: isBlocked ? 'default' : 'destructive', onPress: handleBlockToggle },
         { text: 'Cancel', style: 'cancel' }
       ]);
     }
@@ -156,7 +193,10 @@ export function UserProfileScreen() {
               {profile.country ? `, ${profile.country}` : ''}
             </AppText>
           </View>
-          {profile.isVerified && <Badge tone="blue">Verified</Badge>}
+          <View style={styles.nameBadges}>
+            {isBlocked ? <Badge tone="red">Blocked</Badge> : null}
+            {profile.isVerified ? <Badge tone="blue">Verified</Badge> : null}
+          </View>
         </View>
 
         <View style={styles.badges}>
@@ -170,6 +210,15 @@ export function UserProfileScreen() {
 
         <AppText variant="bodyMuted">{profile.bio}</AppText>
 
+        {isBlocked ? (
+          <View style={styles.blockedNotice}>
+            <Ban size={16} color={colors.semantic.danger} />
+            <AppText variant="bodyMuted" style={styles.blockedNoticeText}>
+              You have blocked this profile. Unblock to follow or message.
+            </AppText>
+          </View>
+        ) : null}
+
         <View style={styles.stats}>
           <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'followers' })}>
             <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
@@ -181,20 +230,34 @@ export function UserProfileScreen() {
         </View>
 
         <View style={styles.actions}>
-          <Button
-            style={styles.actionButton}
-            icon={isFollowing ? UserCheck : UserPlus}
-            variant={isFollowing ? 'ghost' : 'primary'}
-            disabled={toggleFollow.isPending}
-            loading={toggleFollow.isPending}
-            onPress={handleFollow}
-          >
-            {isFollowing ? 'Unfollow' : 'Follow'}
-          </Button>
+          {isBlocked ? (
+            <Button
+              style={styles.actionButton}
+              icon={UserX}
+              variant="danger"
+              disabled={blockActionLoading}
+              loading={blockActionLoading}
+              onPress={handleBlockToggle}
+            >
+              Unblock
+            </Button>
+          ) : (
+            <Button
+              style={styles.actionButton}
+              icon={isFollowing ? UserCheck : UserPlus}
+              variant={isFollowing ? 'ghost' : 'primary'}
+              disabled={toggleFollow.isPending || blockActionLoading}
+              loading={toggleFollow.isPending}
+              onPress={handleFollow}
+            >
+              {isFollowing ? 'Unfollow' : 'Follow'}
+            </Button>
+          )}
           <Button
             style={styles.actionButton}
             variant="ghost"
             loading={messageLoading}
+            disabled={isBlocked || messageLoading}
             onPress={() => void openChat()}
           >
             Message
@@ -444,10 +507,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.sm
   },
+  nameBadges: {
+    alignItems: 'flex-end',
+    gap: spacing.xs
+  },
   badges: {
     flexDirection: 'row',
     gap: spacing.xs,
     flexWrap: 'wrap'
+  },
+  blockedNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.overlays.dangerSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.semantic.danger
+  },
+  blockedNoticeText: {
+    flex: 1
   },
   stats: {
     flexDirection: 'row',
