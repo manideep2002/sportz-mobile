@@ -106,7 +106,7 @@ export function ChatScreen() {
         }
       },
       { text: 'Cancel', style: 'cancel' }
-    ]);
+    ], { cancelable: true });
   };
 
   const handleClearChat = () => {

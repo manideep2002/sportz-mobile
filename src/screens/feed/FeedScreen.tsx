@@ -70,7 +70,7 @@ export function FeedScreen() {
         }
       })),
       { text: 'Cancel', style: 'cancel' as const }
-    ]);
+    ], { cancelable: true });
   };
 
   return (
@@ -199,11 +199,12 @@ export function FeedScreen() {
                       style: 'destructive',
                       onPress: () => deletePostMutation.mutate(post.id)
                     }
-                  ]
+                  ],
+                  { cancelable: true }
                 )
               }] : []),
               { text: 'Cancel', style: 'cancel' }
-            ]);
+            ], { cancelable: true });
           }}
         />
         )}

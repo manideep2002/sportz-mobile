@@ -49,7 +49,7 @@ export function PostDetailScreen() {
         }
       })),
       { text: 'Cancel', style: 'cancel' as const }
-    ]);
+    ], { cancelable: true });
   };
   const submitComment = async () => {
     const body = commentBody.trim();
@@ -110,11 +110,12 @@ export function PostDetailScreen() {
                         navigation.goBack();
                       }
                     }
-                  ]
+                  ],
+                  { cancelable: true }
                 )
               }] : []),
               { text: 'Cancel', style: 'cancel' }
-            ]);
+            ], { cancelable: true });
           }}
         />
       ) : null}
@@ -135,7 +136,7 @@ export function PostDetailScreen() {
             Alert.alert('Delete comment', 'Remove your comment?', [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
-            ]);
+            ], { cancelable: true });
           }}
         >
           <Pressable onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}>

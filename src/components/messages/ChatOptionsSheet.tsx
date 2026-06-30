@@ -58,7 +58,7 @@ export function ChatOptionsSheet({
     Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Confirm', style: 'destructive', onPress: onConfirm }
-    ]);
+    ], { cancelable: true });
   };
 
   const options: ChatOption[] = [];
@@ -162,7 +162,7 @@ export function ChatOptionsSheet({
           }
         })),
         { text: 'Cancel', style: 'cancel' as const }
-      ]);
+      ], { cancelable: true });
     }
   });
 

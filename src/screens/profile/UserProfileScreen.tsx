@@ -76,7 +76,7 @@ export function UserProfileScreen() {
         }
       })),
       { text: 'Cancel', style: 'cancel' as const }
-    ]);
+    ], { cancelable: true });
   };
 
   const runBlockToggle = (currentlyBlocked: boolean) => {
@@ -109,7 +109,7 @@ export function UserProfileScreen() {
     Alert.alert('Block User', `Block ${profile.displayName}? Their posts will be hidden from your feed.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Block', style: 'destructive', onPress: () => runBlockToggle(false) }
-    ]);
+    ], { cancelable: true });
   };
 
   const openMore = () => {
@@ -140,7 +140,7 @@ export function UserProfileScreen() {
         { text: 'Report User', onPress: reportProfile },
         { text: blockOption, style: isBlocked ? 'default' : 'destructive', onPress: handleBlockToggle },
         { text: 'Cancel', style: 'cancel' }
-      ]);
+      ], { cancelable: true });
     }
   };
 

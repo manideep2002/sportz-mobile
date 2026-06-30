@@ -14,9 +14,9 @@ interface BottomSheetProps {
 
 export function BottomSheet({ open, title, onClose, children }: PropsWithChildren<BottomSheetProps>) {
   return (
-    <Modal transparent visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal transparent visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.scrim} onPress={onClose}>
-        <Pressable style={styles.sheet}>
+        <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <AppText variant="h3">{title}</AppText>
