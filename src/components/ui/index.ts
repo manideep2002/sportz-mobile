@@ -7,6 +7,7 @@ export * from './Card';
 export * from './Chip';
 export * from './IconButton';
 export * from './Input';
+export * from './MediaViewerModal';
 export * from './ProgressBar';
 export * from './Screen';
 export * from './SectionHeader';

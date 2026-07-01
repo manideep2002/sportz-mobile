@@ -3,7 +3,6 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
-import * as Location from 'expo-location';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
@@ -30,7 +29,7 @@ export function ChatScreen() {
   const [body, setBody] = useState('');
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
-  const [attachmentLoading, setAttachmentLoading] = useState<'media' | 'location' | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState<'media' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const textSendLockedRef = useRef(false);
   const targetUserId = route.params.targetUserId;
@@ -95,24 +94,6 @@ export function ChatScreen() {
     }
   };
 
-  const sendLocation = async () => {
-    setAttachmentOpen(false);
-    setAttachmentLoading('location');
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Location needed', 'Allow location access to share your current location.');
-        return;
-      }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      await sendMessage.mutateAsync(`[location:${current.coords.latitude},${current.coords.longitude}]`);
-    } catch (error) {
-      Alert.alert('Location failed', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setAttachmentLoading(null);
-    }
-  };
-
   const openMessageActions = (message: Message) => {
     if (message.senderId !== currentUserId || message.body === '[deleted]') return;
     Alert.alert('Message options', undefined, [
@@ -169,7 +150,6 @@ export function ChatScreen() {
       <BottomSheet open={attachmentOpen} title="Attach" onClose={() => setAttachmentOpen(false)}>
         <View style={styles.attachmentSheet}>
           <Button full variant="dark" loading={attachmentLoading === 'media'} disabled={Boolean(attachmentLoading)} onPress={() => void sendMedia()}>Photo / Video</Button>
-          <Button full variant="dark" loading={attachmentLoading === 'location'} disabled={Boolean(attachmentLoading)} onPress={() => void sendLocation()}>Location</Button>
         </View>
       </BottomSheet>
       <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
@@ -197,7 +177,7 @@ export function ChatScreen() {
         })}
       </ScrollView>
       <View style={styles.composer}>
-        <IconButton icon={Plus} onPress={() => setAttachmentOpen(true)} accessibilityLabel="Attach media or location" />
+        <IconButton icon={Plus} onPress={() => setAttachmentOpen(true)} accessibilityLabel="Attach photo or video" />
         <TextInput
           value={body}
           onChangeText={setBody}

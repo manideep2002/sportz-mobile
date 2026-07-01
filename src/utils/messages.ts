@@ -1,8 +1,20 @@
 import type { Conversation, ID, Message } from '@/types/domain';
 import { sortConversations } from '@/utils/conversation';
 
-export const formatConversationPreview = (body: string, senderId: ID, currentUserId: ID) =>
-  senderId === currentUserId ? `You: ${body}` : body;
+const isSystemAttachmentBody = (body: string) => body.startsWith('[media:') || body.startsWith('[location:');
+
+const previewTextFromBody = (body: string) => {
+  if (body.startsWith('[media:')) return 'Photo / Video';
+  if (body.startsWith('[location:')) return 'Shared location';
+  return body;
+};
+
+export const formatConversationPreview = (body: string, senderId: ID | null | undefined, currentUserId: ID) => {
+  const previewText = previewTextFromBody(body);
+  return senderId && senderId === currentUserId ? `You: ${previewText}` : previewText;
+};
+
+export const rawConversationPreview = (body: string) => (isSystemAttachmentBody(body) ? previewTextFromBody(body) : body);
 
 export const buildConversationPreview = (message: Pick<Message, 'body' | 'createdAt' | 'senderId'>, currentUserId: ID) => ({
   lastMessage: formatConversationPreview(message.body, message.senderId, currentUserId),

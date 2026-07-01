@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import type { Conversation, Message } from '@/types/domain';
 import { getOtherParticipant, sortConversations } from '@/utils/conversation';
-import { buildConversationPreview } from '@/utils/messages';
+import { formatConversationPreview, rawConversationPreview } from '@/utils/messages';
 
 /** Shape of a raw row returned from `conversation_members` with the joined conversation. */
 interface ConversationMemberRow {
@@ -12,6 +12,7 @@ interface ConversationMemberRow {
     title: string | null;
     is_group: boolean | null;
     last_message: string | null;
+    last_sender_id?: string | null;
     updated_at: string | null;
   } | null;
 }
@@ -45,6 +46,13 @@ interface MessageRow {
   message_receipts: { user_id: string }[];
 }
 
+interface MessagePreviewRow {
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+}
+
 /** Derive compact initials from a display name string. */
 const initialsFromName = (name: string) =>
   name
@@ -70,6 +78,40 @@ const mapConversationParticipant = (member: ConversationParticipantRow): Convers
   badges: [],
   stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
 });
+
+const unprefixStoredPreview = (lastMessage: string) =>
+  lastMessage.startsWith('You: ') ? lastMessage.slice(5) : lastMessage;
+
+const displayConversationPreview = (
+  lastMessage: string | null | undefined,
+  lastSenderId: string | null | undefined,
+  currentUserId: string
+) => {
+  if (!lastMessage) return '';
+  const neutralMessage = unprefixStoredPreview(lastMessage);
+  return formatConversationPreview(neutralMessage, lastSenderId, currentUserId);
+};
+
+const dedupeDirectConversations = (conversations: Conversation[], currentUserId: string) => {
+  const sorted = sortConversations(conversations);
+  const seenDirectKeys = new Set<string>();
+  const result: Conversation[] = [];
+
+  for (const conversation of sorted) {
+    if (conversation.isGroup) {
+      result.push(conversation);
+      continue;
+    }
+
+    const otherParticipant = getOtherParticipant(conversation, currentUserId);
+    const key = otherParticipant?.id ? `direct:${otherParticipant.id}` : `conversation:${conversation.id}`;
+    if (seenDirectKeys.has(key)) continue;
+    seenDirectKeys.add(key);
+    result.push(conversation);
+  }
+
+  return result;
+};
 
 const isExactDirectConversation = async (
   conversationId: string,
@@ -129,7 +171,7 @@ export const messageService = {
 
     const { data, error } = await supabase
       .from('conversations')
-      .select('id, title, is_group, last_message, updated_at')
+      .select('id, title, is_group, last_message, last_sender_id, updated_at')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -201,6 +243,18 @@ export const messageService = {
       .in('conversation_id', conversationIds)
       .neq('sender_id', authData.user.id);
 
+    const { data: latestRows } = await supabase
+      .from('messages')
+      .select('conversation_id, sender_id, body, created_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
+
+    const latestMessageByConversation = new Map<string, MessagePreviewRow>();
+    for (const message of (latestRows ?? []) as MessagePreviewRow[]) {
+      if (latestMessageByConversation.has(message.conversation_id)) continue;
+      latestMessageByConversation.set(message.conversation_id, message);
+    }
+
     const lastReadAtByConversation = new Map(
       rows.map((row) => [row.conversation_id, row.last_read_at ?? '1970-01-01T00:00:00.000Z'])
     );
@@ -214,13 +268,18 @@ export const messageService = {
     const mapped = rows.map((row) => {
       const isGroup = Boolean(row.conversations?.is_group);
       const participants = participantsByConversation.get(row.conversation_id) ?? [];
+      const latestMessage = latestMessageByConversation.get(row.conversation_id);
       const conversation: Conversation = {
         id: row.conversation_id,
         title: row.conversations?.title ?? 'Conversation',
         participants,
         isGroup,
-        lastMessage: row.conversations?.last_message ?? '',
-        lastMessageAt: row.conversations?.updated_at ?? new Date().toISOString(),
+        lastMessage: displayConversationPreview(
+          latestMessage?.body ?? row.conversations?.last_message,
+          latestMessage?.sender_id ?? row.conversations?.last_sender_id,
+          authData.user.id
+        ),
+        lastMessageAt: latestMessage?.created_at ?? row.conversations?.updated_at ?? new Date().toISOString(),
         unreadCount: readConversationIds.has(row.conversation_id)
           ? 0
           : (unreadCountMap.get(row.conversation_id) ?? 0)
@@ -233,7 +292,7 @@ export const messageService = {
       };
     });
 
-    return sortConversations(mapped);
+    return dedupeDirectConversations(mapped, authData.user.id);
   },
 
   async listMessages(conversationId: string): Promise<Message[]> {
@@ -314,18 +373,15 @@ export const messageService = {
 
     if (error) throw error;
 
-    const preview = buildConversationPreview(
-      { body: data.body, senderId: data.sender_id, createdAt: data.created_at },
-      authData.user.id
-    );
-
-    await supabase
+    const { error: conversationUpdateError } = await supabase
       .from('conversations')
       .update({
-        last_message: preview.lastMessage,
+        last_message: rawConversationPreview(data.body),
+        last_sender_id: data.sender_id,
         updated_at: data.created_at
       })
       .eq('id', conversationId);
+    if (conversationUpdateError) throw conversationUpdateError;
 
     return {
       id: data.id,
@@ -347,6 +403,7 @@ export const messageService = {
       .from('conversations')
       .update({
         last_message: 'No messages yet',
+        last_sender_id: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', conversationId);

@@ -57,15 +57,14 @@ function resolveExtAndMime(asset: ImagePicker.ImagePickerAsset): { ext: string; 
  * Read a local file URI into an ArrayBuffer for upload.
  *
  * On Android, React Native's fetch() does not reliably produce a non-empty
- * Blob from file:// URIs (the blob body can be 0 bytes). We use
- * expo-file-system on native to read the raw base64 and convert it, which
- * works correctly on both iOS and Android.
+ * Blob from file:// URIs (the blob body can be 0 bytes). We keep the
+ * expo-file-system base64 path there. iOS handles file:// fetches reliably
+ * and avoids the large base64 memory spike that can make video uploads hang.
  *
  * On web, fetch() + arrayBuffer() is the standard approach.
  */
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
-  if (Platform.OS !== 'web') {
-    // expo-file-system reliably reads file:// and content:// URIs on native.
+  if (Platform.OS === 'android') {
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: 'base64'
     });
@@ -77,7 +76,7 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
     return bytes.buffer;
   }
 
-  // Web: fetch handles blob/data URIs fine.
+  // iOS + web: fetch handles local file/blob/data URIs without base64 inflation.
   const response = await fetch(uri);
   return response.arrayBuffer();
 }

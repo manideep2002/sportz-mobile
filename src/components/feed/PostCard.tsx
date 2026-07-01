@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
-import { Avatar, Badge, Button, Card, AppText } from '@/components/ui';
+import { Avatar, Badge, Button, Card, AppText, MediaViewerModal } from '@/components/ui';
 import { CourtArt } from './CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
@@ -35,137 +35,147 @@ function PostCardComponent({
 }: PostCardProps) {
   const [mediaLoading, setMediaLoading] = useState(Boolean(post.mediaUrl));
   const [mediaError, setMediaError] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const runAction = (event: GestureResponderEvent, action?: () => void) => {
     event.stopPropagation();
     action?.();
   };
 
   return (
-    <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress}>
-      <Card style={styles.card} padded={false}>
-        <View style={styles.header}>
-          <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
-            <Avatar initials={post.author.initials} uri={post.author.avatarUrl} size={40} tone="orange" online={post.author.isOnline} />
-          </Pressable>
-          <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
-            <AppText style={styles.authorName}>{post.author.displayName}</AppText>
-            <AppText variant="small">
-              {post.sport} - {timeAgo(post.createdAt)}
-            </AppText>
-          </Pressable>
-          <View style={styles.headerActions}>
-            {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
-              <MoreHorizontal size={18} color={colors.text.tertiary} />
+    <>
+      <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress}>
+        <Card style={styles.card} padded={false}>
+          <View style={styles.header}>
+            <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
+              <Avatar initials={post.author.initials} uri={post.author.avatarUrl} size={40} tone="orange" online={post.author.isOnline} />
             </Pressable>
+            <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
+              <AppText style={styles.authorName}>{post.author.displayName}</AppText>
+              <AppText variant="small">
+                {post.sport} - {timeAgo(post.createdAt)}
+              </AppText>
+            </Pressable>
+            <View style={styles.headerActions}>
+              {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
+                <MoreHorizontal size={18} color={colors.text.tertiary} />
+              </Pressable>
+            </View>
           </View>
-        </View>
-        <AppText variant="bodyMuted" style={styles.body}>
-          {post.body}
-        </AppText>
-        {post.kind === 'stats' && post.statsLine ? (
-          <View style={styles.statsLine}>
-            <AppText style={styles.statsLineText}>{post.statsLine}</AppText>
-          </View>
-        ) : null}
-        {post.mediaKind === 'image' && post.mediaUrl ? (
-          <View style={styles.media}>
-            {mediaLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.mediaLoader} /> : null}
-            {mediaError ? (
-              <View style={styles.mediaFallback}>
-                <AppText variant="small">Media unavailable</AppText>
+          <AppText variant="bodyMuted" style={styles.body}>
+            {post.body}
+          </AppText>
+          {post.kind === 'stats' && post.statsLine ? (
+            <View style={styles.statsLine}>
+              <AppText style={styles.statsLineText}>{post.statsLine}</AppText>
+            </View>
+          ) : null}
+          {post.mediaKind === 'image' && post.mediaUrl ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open image"
+              disabled={mediaError}
+              style={styles.media}
+              onPress={(event) => runAction(event, () => setImageViewerOpen(true))}
+            >
+              {mediaLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.mediaLoader} /> : null}
+              {mediaError ? (
+                <View style={styles.mediaFallback}>
+                  <AppText variant="small">Media unavailable</AppText>
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: post.mediaUrl }}
+                  style={styles.mediaImage}
+                  onLoadEnd={() => setMediaLoading(false)}
+                  onError={() => {
+                    setMediaLoading(false);
+                    setMediaError(true);
+                  }}
+                />
+              )}
+            </Pressable>
+          ) : null}
+          {post.mediaKind === 'video' && post.mediaUrl ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Play video"
+              style={styles.media}
+              onPress={(event) => runAction(event, onMediaPress)}
+            >
+              <View style={styles.mediaVideoContainer}>
+                <View style={styles.videoFallback}>
+                  <AppText style={styles.videoLabel}>Video</AppText>
+                </View>
+                <View style={styles.playButtonOverlay}>
+                  <Play size={22} color="#0A0907" fill="#0A0907" />
+                </View>
               </View>
-            ) : (
-              <Image
-                source={{ uri: post.mediaUrl }}
-                style={styles.mediaImage}
-                onLoadEnd={() => setMediaLoading(false)}
-                onError={() => {
-                  setMediaLoading(false);
-                  setMediaError(true);
-                }}
+            </Pressable>
+          ) : null}
+          {post.mediaKind === 'court-card' ? (
+            <View style={styles.media}>
+              <CourtArt statLine={post.statsLine} />
+            </View>
+          ) : null}
+          {post.eventTeaser ? (
+            <View style={styles.teaser}>
+              <View style={styles.teaserCell}>
+                <AppText variant="small">Date</AppText>
+                <AppText style={styles.teaserValue}>{post.eventTeaser.dateLabel}</AppText>
+              </View>
+              <View style={styles.teaserCell}>
+                <AppText variant="small">Time</AppText>
+                <AppText style={styles.teaserValue}>{post.eventTeaser.timeLabel}</AppText>
+              </View>
+              <View style={styles.teaserCell}>
+                <AppText variant="small">Slots</AppText>
+                <AppText style={[styles.teaserValue, { color: colors.orange[500] }]}>{post.eventTeaser.slotsLabel}</AppText>
+              </View>
+            </View>
+          ) : null}
+          <View style={styles.actions}>
+            <Pressable accessibilityRole="button" accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'} style={styles.action} onPress={(event) => runAction(event, onLike)}>
+              <Heart
+                size={17}
+                color={post.likedByMe ? colors.orange[400] : colors.text.tertiary}
+                fill={post.likedByMe ? colors.orange[400] : 'transparent'}
               />
+              <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
+              <MessageCircle size={17} color={colors.text.tertiary} />
+              <AppText style={styles.actionText}>{post.comments}</AppText>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
+              <Share2 size={17} color={colors.text.tertiary} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
+              <Bookmark
+                size={17}
+                color={post.savedByMe ? colors.orange[400] : colors.text.tertiary}
+                fill={post.savedByMe ? colors.orange[400] : 'transparent'}
+              />
+            </Pressable>
+            {post.kind === 'stats' ? (
+              <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
+                View Athlete
+              </Button>
+            ) : (
+              <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onPrimaryAction)}>
+                <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply' : 'Comment'}</AppText>
+              </Pressable>
             )}
           </View>
-        ) : null}
-        {post.mediaKind === 'video' && post.mediaUrl ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Play video"
-            style={styles.media}
-            onPress={(event) => runAction(event, onMediaPress)}
-          >
-            <View style={styles.mediaVideoContainer}>
-              <View style={styles.videoFallback}>
-                <AppText style={styles.videoLabel}>Video</AppText>
-              </View>
-              <View style={styles.playButtonOverlay}>
-                <Play size={22} color="#0A0907" fill="#0A0907" />
-              </View>
-            </View>
-          </Pressable>
-        ) : null}
-        {post.mediaKind === 'court-card' ? (
-          <View style={styles.media}>
-            <CourtArt statLine={post.statsLine} />
+          <View style={styles.footer}>
+            <AppText variant="bodyMuted">
+              {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'athlete' : 'athletes'} liked this` : 'Be the first to like this'}
+            </AppText>
           </View>
-        ) : null}
-        {post.eventTeaser ? (
-          <View style={styles.teaser}>
-            <View style={styles.teaserCell}>
-              <AppText variant="small">Date</AppText>
-              <AppText style={styles.teaserValue}>{post.eventTeaser.dateLabel}</AppText>
-            </View>
-            <View style={styles.teaserCell}>
-              <AppText variant="small">Time</AppText>
-              <AppText style={styles.teaserValue}>{post.eventTeaser.timeLabel}</AppText>
-            </View>
-            <View style={styles.teaserCell}>
-              <AppText variant="small">Slots</AppText>
-              <AppText style={[styles.teaserValue, { color: colors.orange[500] }]}>{post.eventTeaser.slotsLabel}</AppText>
-            </View>
-          </View>
-        ) : null}
-        <View style={styles.actions}>
-          <Pressable accessibilityRole="button" accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'} style={styles.action} onPress={(event) => runAction(event, onLike)}>
-            <Heart
-              size={17}
-              color={post.likedByMe ? colors.orange[400] : colors.text.tertiary}
-              fill={post.likedByMe ? colors.orange[400] : 'transparent'}
-            />
-            <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
-            <MessageCircle size={17} color={colors.text.tertiary} />
-            <AppText style={styles.actionText}>{post.comments}</AppText>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
-            <Share2 size={17} color={colors.text.tertiary} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
-            <Bookmark
-              size={17}
-              color={post.savedByMe ? colors.orange[400] : colors.text.tertiary}
-              fill={post.savedByMe ? colors.orange[400] : 'transparent'}
-            />
-          </Pressable>
-          {post.kind === 'stats' ? (
-            <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
-              View Athlete
-            </Button>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onPrimaryAction)}>
-              <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply' : 'Comment'}</AppText>
-            </Pressable>
-          )}
-        </View>
-        <View style={styles.footer}>
-          <AppText variant="bodyMuted">
-            {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'athlete' : 'athletes'} liked this` : 'Be the first to like this'}
-          </AppText>
-        </View>
-      </Card>
-    </Pressable>
+        </Card>
+      </Pressable>
+      <MediaViewerModal visible={imageViewerOpen} uri={post.mediaUrl} onClose={() => setImageViewerOpen(false)} />
+    </>
   );
 }
 
