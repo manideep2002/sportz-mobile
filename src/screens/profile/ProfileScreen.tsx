@@ -323,7 +323,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs
   },
   statTap: {
-    flex: 1
+    flexGrow: 1,
+    flexShrink: 1
   },
   tabs: {
     paddingHorizontal: spacing.screen,

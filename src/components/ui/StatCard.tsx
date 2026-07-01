@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { AppText } from './AppText';
 import { colors, radii, spacing } from '@/design/tokens';
@@ -7,12 +7,13 @@ interface StatCardProps {
   value: string | number;
   label: string;
   tone?: 'orange' | 'green' | 'plain';
+  style?: StyleProp<ViewStyle>;
 }
 
-export function StatCard({ value, label, tone = 'plain' }: StatCardProps) {
+export function StatCard({ value, label, tone = 'plain', style }: StatCardProps) {
   const color = tone === 'orange' ? colors.orange[500] : tone === 'green' ? colors.semantic.success : colors.text.primary;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <AppText variant="h2" color={color} style={styles.value}>
         {value}
       </AppText>
@@ -23,7 +24,8 @@ export function StatCard({ value, label, tone = 'plain' }: StatCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     alignItems: 'center',
     borderRadius: radii.md,
     padding: spacing.sm,
