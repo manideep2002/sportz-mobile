@@ -5,6 +5,7 @@ export const sortConversations = (items: Conversation[]) =>
 
 export function getOtherParticipant(conversation: Conversation, currentUserId: ID): UserProfile | undefined {
   if (conversation.isGroup) return undefined;
+  if (conversation.participants.length !== 2) return undefined;
   return conversation.participants.find((participant) => participant.id !== currentUserId);
 }
 
@@ -14,6 +15,9 @@ export function getParticipantById(conversation: Conversation, userId: ID): User
 
 export function getConversationIdForUser(conversations: Conversation[], userId: ID): string | undefined {
   return conversations.find(
-    (conversation) => !conversation.isGroup && conversation.participants.some((participant) => participant.id === userId)
+    (conversation) =>
+      !conversation.isGroup &&
+      conversation.participants.length === 2 &&
+      conversation.participants.some((participant) => participant.id === userId)
   )?.id;
 }

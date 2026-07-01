@@ -70,6 +70,13 @@ describe('getOtherParticipant', () => {
     };
     expect(getOtherParticipant(groupConversation, 'user-me')).toBeUndefined();
   });
+
+  it('returns undefined for malformed direct conversations with extra members', () => {
+    const extra = makeProfile('user-extra');
+    const conversation = { ...makeConversation('conv-bad', ''), participants: [extra, me, them] };
+
+    expect(getOtherParticipant(conversation, 'user-me')).toBeUndefined();
+  });
 });
 
 describe('getConversationIdForUser', () => {
@@ -84,5 +91,14 @@ describe('getConversationIdForUser', () => {
 
   it('returns undefined when no conversation exists for the user', () => {
     expect(getConversationIdForUser([], 'user-target')).toBeUndefined();
+  });
+
+  it('ignores malformed direct conversations with extra members', () => {
+    const malformed = {
+      ...makeConversation('conv-bad', ''),
+      participants: [makeProfile('user-me'), user, makeProfile('user-extra')]
+    };
+
+    expect(getConversationIdForUser([malformed], 'user-target')).toBeUndefined();
   });
 });

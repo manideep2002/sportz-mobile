@@ -10,6 +10,24 @@ const getCurrentUserId = async () => {
   return data.user.id;
 };
 
+export const toBlockedIdSet = (blockedIds: unknown): Set<string> => {
+  if (blockedIds instanceof Set) {
+    return new Set([...blockedIds].filter((id): id is string => typeof id === 'string'));
+  }
+
+  if (Array.isArray(blockedIds)) {
+    return new Set(blockedIds.filter((id): id is string => typeof id === 'string'));
+  }
+
+  if (blockedIds && typeof blockedIds === 'object') {
+    return new Set(
+      Object.values(blockedIds).filter((id): id is string => typeof id === 'string')
+    );
+  }
+
+  return new Set();
+};
+
 export const blockService = {
   async blockUser(userId: string): Promise<void> {
     assertSupabaseConfigured();
@@ -62,7 +80,7 @@ export const blockService = {
     return (data ?? []).map((row) => mapProfileRow((row as { profiles: Record<string, any> | null }).profiles));
   },
 
-  async listBlockedIds(): Promise<Set<string>> {
+  async listBlockedIds(): Promise<string[]> {
     assertSupabaseConfigured();
     const currentUserId = await getCurrentUserId();
 
@@ -72,7 +90,7 @@ export const blockService = {
       .eq('blocker_id', currentUserId);
     if (error) throw error;
 
-    return new Set((data ?? []).map((row) => row.blocked_id as string));
+    return (data ?? []).map((row) => row.blocked_id as string);
   }
 };
 

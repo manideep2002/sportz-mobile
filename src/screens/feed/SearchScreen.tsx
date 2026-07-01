@@ -7,7 +7,7 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useSearch, useTrendingTags } from '@/hooks/useSearch';
-import { blockService } from '@/services/blockService';
+import { blockService, toBlockedIdSet } from '@/services/blockService';
 import { useQuery } from '@tanstack/react-query';
 import type { AppStackParamList } from '@/navigation/routes';
 
@@ -29,9 +29,10 @@ export function SearchScreen() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const { data = [] } = useSearch(query);
   const { data: trendingTags = [] } = useTrendingTags();
-  const { data: blockedIds = new Set<string>() } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
+  const { data: blockedIds = [] } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
   const selectedType = filterTypes[selectedFilter];
-  const visibleData = data.filter((result) => !(result.type === 'player' && blockedIds.has(result.id)));
+  const blockedIdSet = toBlockedIdSet(blockedIds);
+  const visibleData = data.filter((result) => !(result.type === 'player' && blockedIdSet.has(result.id)));
   const filteredData = selectedType ? visibleData.filter((result) => result.type === selectedType) : visibleData;
 
   return (

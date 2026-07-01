@@ -70,7 +70,7 @@ export function FindPlayersScreen() {
     setMessageLoadingId(player.id);
     try {
       const conversationId = await messageService.createDirectConversation(player.id);
-      navigation.navigate('Chat', { conversationId });
+      navigation.navigate('Chat', { conversationId, targetUserId: player.id });
     } catch (error) {
       Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {

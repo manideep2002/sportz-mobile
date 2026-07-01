@@ -16,7 +16,7 @@ import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { eventService } from '@/services/eventService';
-import { blockService } from '@/services/blockService';
+import { blockService, toBlockedIdSet } from '@/services/blockService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 import type { Post } from '@/types/domain';
@@ -33,11 +33,12 @@ export function FeedScreen() {
     queryKey: ['events', 'live'],
     queryFn: eventService.listLiveEvents
   });
-  const { data: blockedIds = new Set<string>() } = useQuery({
+  const { data: blockedIds = [] } = useQuery({
     queryKey: ['blocks', 'ids'],
     queryFn: blockService.listBlockedIds
   });
-  const feed = (data?.pages.flatMap((page) => page.items) ?? []).filter((post) => !blockedIds.has(post.author.id));
+  const blockedIdSet = toBlockedIdSet(blockedIds);
+  const feed = (data?.pages.flatMap((page) => page.items) ?? []).filter((post) => !blockedIdSet.has(post.author.id));
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();

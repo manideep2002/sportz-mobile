@@ -31,7 +31,7 @@ export type AppStackParamList = {
   StoryViewer: { storyId: string; mediaUrl?: string };
   CreateStory: undefined;
   NewMessage: undefined;
-  Chat: { conversationId: string };
+  Chat: { conversationId: string; targetUserId?: string };
   FindPlayers: undefined;
   CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight'; communityId?: string } | undefined;
   PostDetail: { postId: string };

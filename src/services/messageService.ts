@@ -53,6 +53,58 @@ const initialsFromName = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+const isExactDirectConversation = async (
+  conversationId: string,
+  currentUserId: string,
+  otherUserId: string
+) => {
+  const { data: conversation, error: conversationError } = await supabase
+    .from('conversations')
+    .select('is_group')
+    .eq('id', conversationId)
+    .single();
+  if (conversationError) throw conversationError;
+  if (conversation?.is_group) return false;
+
+  const { data: members, error: membersError } = await supabase
+    .from('conversation_members')
+    .select('user_id')
+    .eq('conversation_id', conversationId);
+  if (membersError) throw membersError;
+
+  const memberIds = new Set((members ?? []).map((member) => member.user_id as string));
+  return memberIds.size === 2 && memberIds.has(currentUserId) && memberIds.has(otherUserId);
+};
+
+const createDirectConversationRows = async (currentUserId: string, otherUserId: string) => {
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', otherUserId)
+    .single();
+  if (profileError) throw profileError;
+
+  const { data: conversation, error: conversationError } = await supabase
+    .from('conversations')
+    .insert({
+      is_group: false,
+      created_by: currentUserId,
+      title: profile?.display_name ?? 'Conversation',
+      last_message: ''
+    })
+    .select('id')
+    .single();
+  if (conversationError) throw conversationError;
+
+  const { error: membersError } = await supabase.from('conversation_members').insert([
+    { conversation_id: conversation.id, user_id: currentUserId },
+    { conversation_id: conversation.id, user_id: otherUserId }
+  ]);
+  if (membersError) throw membersError;
+
+  return conversation.id as string;
+};
+
 export const messageService = {
   async getConversation(conversationId: string): Promise<Conversation | null> {
     assertSupabaseConfigured();
@@ -290,7 +342,11 @@ export const messageService = {
     });
     if (error) throw error;
     if (!data) throw new Error('Could not start a conversation.');
-    return data as string;
+    const conversationId = data as string;
+    const isValidDirect = await isExactDirectConversation(conversationId, authData.user.id, otherUserId);
+    if (isValidDirect) return conversationId;
+
+    return createDirectConversationRows(authData.user.id, otherUserId);
   },
 
   async updateMessage(messageId: string, body: string): Promise<void> {

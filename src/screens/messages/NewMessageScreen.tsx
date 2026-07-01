@@ -38,7 +38,7 @@ export function NewMessageScreen() {
     setLoadingId(player.id);
     try {
       const conversationId = await messageService.createDirectConversation(player.id);
-      navigation.replace('Chat', { conversationId });
+      navigation.replace('Chat', { conversationId, targetUserId: player.id });
     } catch (error) {
       Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {

@@ -31,6 +31,7 @@ export function ChatScreen() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const targetUserId = route.params.targetUserId;
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
@@ -38,7 +39,11 @@ export function ChatScreen() {
   useRealtimeMessages(conversationId);
   useMarkConversationRead(conversationId);
 
-  const otherParticipant = conversation ? getOtherParticipant(conversation, currentUserId) : undefined;
+  const otherParticipant = conversation
+    ? targetUserId
+      ? getParticipantById(conversation, targetUserId) ?? getOtherParticipant(conversation, currentUserId)
+      : getOtherParticipant(conversation, currentUserId)
+    : undefined;
   const recipientId =
     otherParticipant?.id ?? messages.find((message) => message.senderId !== currentUserId)?.senderId ?? '';
   const headerTitle = conversation?.isGroup ? conversation.title : otherParticipant?.displayName ?? conversation?.title ?? 'Chat';

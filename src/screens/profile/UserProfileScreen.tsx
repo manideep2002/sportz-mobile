@@ -53,7 +53,7 @@ export function UserProfileScreen() {
     setMessageLoading(true);
     try {
       const conversationId = await messageService.createDirectConversation(profile.id);
-      navigation.navigate('Chat', { conversationId });
+      navigation.navigate('Chat', { conversationId, targetUserId: profile.id });
     } catch (error) {
       Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
