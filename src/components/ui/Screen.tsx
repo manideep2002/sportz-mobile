@@ -1,5 +1,5 @@
-import type { PropsWithChildren } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { PropsWithChildren, ReactElement } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout, spacing } from '@/design/tokens';
@@ -10,6 +10,7 @@ interface ScreenProps {
   keyboard?: boolean;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }
 
 export function Screen({
@@ -18,7 +19,8 @@ export function Screen({
   withTabPadding = false,
   keyboard = false,
   style,
-  contentContainerStyle
+  contentContainerStyle,
+  refreshControl
 }: PropsWithChildren<ScreenProps>) {
   const insets = useSafeAreaInsets();
   const bottomPadding = withTabPadding ? layout.tabBarHeight + spacing.md : Math.max(insets.bottom, spacing.lg);
@@ -29,7 +31,12 @@ export function Screen({
   ];
 
   const body = scroll ? (
-    <ScrollView style={[styles.root, style]} contentContainerStyle={contentStyle} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[styles.root, style]}
+      contentContainerStyle={contentStyle}
+      refreshControl={refreshControl}
+      showsVerticalScrollIndicator={false}
+    >
       {children}
     </ScrollView>
   ) : (

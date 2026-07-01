@@ -105,7 +105,7 @@ export function FeedScreen() {
         <View style={styles.topActions}>
           <IconButton icon={Bell} accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
           <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => navigation.navigate('MainTabs', { screen: 'ProfileTab' })}>
-            <Avatar initials={profile?.initials ?? 'MK'} online size={40} />
+            <Avatar initials={profile?.initials ?? 'MK'} uri={profile?.avatarUrl} online size={40} />
           </Pressable>
         </View>
       </View>

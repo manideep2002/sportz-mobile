@@ -129,7 +129,7 @@ export function EventDetailScreen() {
           <View style={styles.stack}>
             {event.attendees.slice(0, 8).map((user, index) => (
               <View key={user.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
-                <Avatar initials={user.initials} size={32} tone={index % 2 === 0 ? 'orange' : 'green'} />
+                <Avatar initials={user.initials} uri={user.avatarUrl} size={32} tone={index % 2 === 0 ? 'orange' : 'green'} />
               </View>
             ))}
             {event.attendees.length > 8 && (
@@ -143,7 +143,7 @@ export function EventDetailScreen() {
         <AppText variant="bodyMuted" style={styles.description}>{event.description}</AppText>
         <AppText variant="h4">Organised By</AppText>
         <View style={styles.organizer}>
-          <Avatar initials={event.organizer.initials} size={44} />
+          <Avatar initials={event.organizer.initials} uri={event.organizer.avatarUrl} size={44} />
           <View style={{ flex: 1 }}>
             <AppText style={styles.organizerName}>{event.organizer.displayName}</AppText>
             <AppText variant="small">Event organizer</AppText>

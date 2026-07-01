@@ -236,7 +236,7 @@ export function CreatePostScreen() {
                   setTagSearchQuery('');
                 }}
               >
-                <Avatar initials={user.initials} size={38} />
+                <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
                 <View style={styles.tagOptionMeta}>
                   <AppText style={styles.authorName}>{user.displayName}</AppText>
                   <AppText variant="small">@{user.username}</AppText>
@@ -250,7 +250,7 @@ export function CreatePostScreen() {
                 style={[styles.tagOption, styles.tagOptionSelected]}
                 onPress={() => setTaggedUsers((old) => old.filter((t) => t.id !== user.id))}
               >
-                <Avatar initials={user.initials} size={38} />
+                <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
                 <View style={styles.tagOptionMeta}>
                   <AppText style={styles.authorName}>{user.displayName}</AppText>
                   <AppText variant="small">@{user.username}</AppText>

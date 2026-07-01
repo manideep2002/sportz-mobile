@@ -23,7 +23,7 @@ const loadSeenStories = async () => {
   }
 };
 
-type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
+type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl'>;
 
 /** Shape of a raw story row returned from the DB. */
 interface StoryRow {
@@ -31,7 +31,7 @@ interface StoryRow {
   media_url: string | null;
   body: string | null;
   created_at: string;
-  profiles: { id: string | null; display_name: string | null } | null;
+  profiles: { id: string | null; display_name: string | null; avatar_url: string | null } | null;
 }
 
 export const storyService = {
@@ -41,7 +41,7 @@ export const storyService = {
 
     const { data, error } = await supabase
       .from('stories')
-      .select('id, media_url, body, created_at, profiles:author_id(id, display_name)')
+      .select('id, media_url, body, created_at, profiles:author_id(id, display_name, avatar_url)')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
@@ -56,7 +56,8 @@ export const storyService = {
         user: {
           id: storyRow.profiles?.id ?? '',
           displayName,
-          initials: initialsForName(displayName)
+          initials: initialsForName(displayName),
+          avatarUrl: storyRow.profiles?.avatar_url ?? null
         },
         mediaUrl: storyRow.media_url,
         body: storyRow.body,
@@ -82,7 +83,7 @@ export const storyService = {
         media_kind: asset.type === 'video' ? 'video' : 'image',
         body: body?.trim() || null
       })
-      .select('id, media_url, body, created_at, profiles:author_id(id, display_name)')
+      .select('id, media_url, body, created_at, profiles:author_id(id, display_name, avatar_url)')
       .single();
 
     if (error) throw error;
@@ -97,7 +98,8 @@ export const storyService = {
       user: {
         id: profile?.id ?? authData.user.id,
         displayName,
-        initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName)
+        initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName),
+        avatarUrl: profile?.avatar_url ?? author?.avatarUrl ?? null
       },
       mediaUrl: (data as unknown as StoryRow).media_url,
       body: (data as unknown as StoryRow).body,

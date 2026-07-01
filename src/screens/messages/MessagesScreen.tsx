@@ -1,8 +1,8 @@
-import { useNavigation } from '@react-navigation/native';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useCallback, useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Plus, Search } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Plus, RefreshCw, Search } from 'lucide-react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
@@ -16,8 +16,13 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 export function MessagesScreen() {
   const navigation = useNavigation<Navigation>();
   const [query, setQuery] = useState('');
-  const { data: conversations = [] } = useConversations();
+  const { data: conversations = [], isLoading, isError, isRefetching, refetch } = useConversations();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+    }, [refetch])
+  );
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return conversations;
@@ -30,14 +35,34 @@ export function MessagesScreen() {
   const rest = filteredConversations.filter((conversation) => !conversation.pinned);
 
   return (
-    <Screen withTabPadding contentContainerStyle={styles.content}>
+    <Screen
+      withTabPadding
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <AppText variant="h2">
           Messages<AppText variant="h2" color={colors.orange[500]}>.</AppText>
         </AppText>
-        <IconButton icon={Plus} onPress={() => navigation.navigate('NewMessage')} />
+        <View style={styles.headerActions}>
+          {isRefetching ? (
+            <ActivityIndicator color={colors.orange[500]} />
+          ) : (
+            <IconButton icon={RefreshCw} accessibilityLabel="Refresh messages" onPress={() => void refetch()} />
+          )}
+          <IconButton icon={Plus} accessibilityLabel="New message" onPress={() => navigation.navigate('NewMessage')} />
+        </View>
       </View>
       <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search messages..." />
+      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isError ? <AppText variant="bodyMuted">Could not load messages. Pull down to retry.</AppText> : null}
       {pinned.length ? (
         <View style={styles.section}>
           <SectionHeader title="Pinned" />
@@ -61,6 +86,9 @@ export function MessagesScreen() {
             onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
           />
         ))}
+        {!isLoading && !isError && rest.length === 0 && pinned.length === 0 ? (
+          <AppText variant="bodyMuted" style={styles.empty}>No messages yet.</AppText>
+        ) : null}
       </View>
     </Screen>
   );
@@ -75,10 +103,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between'
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
   section: {
     gap: spacing.xs
   },
   allLabel: {
     marginTop: 8
+  },
+  empty: {
+    textAlign: 'center',
+    marginTop: spacing.xl
   }
 });

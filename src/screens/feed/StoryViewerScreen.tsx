@@ -163,7 +163,7 @@ export function StoryViewerScreen() {
       <View style={styles.header}>
         <ProgressBar value={elapsed} max={STORY_DURATION_MS} height={3} color={colors.light[0]} />
         <View style={styles.authorRow}>
-          <Avatar initials={story?.user.initials ?? 'ME'} size={38} />
+          <Avatar initials={story?.user.initials ?? 'ME'} uri={story?.user.avatarUrl} size={38} />
           <View style={styles.authorMeta}>
             <AppText style={styles.authorName}>
               {story?.user.displayName ?? 'My Story'}
@@ -192,7 +192,7 @@ export function StoryViewerScreen() {
       {/* Placeholder shown only when there is genuinely no media URL */}
       {!displayMediaUrl ? (
         <View pointerEvents="none" style={styles.placeholder}>
-          <Avatar initials={story?.user.initials ?? 'ST'} size={96} />
+          <Avatar initials={story?.user.initials ?? 'ST'} uri={story?.user.avatarUrl} size={96} />
           <AppText variant="h2">{story?.user.displayName ?? 'Story unavailable'}</AppText>
           <AppText variant="bodyMuted">
             {story

@@ -18,6 +18,31 @@ export const applyConversationPreview = (
     conversations.map((conversation) => (conversation.id === conversationId ? { ...conversation, ...preview } : conversation))
   );
 
+export const mergeConfirmedMessage = (
+  messages: Message[],
+  optimisticId: string | undefined,
+  confirmed: Message
+) => {
+  let replacedOptimistic = false;
+  const next: Message[] = [];
+
+  for (const message of messages) {
+    if (message.id === confirmed.id) continue;
+    if (message.id === optimisticId) {
+      next.push(confirmed);
+      replacedOptimistic = true;
+      continue;
+    }
+    next.push(message);
+  }
+
+  if (!replacedOptimistic) {
+    next.push(confirmed);
+  }
+
+  return next;
+};
+
 export type MessageReadStatus = 'pending' | 'sent' | 'read';
 
 export function getMessageReadStatus(

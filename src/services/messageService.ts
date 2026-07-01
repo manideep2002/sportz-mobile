@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import type { Conversation, Message } from '@/types/domain';
-import { sortConversations } from '@/utils/conversation';
+import { getOtherParticipant, sortConversations } from '@/utils/conversation';
 import { buildConversationPreview } from '@/utils/messages';
 
 /** Shape of a raw row returned from `conversation_members` with the joined conversation. */
@@ -18,6 +18,7 @@ interface ConversationMemberRow {
 
 /** Shape of a member row joined with their profile. */
 interface ConversationParticipantRow {
+  conversation_id?: string;
   user_id: string;
   profiles: {
     id: string | null;
@@ -52,6 +53,23 @@ const initialsFromName = (name: string) =>
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+const mapConversationParticipant = (member: ConversationParticipantRow): Conversation['participants'][number] => ({
+  id: member.profiles?.id ?? member.user_id,
+  username: member.profiles?.username ?? 'athlete',
+  displayName: member.profiles?.display_name ?? 'Athlete',
+  initials: initialsFromName(member.profiles?.display_name ?? 'Athlete'),
+  avatarUrl: member.profiles?.avatar_url ?? null,
+  bio: member.profiles?.bio ?? '',
+  city: member.profiles?.city ?? '',
+  country: member.profiles?.country ?? 'IN',
+  primarySport: member.profiles?.primary_sport ?? 'Basketball',
+  sports: member.profiles?.sports ?? [],
+  skillLevel: (member.profiles?.skill_level as Conversation['participants'][number]['skillLevel']) ?? 'Intermediate',
+  isOnline: Boolean(member.profiles?.is_online),
+  badges: [],
+  stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
+});
 
 const isExactDirectConversation = async (
   conversationId: string,
@@ -124,22 +142,7 @@ export const messageService = {
 
     const participants =
       !membersError && members
-        ? (members as unknown as ConversationParticipantRow[]).map((member) => ({
-            id: member.profiles?.id ?? member.user_id,
-            username: member.profiles?.username ?? 'athlete',
-            displayName: member.profiles?.display_name ?? 'Athlete',
-            initials: initialsFromName(member.profiles?.display_name ?? 'Athlete'),
-            avatarUrl: member.profiles?.avatar_url ?? null,
-            bio: member.profiles?.bio ?? '',
-            city: member.profiles?.city ?? '',
-            country: member.profiles?.country ?? 'IN',
-            primarySport: member.profiles?.primary_sport ?? 'Basketball',
-            sports: member.profiles?.sports ?? [],
-            skillLevel: (member.profiles?.skill_level as Conversation['participants'][number]['skillLevel']) ?? 'Intermediate',
-            isOnline: Boolean(member.profiles?.is_online),
-            badges: [],
-            stats: { followers: 0, following: 0, posts: 0, winRate: 0, games: 0 }
-          }))
+        ? (members as unknown as ConversationParticipantRow[]).map(mapConversationParticipant)
         : [];
 
     return {
@@ -176,39 +179,59 @@ export const messageService = {
 
     const rows = data as unknown as ConversationMemberRow[];
     const conversationIds = rows.map((r) => r.conversation_id);
+    if (!conversationIds.length) return [];
+
+    const { data: memberRows } = await supabase
+      .from('conversation_members')
+      .select('conversation_id, user_id, profiles:user_id(*)')
+      .in('conversation_id', conversationIds);
+
+    const participantsByConversation = new Map<string, Conversation['participants']>();
+    for (const member of (memberRows ?? []) as unknown as ConversationParticipantRow[]) {
+      if (!member.conversation_id) continue;
+      const participants = participantsByConversation.get(member.conversation_id) ?? [];
+      participants.push(mapConversationParticipant(member));
+      participantsByConversation.set(member.conversation_id, participants);
+    }
 
     // Single bulk query for unread counts instead of one COUNT per conversation
     const { data: unreadRows } = await supabase
       .from('messages')
-      .select('conversation_id')
+      .select('conversation_id, created_at')
       .in('conversation_id', conversationIds)
-      .neq('sender_id', authData.user.id)
-      .gt(
-        'created_at',
-        // Use the earliest last_read_at so we fetch a superset; filter per-row below
-        rows.reduce(
-          (min, r) => (r.last_read_at && r.last_read_at < min ? r.last_read_at : min),
-          '1970-01-01T00:00:00.000Z'
-        )
-      );
+      .neq('sender_id', authData.user.id);
 
-    // Build a per-conversation unread count map from the bulk result
+    const lastReadAtByConversation = new Map(
+      rows.map((row) => [row.conversation_id, row.last_read_at ?? '1970-01-01T00:00:00.000Z'])
+    );
     const unreadCountMap = new Map<string, number>();
     for (const msg of unreadRows ?? []) {
+      const lastReadAt = lastReadAtByConversation.get(msg.conversation_id) ?? '1970-01-01T00:00:00.000Z';
+      if (msg.created_at <= lastReadAt) continue;
       unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) ?? 0) + 1);
     }
 
-    const mapped = rows.map((row) => ({
-      id: row.conversation_id,
-      title: row.conversations?.title ?? 'Conversation',
-      participants: [],
-      isGroup: Boolean(row.conversations?.is_group),
-      lastMessage: row.conversations?.last_message ?? '',
-      lastMessageAt: row.conversations?.updated_at ?? new Date().toISOString(),
-      unreadCount: readConversationIds.has(row.conversation_id)
-        ? 0
-        : (unreadCountMap.get(row.conversation_id) ?? 0)
-    }));
+    const mapped = rows.map((row) => {
+      const isGroup = Boolean(row.conversations?.is_group);
+      const participants = participantsByConversation.get(row.conversation_id) ?? [];
+      const conversation: Conversation = {
+        id: row.conversation_id,
+        title: row.conversations?.title ?? 'Conversation',
+        participants,
+        isGroup,
+        lastMessage: row.conversations?.last_message ?? '',
+        lastMessageAt: row.conversations?.updated_at ?? new Date().toISOString(),
+        unreadCount: readConversationIds.has(row.conversation_id)
+          ? 0
+          : (unreadCountMap.get(row.conversation_id) ?? 0)
+      };
+      const otherParticipant = getOtherParticipant(conversation, authData.user.id);
+
+      return {
+        ...conversation,
+        title: isGroup ? conversation.title : otherParticipant?.displayName ?? conversation.title
+      };
+    });
 
     return sortConversations(mapped);
   },

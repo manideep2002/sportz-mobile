@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,7 +30,9 @@ export function ChatScreen() {
   const [body, setBody] = useState('');
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [attachmentLoading, setAttachmentLoading] = useState<'media' | 'location' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const textSendLockedRef = useRef(false);
   const targetUserId = route.params.targetUserId;
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
@@ -56,38 +58,59 @@ export function ChatScreen() {
   const handleSend = () => {
     const trimmed = body.trim();
     if (!trimmed) return;
-    setBody('');
+    if (!editingId && (sendMessage.isPending || textSendLockedRef.current)) return;
     if (editingId) {
       const messageId = editingId;
       setEditingId(null);
+      setBody('');
       void messageService.updateMessage(messageId, trimmed).then(() => {
         queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
           old.map((message) => (message.id === messageId ? { ...message, body: trimmed } : message))
         );
       });
     } else {
-      sendMessage.mutate(trimmed);
+      textSendLockedRef.current = true;
+      setBody('');
+      sendMessage.mutate(trimmed, {
+        onSettled: () => {
+          textSendLockedRef.current = false;
+        }
+      });
     }
   };
 
   const sendMedia = async () => {
     setAttachmentOpen(false);
-    const picked = await storageService.pickMedia();
-    if (!picked) return;
-    const ownerId = currentUserId || 'chat';
-    const url = await storageService.uploadMedia(picked, 'post-media', ownerId);
-    sendMessage.mutate(`[media:${url}]`);
+    setAttachmentLoading('media');
+    try {
+      const picked = await storageService.pickMedia();
+      if (!picked) return;
+      const ownerId = currentUserId || 'chat';
+      const url = await storageService.uploadMedia(picked, 'post-media', ownerId);
+      await sendMessage.mutateAsync(`[media:${url}]`);
+    } catch (error) {
+      Alert.alert('Attachment failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setAttachmentLoading(null);
+    }
   };
 
   const sendLocation = async () => {
     setAttachmentOpen(false);
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== 'granted') {
-      Alert.alert('Location needed', 'Allow location access to share your current location.');
-      return;
+    setAttachmentLoading('location');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Location needed', 'Allow location access to share your current location.');
+        return;
+      }
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      await sendMessage.mutateAsync(`[location:${current.coords.latitude},${current.coords.longitude}]`);
+    } catch (error) {
+      Alert.alert('Location failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setAttachmentLoading(null);
     }
-    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    sendMessage.mutate(`[location:${current.coords.latitude},${current.coords.longitude}]`);
   };
 
   const openMessageActions = (message: Message) => {
@@ -145,8 +168,8 @@ export function ChatScreen() {
       />
       <BottomSheet open={attachmentOpen} title="Attach" onClose={() => setAttachmentOpen(false)}>
         <View style={styles.attachmentSheet}>
-          <Button full variant="dark" onPress={() => void sendMedia()}>Photo / Video</Button>
-          <Button full variant="dark" onPress={() => void sendLocation()}>Location</Button>
+          <Button full variant="dark" loading={attachmentLoading === 'media'} disabled={Boolean(attachmentLoading)} onPress={() => void sendMedia()}>Photo / Video</Button>
+          <Button full variant="dark" loading={attachmentLoading === 'location'} disabled={Boolean(attachmentLoading)} onPress={() => void sendLocation()}>Location</Button>
         </View>
       </BottomSheet>
       <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
@@ -182,7 +205,7 @@ export function ChatScreen() {
           placeholderTextColor={colors.text.tertiary}
           style={styles.input}
         />
-        <IconButton icon={Send} filled onPress={handleSend} />
+        <IconButton icon={Send} filled disabled={!body.trim() || (!editingId && sendMessage.isPending)} onPress={handleSend} />
       </View>
     </KeyboardAvoidingView>
   );

@@ -49,7 +49,7 @@ export function EventCard({ event, joined = false, onPress, onJoin }: EventCardP
             <View style={styles.stack}>
               {event.attendees.slice(0, 4).map((user, index) => (
                 <View key={user.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
-                  <Avatar initials={user.initials} size={30} tone={index % 2 === 0 ? 'orange' : 'green'} />
+                  <Avatar initials={user.initials} uri={user.avatarUrl} size={30} tone={index % 2 === 0 ? 'orange' : 'green'} />
                 </View>
               ))}
             </View>

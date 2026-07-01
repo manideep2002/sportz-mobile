@@ -41,10 +41,11 @@ export function CreateStoryScreen() {
   const handleShare = async () => {
     if (!mediaAssets.length || !profile) return;
     try {
-      const author: Pick<UserProfile, 'id' | 'displayName' | 'initials'> = {
+      const author: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl'> = {
         id: profile.id,
         displayName: profile.displayName,
-        initials: profile.initials
+        initials: profile.initials,
+        avatarUrl: profile.avatarUrl
       };
       const stories = await createStories.mutateAsync({ assets: mediaAssets, author, body: caption });
       navigation.replace('StoryViewer', { storyId: stories[0].id, mediaUrl: stories[0].mediaUrl ?? undefined });

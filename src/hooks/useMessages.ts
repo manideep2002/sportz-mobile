@@ -5,7 +5,7 @@ import { messageService } from '@/services/messageService';
 import { useAuthStore } from '@/store/authStore';
 import { useMessagingStore } from '@/store/messagingStore';
 import type { Conversation, Message } from '@/types/domain';
-import { applyConversationPreview, buildConversationPreview } from '@/utils/messages';
+import { applyConversationPreview, buildConversationPreview, mergeConfirmedMessage } from '@/utils/messages';
 
 export const messageKeys = {
   conversations: ['conversations'] as const,
@@ -43,7 +43,9 @@ export const useConversations = () => {
   const readConversationIds = useMessagingStore((state) => state.readConversationIds);
   return useQuery({
     queryKey: messageKeys.conversations,
-    queryFn: () => messageService.listConversations(readConversationIds)
+    queryFn: () => messageService.listConversations(readConversationIds),
+    refetchInterval: 5000,
+    refetchOnMount: 'always'
   });
 };
 
@@ -95,7 +97,7 @@ export const useSendMessage = (conversationId: string) => {
     },
     onSuccess: (message, _body, context) => {
       queryClient.setQueryData<Message[]>(messageKeys.messages(conversationId), (old = []) =>
-        old.map((item) => (item.id === context?.optimisticId ? message : item))
+        mergeConfirmedMessage(old, context?.optimisticId, message)
       );
       patchConversationPreviewInCache(queryClient, conversationId, message, currentUserId);
     },

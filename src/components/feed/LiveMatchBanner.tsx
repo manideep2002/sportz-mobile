@@ -38,7 +38,7 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
           <View style={styles.stack}>
             {event.attendees.slice(0, 3).map((user, index) => (
               <View key={user.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
-                <Avatar initials={user.initials} size={26} tone={index === 0 ? 'orange' : index === 1 ? 'green' : 'blue'} />
+                <Avatar initials={user.initials} uri={user.avatarUrl} size={26} tone={index === 0 ? 'orange' : index === 1 ? 'green' : 'blue'} />
               </View>
             ))}
           </View>

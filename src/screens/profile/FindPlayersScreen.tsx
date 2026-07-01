@@ -112,7 +112,7 @@ export function FindPlayersScreen() {
       {players.map((player) => (
         <View key={player.id} style={styles.playerCard}>
           <View style={styles.playerTop}>
-            <Avatar initials={player.initials} size={54} online={player.isOnline} />
+            <Avatar initials={player.initials} uri={player.avatarUrl} size={54} online={player.isOnline} />
             <View style={{ flex: 1 }}>
               <AppText style={styles.playerName}>{player.displayName}</AppText>
               <AppText variant="small">{player.primarySport} - {player.position}</AppText>

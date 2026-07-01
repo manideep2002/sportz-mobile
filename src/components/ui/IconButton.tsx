@@ -12,10 +12,11 @@ interface IconButtonProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
 }
 
-export function IconButton({ icon: Icon, size = 40, iconSize = 18, color = colors.text.primary, filled = false, style, ...props }: IconButtonProps) {
+export function IconButton({ icon: Icon, size = 40, iconSize = 18, color = colors.text.primary, filled = false, disabled, style, ...props }: IconButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       style={({ pressed }) => [
         styles.base,
         {
@@ -25,6 +26,7 @@ export function IconButton({ icon: Icon, size = 40, iconSize = 18, color = color
           backgroundColor: filled ? colors.orange[500] : colors.dark[800]
         },
         pressed ? styles.pressed : null,
+        disabled ? styles.disabled : null,
         style
       ]}
       {...props}
@@ -43,5 +45,8 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78
+  },
+  disabled: {
+    opacity: 0.5
   }
 });

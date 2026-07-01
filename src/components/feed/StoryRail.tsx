@@ -36,7 +36,7 @@ export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProp
         >
           <View style={[styles.ring, item.seen ? styles.seen : styles.active]}>
             <View style={styles.inner}>
-              <Avatar initials={item.user.initials} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
+              <Avatar initials={item.user.initials} uri={item.user.avatarUrl} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
             </View>
           </View>
           <AppText variant="small" numberOfLines={1}>

@@ -40,7 +40,7 @@ export interface ProfileStats {
 
 export interface Story {
   id: ID;
-  user: Pick<UserProfile, 'id' | 'displayName' | 'initials'>;
+  user: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl'>;
   mediaUrl?: string | null;
   body?: string | null;
   seen: boolean;

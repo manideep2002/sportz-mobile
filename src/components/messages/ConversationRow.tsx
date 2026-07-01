@@ -15,13 +15,19 @@ interface ConversationRowProps {
 export function ConversationRow({ conversation, currentUserId, onPress }: ConversationRowProps) {
   const other = getOtherParticipant(conversation, currentUserId) ?? conversation.participants[0];
   const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other?.initials ?? '??';
+  const title = conversation.isGroup ? conversation.title : other?.displayName ?? conversation.title;
 
   return (
     <Pressable onPress={onPress} style={styles.row}>
-      <Avatar initials={avatarInitials} size={50} online={!conversation.isGroup && Boolean(other?.isOnline)} />
+      <Avatar
+        initials={avatarInitials}
+        uri={conversation.isGroup ? undefined : other?.avatarUrl}
+        size={50}
+        online={!conversation.isGroup && Boolean(other?.isOnline)}
+      />
       <View style={styles.meta}>
         <View style={styles.titleRow}>
-          <AppText style={styles.title}>{conversation.title}</AppText>
+          <AppText style={styles.title}>{title}</AppText>
           <AppText variant="small">{timeAgo(conversation.lastMessageAt).replace(' ago', '')}</AppText>
         </View>
         <AppText variant="bodyMuted" numberOfLines={1}>

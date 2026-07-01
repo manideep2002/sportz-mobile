@@ -1,9 +1,10 @@
 import {
   applyConversationPreview,
   buildConversationPreview,
-  formatConversationPreview
+  formatConversationPreview,
+  mergeConfirmedMessage
 } from '@/utils/messages';
-import type { Conversation } from '@/types/domain';
+import type { Conversation, Message } from '@/types/domain';
 
 const makeConversation = (id: string, overrides: Partial<Conversation> = {}): Conversation => ({
   id,
@@ -70,5 +71,28 @@ describe('applyConversationPreview', () => {
     const bResult = result.find((c) => c.id === 'b');
 
     expect(bResult?.lastMessage).toBe('keep me');
+  });
+});
+
+describe('mergeConfirmedMessage', () => {
+  const confirmed: Message = {
+    id: 'server-1',
+    conversationId: 'conv-1',
+    senderId: 'user-me',
+    body: 'Hello',
+    createdAt: '2026-07-01T10:00:00.000Z',
+    readBy: ['user-me']
+  };
+
+  it('replaces the optimistic message with the confirmed server message', () => {
+    const optimistic: Message = { ...confirmed, id: 'optimistic-1', pending: true };
+
+    expect(mergeConfirmedMessage([optimistic], optimistic.id, confirmed)).toEqual([confirmed]);
+  });
+
+  it('dedupes a realtime message that arrived before mutation success', () => {
+    const optimistic: Message = { ...confirmed, id: 'optimistic-1', pending: true };
+
+    expect(mergeConfirmedMessage([optimistic, confirmed], optimistic.id, confirmed)).toEqual([confirmed]);
   });
 });

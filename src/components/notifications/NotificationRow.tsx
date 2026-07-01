@@ -37,7 +37,7 @@ export function NotificationRow({ notification, onPress, onCtaPress }: Notificat
   return (
     <Pressable onPress={onPress} style={[styles.row, !notification.read ? styles.unread : null]}>
       {notification.actor ? (
-        <Avatar initials={notification.actor.initials} size={44} />
+        <Avatar initials={notification.actor.initials} uri={notification.actor.avatarUrl} size={44} />
       ) : (
         <View style={styles.icon}>
           {getNotificationIcon(notification.kind)}
