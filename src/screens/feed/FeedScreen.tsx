@@ -11,7 +11,7 @@ import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
 import { sportsFilters } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
-import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave } from '@/hooks/useFeed';
+import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
@@ -42,6 +42,7 @@ export function FeedScreen() {
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
+  const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
   const refreshFeed = () => void Promise.all([refetch(), refetchStories()]);
   
@@ -171,7 +172,9 @@ export function FeedScreen() {
           onAuthorPress={() => openAuthor(post)}
           onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => openPost(post.id)}
-          onShare={() => void sharePost(post)}
+          onShare={() => {
+            void sharePost(post).then(() => shareMutation.mutate(post.id));
+          }}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
@@ -185,7 +188,7 @@ export function FeedScreen() {
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: () => openAuthor(post) },
               { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
               { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
-              { text: 'Share', onPress: () => void sharePost(post) },
+              { text: 'Share', onPress: () => void sharePost(post).then(() => shareMutation.mutate(post.id)) },
               { text: 'Report Post', onPress: () => reportPost(post) },
               ...(isOwnPost ? [{
                 text: 'Delete',

@@ -1,3 +1,4 @@
 module.exports = {
-  preset: 'jest-expo'
+  preset: 'jest-expo',
+  testPathIgnorePatterns: ['/node_modules/', '/.kilo/', '/.agents/']
 };

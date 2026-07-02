@@ -149,6 +149,7 @@ function PostCardComponent({
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
               <Share2 size={17} color={colors.text.tertiary} />
+              <AppText style={styles.actionText}>{post.shares}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
               <Bookmark

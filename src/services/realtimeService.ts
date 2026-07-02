@@ -4,6 +4,14 @@ import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import type { Message } from '@/types/domain';
 
+interface RealtimeMessageRow {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+}
+
 export const realtimeService = {
   subscribeToConversation(conversationId: string, onMessage: (message: Message) => void): RealtimeChannel | null {
     if (!env.isSupabaseConfigured) return null;
@@ -19,7 +27,7 @@ export const realtimeService = {
           filter: `conversation_id=eq.${conversationId}`
         },
         (payload) => {
-          const row = payload.new as any;
+          const row = payload.new as RealtimeMessageRow;
           onMessage({
             id: row.id,
             conversationId: row.conversation_id,

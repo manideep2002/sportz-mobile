@@ -82,13 +82,47 @@ export const useCreateComment = (postId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: string) => postService.createComment(postId, body),
+    mutationFn: ({ body, parentCommentId }: { body: string; parentCommentId?: string | null }) =>
+      postService.createComment(postId, body, parentCommentId),
     onSuccess: (comment) => {
       queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, comment]);
       queryClient.setQueryData<Post>(feedKeys.post(postId), (old) =>
         old ? { ...old, comments: old.comments + 1 } : old
       );
       queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, (post) => ({ ...post, comments: post.comments + 1 })));
+    }
+  });
+};
+
+export const useRecordPostShare = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (postId: string) => postService.recordPostShare(postId),
+    onMutate: async (postId) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
+      ]);
+      const previousFeed = queryClient.getQueryData<{
+        pages: { items: Post[]; nextCursor?: string }[];
+        pageParams: unknown[];
+      }>(feedKeys.infinite);
+      const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const patch = (post: Post): Post => ({ ...post, shares: post.shares + 1 });
+
+      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
+      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
+
+      return { previousFeed, previousPost, postId };
+    },
+    onError: (_error, _postId, context) => {
+      if (context?.previousFeed) {
+        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
+      }
+      if (context?.previousPost) {
+        queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
+      }
     }
   });
 };

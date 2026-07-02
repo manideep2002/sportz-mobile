@@ -158,7 +158,7 @@ export const profileService = {
     return (count ?? 0) > 0;
   },
 
-  async followProfile(profileId: string): Promise<void> {
+  async followProfile(profileId: string): Promise<'following' | 'requested'> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -166,11 +166,29 @@ export const profileService = {
     if (!authData.user) throw new Error('You must be signed in to follow players.');
     if (authData.user.id === profileId) throw new Error('You cannot follow yourself.');
 
-    const { error } = await supabase.from('follows').insert({
-      follower_id: authData.user.id,
-      following_id: profileId
+    const { data, error } = await supabase.rpc('request_or_follow_profile', {
+      target_user_id: profileId
     });
-    if (error && error.code !== '23505') throw error;
+    if (error) throw error;
+    return data === 'requested' ? 'requested' : 'following';
+  },
+
+  async getFollowRequestStatus(profileId: string): Promise<'pending' | 'approved' | 'declined' | 'cancelled' | null> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return null;
+
+    const { data, error } = await supabase
+      .from('follow_requests')
+      .select('status')
+      .eq('requester_id', authData.user.id)
+      .eq('target_id', profileId)
+      .maybeSingle();
+    if (error && error.code !== '42P01') throw error;
+
+    return (data?.status as 'pending' | 'approved' | 'declined' | 'cancelled' | undefined) ?? null;
   },
 
   async unfollowProfile(profileId: string): Promise<void> {

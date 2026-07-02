@@ -20,7 +20,7 @@ npm test
 - Profiles: edit profile, follow, hireable filters.
 - Events: create event, join, RSVP, player count updates, event chat.
 - Courts: location permission denied/granted, sport filters, availability labels.
-- Messages: realtime receive, optimistic send, read receipts, typing indicators.
+- Messages: realtime receive, optimistic send, read receipts, mute preferences, and per-user clear history.
 - Notifications: push permission, foreground notification, mark all read.
 - Offline: launch app offline after a successful online cache fill.
 - Dark/light: settings toggle and OS theme behavior.

@@ -18,6 +18,7 @@ import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { blockService } from '@/services/blockService';
 import { communityService } from '@/services/communityService';
+import { messageService } from '@/services/messageService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { useMessagingStore } from '@/store/messagingStore';
 
@@ -94,6 +95,7 @@ export function ChatOptionsSheet({
       icon: muted ? Bell : BellOff,
       onPress: () => {
         toggleMute(conversationId);
+        void messageService.setConversationMuted(conversationId, !muted);
         onClose();
       }
     },

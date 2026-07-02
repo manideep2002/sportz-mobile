@@ -70,6 +70,7 @@ export interface Post {
 export interface Comment {
   id: ID;
   postId: ID;
+  parentCommentId?: ID | null;
   author: UserProfile;
   body: string;
   likes: number;

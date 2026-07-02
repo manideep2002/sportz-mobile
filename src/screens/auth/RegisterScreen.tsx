@@ -2,14 +2,13 @@ import { useState } from 'react';
 import * as Location from 'expo-location';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, LocateFixed, Phone, ShieldCheck, X } from 'lucide-react-native';
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, LocateFixed, Phone, X } from 'lucide-react-native';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 import { allSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { AuthStackParamList } from '@/navigation/routes';
-import { authService } from '@/services/authService';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
@@ -122,7 +121,6 @@ const getCalendarDays = (monthDate: Date) => {
 export function RegisterScreen({ navigation }: Props) {
   const signUp = useAuthStore((state) => state.signUp);
   const loading = useAuthStore((state) => state.loading);
-  const [otpSending, setOtpSending] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
@@ -135,8 +133,6 @@ export function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
-  const [mobileOtp, setMobileOtp] = useState('');
-  const [otpMessage, setOtpMessage] = useState<string | null>(null);
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(2000, 0, 1));
   const [gender, setGender] = useState<Gender>('Prefer not to say');
@@ -209,24 +205,6 @@ export function RegisterScreen({ navigation }: Props) {
     setSecondarySportPickerVisible(true);
   };
 
-  const handleGenerateOtp = async () => {
-    setOtpSending(true);
-    setOtpMessage(null);
-    try {
-      const { demoCode } = await authService.generateMobileOtp(mobileNumber);
-      if (demoCode) {
-        setMobileOtp(demoCode);
-        setOtpMessage(`Demo OTP generated: ${demoCode}`);
-      } else {
-        setOtpMessage('OTP sent to your mobile number.');
-      }
-    } catch (error) {
-      Alert.alert('Could not generate OTP', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setOtpSending(false);
-    }
-  };
-
   const handlePickAvatar = async () => {
     try {
       const picked = await storageService.pickImage();
@@ -289,7 +267,6 @@ export function RegisterScreen({ navigation }: Props) {
         username: normalizedUsername,
         city: city.trim(),
         mobileNumber: mobileNumber.trim(),
-        mobileOtp: mobileOtp.trim(),
         dateOfBirth,
         gender,
         primarySport,
@@ -356,25 +333,14 @@ export function RegisterScreen({ navigation }: Props) {
               {confirmPassword && !passwordMatches ? ' Passwords must match.' : ''}
             </AppText>
           </View>
-          <View style={styles.group}>
-            <AppText style={styles.label}>Mobile Verification</AppText>
-            <View style={styles.otpRow}>
-              <View style={styles.otpInput}>
-                <Input
-                  icon={Phone}
-                  value={mobileNumber}
-                  onChangeText={setMobileNumber}
-                  keyboardType="phone-pad"
-                  autoComplete="tel"
-                />
-              </View>
-              <Button variant="dark" size="sm" icon={ShieldCheck} loading={otpSending} onPress={handleGenerateOtp} style={styles.otpButton}>
-                Generate OTP
-              </Button>
-            </View>
-            <Input label="OTP" value={mobileOtp} onChangeText={setMobileOtp} keyboardType="number-pad" maxLength={6} />
-            {otpMessage ? <AppText variant="small" style={styles.successText}>{otpMessage}</AppText> : null}
-          </View>
+          <Input
+            label="Mobile Number"
+            icon={Phone}
+            value={mobileNumber}
+            onChangeText={setMobileNumber}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+          />
           <View style={styles.group}>
             <AppText style={styles.label}>DOB</AppText>
             <Pressable style={styles.selectInput} onPress={() => setCalendarVisible(true)}>

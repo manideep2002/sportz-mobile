@@ -231,10 +231,8 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to join events.');
 
-    const { error } = await supabase.from('event_attendees').upsert({
-      event_id: eventId,
-      user_id: authData.user.id,
-      status: 'going'
+    const { error } = await supabase.rpc('join_sport_event', {
+      target_event_id: eventId
     });
     if (error) throw error;
   },

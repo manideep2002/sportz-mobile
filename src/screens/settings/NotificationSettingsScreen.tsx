@@ -9,6 +9,7 @@ import { AppText, IconButton, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   defaultNotificationPreferences,
+  saveNotificationPreferences,
   notificationPreferencesKey,
   pushNotificationsEnabledKey,
   type NotificationPreferenceKey
@@ -16,7 +17,7 @@ import {
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
-const notificationTypes: NotificationPreferenceKey[] = ['likes', 'comments', 'follows', 'events'];
+const notificationTypes: NotificationPreferenceKey[] = ['likes', 'comments', 'follows', 'messages', 'events', 'invites'];
 
 export function NotificationSettingsScreen() {
   const navigation = useNavigation<Navigation>();
@@ -39,13 +40,13 @@ export function NotificationSettingsScreen() {
   const toggleEnabled = async () => {
     const next = !enabled;
     setEnabled(next);
-    await AsyncStorage.setItem(pushNotificationsEnabledKey, String(next));
+    await saveNotificationPreferences(next, preferences);
   };
 
   const togglePreference = async (key: NotificationPreferenceKey) => {
     const next = { ...preferences, [key]: !preferences[key] };
     setPreferences(next);
-    await AsyncStorage.setItem(notificationPreferencesKey, JSON.stringify(next));
+    await saveNotificationPreferences(enabled, next);
   };
 
   return (

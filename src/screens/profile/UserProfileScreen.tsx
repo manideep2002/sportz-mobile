@@ -7,7 +7,7 @@ import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleShe
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useProfile, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
+import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { UserProfile } from '@/types/domain';
@@ -25,6 +25,7 @@ export function UserProfileScreen() {
 
   const { data: profile, isLoading, isError } = useProfile(userId);
   const { data: isFollowing = false } = useIsFollowing(userId);
+  const { data: followRequestStatus = null } = useFollowRequestStatus(userId);
   const { data: isBlocked = false, isLoading: isBlockedLoading } = useIsBlocked(userId);
   const toggleFollow = useToggleFollow(userId);
   const toggleBlock = useToggleBlock(userId);
@@ -33,6 +34,10 @@ export function UserProfileScreen() {
   const blockActionLoading = isBlockedLoading || toggleBlock.isPending;
 
   const handleFollow = () => {
+    if (followRequestStatus === 'pending' && !isFollowing) {
+      Alert.alert('Request pending', `${profile?.displayName ?? 'This player'} has not approved your follow request yet.`);
+      return;
+    }
     if (isBlocked) {
       Alert.alert('Profile blocked', `Unblock ${profile?.displayName ?? 'this profile'} before following.`);
       return;
@@ -144,7 +149,7 @@ export function UserProfileScreen() {
     }
   };
 
-  // ── Loading state ──────────────────────────────────────────────────────────
+  // -- Loading state ----------------------------------------------------------
   if (isLoading) {
     return (
       <Screen contentContainerStyle={styles.centered}>
@@ -156,7 +161,7 @@ export function UserProfileScreen() {
     );
   }
 
-  // ── Error / not found ──────────────────────────────────────────────────────
+  // -- Error / not found ------------------------------------------------------
   if (isError || !profile) {
     return (
       <Screen contentContainerStyle={styles.centered}>
@@ -189,7 +194,7 @@ export function UserProfileScreen() {
           <View style={{ flex: 1 }}>
             <AppText variant="h2">{profile.displayName}</AppText>
             <AppText variant="bodyMuted">
-              @{profile.username} · {profile.city}
+              @{profile.username} - {profile.city}
               {profile.country ? `, ${profile.country}` : ''}
             </AppText>
           </View>
@@ -245,12 +250,12 @@ export function UserProfileScreen() {
             <Button
               style={styles.actionButton}
               icon={isFollowing ? UserCheck : UserPlus}
-              variant={isFollowing ? 'ghost' : 'primary'}
+              variant={isFollowing || followRequestStatus === 'pending' ? 'ghost' : 'primary'}
               disabled={toggleFollow.isPending || blockActionLoading}
               loading={toggleFollow.isPending}
               onPress={handleFollow}
             >
-              {isFollowing ? 'Unfollow' : 'Follow'}
+              {isFollowing ? 'Unfollow' : followRequestStatus === 'pending' ? 'Requested' : 'Follow'}
             </Button>
           )}
           <Button
@@ -274,7 +279,7 @@ export function UserProfileScreen() {
   );
 }
 
-// ── ProfileGrid ──────────────────────────────────────────────────────────────
+// -- ProfileGrid --------------------------------------------------------------
 
 function ProfileGrid({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
@@ -355,7 +360,7 @@ function ProfileGrid({ userId }: { userId: string }) {
   );
 }
 
-// ── StatsPanel ───────────────────────────────────────────────────────────────
+// -- StatsPanel ---------------------------------------------------------------
 
 function StatsPanel({ profile }: { profile: UserProfile }) {
   const statLines = [
@@ -369,7 +374,7 @@ function StatsPanel({ profile }: { profile: UserProfile }) {
 
   return (
     <View style={styles.panel}>
-      <AppText variant="h4">Season Stats — 2026</AppText>
+      <AppText variant="h4">Season Stats - 2026</AppText>
       {statLines.map(([label, value]) => (
         <View key={label} style={styles.statLine}>
           <View style={styles.statLineTop}>
@@ -383,12 +388,12 @@ function StatsPanel({ profile }: { profile: UserProfile }) {
       ))}
       <View style={styles.threeStats}>
         <StatCard
-          value={profile.stats.bestPoints?.toString() ?? '—'}
+          value={profile.stats.bestPoints?.toString() ?? '-'}
           label="Best PTS"
           tone="orange"
         />
         <StatCard
-          value={profile.stats.avgRebounds?.toString() ?? '—'}
+          value={profile.stats.avgRebounds?.toString() ?? '-'}
           label="Avg REB"
         />
         <StatCard
@@ -401,7 +406,7 @@ function StatsPanel({ profile }: { profile: UserProfile }) {
   );
 }
 
-// ── HighlightsPanel ──────────────────────────────────────────────────────────
+// -- HighlightsPanel ----------------------------------------------------------
 
 function currentPostStreak(posts: { createdAt: string }[]) {
   const dates = new Set(posts.map((post) => post.createdAt.slice(0, 10)));
@@ -471,7 +476,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
+// -- Styles -------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   content: {

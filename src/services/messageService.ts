@@ -8,6 +8,7 @@ import { formatConversationPreview, rawConversationPreview } from '@/utils/messa
 interface ConversationMemberRow {
   conversation_id: string;
   last_read_at: string | null;
+  cleared_at: string | null;
   conversations: {
     title: string | null;
     is_group: boolean | null;
@@ -136,35 +137,6 @@ const isExactDirectConversation = async (
   return memberIds.size === 2 && memberIds.has(currentUserId) && memberIds.has(otherUserId);
 };
 
-const createDirectConversationRows = async (currentUserId: string, otherUserId: string) => {
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', otherUserId)
-    .single();
-  if (profileError) throw profileError;
-
-  const { data: conversation, error: conversationError } = await supabase
-    .from('conversations')
-    .insert({
-      is_group: false,
-      created_by: currentUserId,
-      title: profile?.display_name ?? 'Conversation',
-      last_message: ''
-    })
-    .select('id')
-    .single();
-  if (conversationError) throw conversationError;
-
-  const { error: membersError } = await supabase.from('conversation_members').insert([
-    { conversation_id: conversation.id, user_id: currentUserId },
-    { conversation_id: conversation.id, user_id: otherUserId }
-  ]);
-  if (membersError) throw membersError;
-
-  return conversation.id as string;
-};
-
 export const messageService = {
   async getConversation(conversationId: string): Promise<Conversation | null> {
     assertSupabaseConfigured();
@@ -213,7 +185,7 @@ export const messageService = {
 
     const { data, error } = await supabase
       .from('conversation_members')
-      .select('conversation_id, last_read_at, conversations(*)')
+      .select('conversation_id, last_read_at, cleared_at, conversations(*)')
       .eq('user_id', authData.user.id)
       .order('conversation_id');
 
@@ -249,18 +221,24 @@ export const messageService = {
       .in('conversation_id', conversationIds)
       .order('created_at', { ascending: false });
 
-    const latestMessageByConversation = new Map<string, MessagePreviewRow>();
-    for (const message of (latestRows ?? []) as MessagePreviewRow[]) {
-      if (latestMessageByConversation.has(message.conversation_id)) continue;
-      latestMessageByConversation.set(message.conversation_id, message);
-    }
-
     const lastReadAtByConversation = new Map(
       rows.map((row) => [row.conversation_id, row.last_read_at ?? '1970-01-01T00:00:00.000Z'])
     );
+    const clearedAtByConversation = new Map(rows.map((row) => [row.conversation_id, row.cleared_at]));
+
+    const latestMessageByConversation = new Map<string, MessagePreviewRow>();
+    for (const message of (latestRows ?? []) as MessagePreviewRow[]) {
+      if (latestMessageByConversation.has(message.conversation_id)) continue;
+      const clearedAt = clearedAtByConversation.get(message.conversation_id);
+      if (clearedAt && message.created_at <= clearedAt) continue;
+      latestMessageByConversation.set(message.conversation_id, message);
+    }
+
     const unreadCountMap = new Map<string, number>();
     for (const msg of unreadRows ?? []) {
       const lastReadAt = lastReadAtByConversation.get(msg.conversation_id) ?? '1970-01-01T00:00:00.000Z';
+      const clearedAt = clearedAtByConversation.get(msg.conversation_id);
+      if (clearedAt && msg.created_at <= clearedAt) continue;
       if (msg.created_at <= lastReadAt) continue;
       unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) ?? 0) + 1);
     }
@@ -274,12 +252,10 @@ export const messageService = {
         title: row.conversations?.title ?? 'Conversation',
         participants,
         isGroup,
-        lastMessage: displayConversationPreview(
-          latestMessage?.body ?? row.conversations?.last_message,
-          latestMessage?.sender_id ?? row.conversations?.last_sender_id,
-          authData.user.id
-        ),
-        lastMessageAt: latestMessage?.created_at ?? row.conversations?.updated_at ?? new Date().toISOString(),
+        lastMessage: latestMessage
+          ? displayConversationPreview(latestMessage.body, latestMessage.sender_id, authData.user.id)
+          : '',
+        lastMessageAt: latestMessage?.created_at ?? row.cleared_at ?? row.conversations?.updated_at ?? new Date().toISOString(),
         unreadCount: readConversationIds.has(row.conversation_id)
           ? 0
           : (unreadCountMap.get(row.conversation_id) ?? 0)
@@ -298,12 +274,29 @@ export const messageService = {
   async listMessages(conversationId: string): Promise<Message[]> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return [];
+
+    const { data: membership, error: membershipError } = await supabase
+      .from('conversation_members')
+      .select('cleared_at')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', authData.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+
+    let request = supabase
       .from('messages')
       .select('*, message_receipts(user_id)')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(80);
+    if (membership?.cleared_at) {
+      request = request.gt('created_at', membership.cleared_at);
+    }
+
+    const { data, error } = await request;
 
     if (error || !data) return [];
 
@@ -330,11 +323,24 @@ export const messageService = {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) return;
 
-    const { data: unreadMessages, error: listError } = await supabase
+    const { data: membership, error: membershipError } = await supabase
+      .from('conversation_members')
+      .select('cleared_at')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', authData.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+
+    let unreadRequest = supabase
       .from('messages')
       .select('id')
       .eq('conversation_id', conversationId)
       .neq('sender_id', authData.user.id);
+    if (membership?.cleared_at) {
+      unreadRequest = unreadRequest.gt('created_at', membership.cleared_at);
+    }
+
+    const { data: unreadMessages, error: listError } = await unreadRequest;
 
     if (listError || !unreadMessages?.length) return;
 
@@ -396,17 +402,48 @@ export const messageService = {
   async clearConversation(conversationId: string): Promise<void> {
     assertSupabaseConfigured();
 
-    const { error } = await supabase.from('messages').delete().eq('conversation_id', conversationId);
-    if (error) throw error;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to clear a conversation.');
 
-    await supabase
-      .from('conversations')
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('conversation_members')
       .update({
-        last_message: 'No messages yet',
-        last_sender_id: null,
-        updated_at: new Date().toISOString()
+        cleared_at: now,
+        last_read_at: now
       })
-      .eq('id', conversationId);
+      .eq('conversation_id', conversationId)
+      .eq('user_id', authData.user.id);
+    if (error) throw error;
+  },
+
+  async setConversationMuted(conversationId: string, muted: boolean): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to update chat notifications.');
+
+    if (!muted) {
+      const { error } = await supabase
+        .from('conversation_mutes')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', authData.user.id);
+      if (error && error.code !== '42P01') throw error;
+      return;
+    }
+
+    const { error } = await supabase.from('conversation_mutes').upsert(
+      {
+        conversation_id: conversationId,
+        user_id: authData.user.id,
+        muted_until: null
+      },
+      { onConflict: 'conversation_id,user_id' }
+    );
+    if (error && error.code !== '42P01') throw error;
   },
 
   async createDirectConversation(otherUserId: string): Promise<string> {
@@ -426,7 +463,7 @@ export const messageService = {
     const isValidDirect = await isExactDirectConversation(conversationId, authData.user.id, otherUserId);
     if (isValidDirect) return conversationId;
 
-    return createDirectConversationRows(authData.user.id, otherUserId);
+    throw new Error('Could not start a safe direct conversation.');
   },
 
   async updateMessage(messageId: string, body: string): Promise<void> {

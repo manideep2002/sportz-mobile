@@ -13,6 +13,7 @@ export interface CreatePostInput {
   statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
   communityId?: string;
+  mentionedUserIds?: string[];
 }
 
 export interface FeedPage {
@@ -23,6 +24,7 @@ export interface FeedPage {
 interface PostEngagement {
   likes: Map<string, number>;
   comments: Map<string, number>;
+  shares: Map<string, number>;
   likedByMe: Set<string>;
   savedByMe: Set<string>;
 }
@@ -64,6 +66,7 @@ interface PostRow {
   avatar_url?: string | null;
   likes_count?: number | null;
   comments_count?: number | null;
+  shares_count?: number | null;
 }
 
 /** Shape of a row returned from the `comments` table with joined profile. */
@@ -71,6 +74,7 @@ interface CommentRow {
   id: string;
   post_id: string;
   author_id: string;
+  parent_comment_id: string | null;
   body: string;
   created_at: string;
   profiles: EmbeddedProfile | null;
@@ -97,6 +101,10 @@ interface SavedPostRow {
   post_id: string;
 }
 
+interface PostShareRow {
+  post_id: string;
+}
+
 const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   id: row.id,
   author: mapProfileRow(row.profiles ?? {
@@ -115,13 +123,14 @@ const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   savedByMe: engagement.savedByMe.has(row.id),
   likes: engagement.likes.get(row.id) ?? row.likes_count ?? 0,
   comments: engagement.comments.get(row.id) ?? row.comments_count ?? 0,
-  shares: 0,
+  shares: engagement.shares.get(row.id) ?? row.shares_count ?? 0,
   createdAt: row.created_at
 });
 
 const emptyEngagement = (): PostEngagement => ({
   likes: new Map(),
   comments: new Map(),
+  shares: new Map(),
   likedByMe: new Set(),
   savedByMe: new Set()
 });
@@ -134,7 +143,7 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   const { data: authData } = await supabase.auth.getUser();
   const currentUserId = authData.user?.id;
 
-  const [likesResult, commentsResult, savesResult] = await Promise.all([
+  const [likesResult, commentsResult, sharesResult, savesResult] = await Promise.all([
     supabase
       .from('likes')
       .select('entity_id, user_id')
@@ -142,6 +151,10 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
       .in('entity_id', postIds),
     supabase
       .from('comments')
+      .select('post_id')
+      .in('post_id', postIds),
+    supabase
+      .from('post_shares')
       .select('post_id')
       .in('post_id', postIds),
     // Only fetch saves for the current user — no need to load everyone's saves
@@ -156,6 +169,7 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
 
   if (likesResult.error) throw likesResult.error;
   if (commentsResult.error) throw commentsResult.error;
+  if (sharesResult.error && sharesResult.error.code !== '42P01') throw sharesResult.error;
   // Gracefully ignore "relation does not exist" (42P01) on saved_posts so the
   // feed still loads before the migration has been applied to Supabase.
   if (savesResult.error && savesResult.error.code !== '42P01') throw savesResult.error;
@@ -166,6 +180,9 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   }
   for (const comment of (commentsResult.data ?? []) as CommentCountRow[]) {
     engagement.comments.set(comment.post_id, (engagement.comments.get(comment.post_id) ?? 0) + 1);
+  }
+  for (const share of (sharesResult.data ?? []) as PostShareRow[]) {
+    engagement.shares.set(share.post_id, (engagement.shares.get(share.post_id) ?? 0) + 1);
   }
   for (const save of (savesResult.data ?? []) as SavedPostRow[]) {
     engagement.savedByMe.add(save.post_id);
@@ -337,6 +354,20 @@ export const postService = {
       await updateProfileStatsFromPosts(authData.user.id);
     }
 
+    const mentionedUserIds = Array.from(new Set(input.mentionedUserIds ?? [])).filter(
+      (userId) => userId && userId !== authData.user?.id
+    );
+    if (mentionedUserIds.length) {
+      const { error: mentionError } = await supabase.from('post_mentions').upsert(
+        mentionedUserIds.map((mentionedUserId) => ({
+          post_id: data.id,
+          mentioned_user_id: mentionedUserId
+        })),
+        { onConflict: 'post_id,mentioned_user_id' }
+      );
+      if (mentionError && mentionError.code !== '42P01') throw mentionError;
+    }
+
     return mapPostRow(data as unknown as PostRow, emptyEngagement());
   },
 
@@ -377,6 +408,7 @@ export const postService = {
     return (data ?? []).map((row: CommentRow) => ({
       id: row.id,
       postId: row.post_id,
+      parentCommentId: row.parent_comment_id,
       author: mapProfileRow(row.profiles ?? { id: row.author_id }),
       body: row.body,
       likes: engagement.likes.get(row.id) ?? 0,
@@ -385,7 +417,7 @@ export const postService = {
     } as Comment));
   },
 
-  async createComment(postId: string, body: string): Promise<Comment> {
+  async createComment(postId: string, body: string, parentCommentId?: string | null): Promise<Comment> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -397,6 +429,7 @@ export const postService = {
       .insert({
         post_id: postId,
         author_id: authData.user.id,
+        parent_comment_id: parentCommentId ?? null,
         body
       })
       .select('*, profiles:author_id(*)')
@@ -407,6 +440,7 @@ export const postService = {
     return {
       id: data.id,
       postId: (data as unknown as CommentRow).post_id,
+      parentCommentId: (data as unknown as CommentRow).parent_comment_id,
       author: mapProfileRow((data as unknown as CommentRow).profiles ?? { id: (data as unknown as CommentRow).author_id }),
       body: data.body,
       likes: 0,
@@ -461,6 +495,20 @@ export const postService = {
       post_id: postId
     });
     // Ignore duplicate (23505) and missing table (42P01)
+    if (error && error.code !== '23505' && error.code !== '42P01') throw error;
+  },
+
+  async recordPostShare(postId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to share posts.');
+
+    const { error } = await supabase.from('post_shares').insert({
+      post_id: postId,
+      user_id: authData.user.id
+    });
     if (error && error.code !== '23505' && error.code !== '42P01') throw error;
   },
 

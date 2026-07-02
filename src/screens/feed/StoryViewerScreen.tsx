@@ -10,6 +10,7 @@ import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { messageService } from '@/services/messageService';
+import { storyService } from '@/services/storyService';
 import { timeAgo } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -65,7 +66,7 @@ export function StoryViewerScreen() {
     [stories]
   );
 
-  // Progress timer — advances and auto-navigates.
+  // Progress timer - advances and auto-navigates.
   useEffect(() => {
     // Start timer even when story metadata isn't in cache yet,
     // as long as we have a media URL to display.
@@ -112,10 +113,15 @@ export function StoryViewerScreen() {
     );
   };
 
-  const sendReply = async (body: string) => {
+  const sendReply = async (body: string, kind: 'reply' | 'reaction' = 'reply') => {
     if (!story?.user.id || story.user.id === currentProfile?.id || !body.trim()) return;
     setSendingReply(true);
     try {
+      if (kind === 'reaction') {
+        await storyService.recordReaction(currentStoryId, body.trim());
+      } else {
+        await storyService.recordReply(currentStoryId, body.trim());
+      }
       const conversationId = await messageService.createDirectConversation(story.user.id);
       await messageService.sendMessage(conversationId, body.trim());
       setReply('');
@@ -133,7 +139,7 @@ export function StoryViewerScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Full-screen image — rendered immediately from state, no cache wait */}
+      {/* Full-screen image - rendered immediately from state, no cache wait */}
       {displayMediaUrl ? (
         <Image
           source={{ uri: displayMediaUrl }}
@@ -204,12 +210,12 @@ export function StoryViewerScreen() {
       {!isOwnStory && story?.user.id ? (
         <View style={styles.replyBar}>
           <View style={styles.reactions}>
-            {['🔥', '❤️', '👏', '🏆'].map((reaction) => (
+            {['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F44F}', '\u{1F3C6}'].map((reaction) => (
               <Pressable
                 key={reaction}
                 style={styles.reactionButton}
                 disabled={sendingReply}
-                onPress={() => void sendReply(reaction)}
+                onPress={() => void sendReply(reaction, 'reaction')}
               >
                 <AppText style={styles.reactionText}>{reaction}</AppText>
               </Pressable>

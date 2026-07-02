@@ -9,20 +9,24 @@ import { supabase } from '@/lib/supabase';
 export const pushNotificationsEnabledKey = 'sportz.push.enabled';
 export const notificationPreferencesKey = 'sportz.notification.preferences';
 
-export type NotificationPreferenceKey = 'likes' | 'comments' | 'follows' | 'events';
+export type NotificationPreferenceKey = 'likes' | 'comments' | 'follows' | 'messages' | 'events' | 'invites';
 
 export const defaultNotificationPreferences: Record<NotificationPreferenceKey, boolean> = {
   likes: true,
   comments: true,
   follows: true,
-  events: true
+  messages: true,
+  events: true,
+  invites: true
 };
 
 const preferenceForKind = (kind?: string): NotificationPreferenceKey | null => {
   if (kind === 'like') return 'likes';
   if (kind === 'comment') return 'comments';
   if (kind === 'follow') return 'follows';
-  if (kind === 'event' || kind === 'invite') return 'events';
+  if (kind === 'message') return 'messages';
+  if (kind === 'event') return 'events';
+  if (kind === 'invite') return 'invites';
   return null;
 };
 
@@ -45,6 +49,32 @@ export async function shouldHandleNotification(data: Record<string, unknown>) {
 
   const preferences = await getNotificationPreferences();
   return preferences[preference] !== false;
+}
+
+export async function saveNotificationPreferences(
+  enabled: boolean,
+  preferences: Record<NotificationPreferenceKey, boolean>
+) {
+  await AsyncStorage.setItem(pushNotificationsEnabledKey, String(enabled));
+  await AsyncStorage.setItem(notificationPreferencesKey, JSON.stringify(preferences));
+
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return;
+
+  await supabase.from('notification_preferences').upsert(
+    {
+      user_id: authData.user.id,
+      push_enabled: enabled,
+      likes: preferences.likes,
+      comments: preferences.comments,
+      follows: preferences.follows,
+      messages: preferences.messages,
+      events: preferences.events,
+      invites: preferences.invites,
+      updated_at: new Date().toISOString()
+    },
+    { onConflict: 'user_id' }
+  );
 }
 
 Notifications.setNotificationHandler({

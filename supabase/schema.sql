@@ -39,6 +39,7 @@ create table public.profiles (
   position text,
   skill_level public.sportz_skill_level default 'Intermediate',
   is_hireable boolean not null default false,
+  is_private boolean not null default false,
   is_verified boolean not null default false,
   is_admin boolean not null default false,
   created_at timestamptz not null default now(),
@@ -156,11 +157,41 @@ create table public.follows (
   constraint follows_unique unique (follower_id, following_id)
 );
 
+create table public.follow_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references public.profiles(id) on delete cascade,
+  target_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined', 'cancelled')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  constraint follow_requests_no_self check (requester_id <> target_id),
+  constraint follow_requests_unique unique (requester_id, target_id)
+);
+
+create table public.blocks (
+  id uuid primary key default gen_random_uuid(),
+  blocker_id uuid not null references public.profiles(id) on delete cascade,
+  blocked_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint blocks_no_self_block check (blocker_id <> blocked_id),
+  constraint blocks_unique unique (blocker_id, blocked_id)
+);
+
+create table public.reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null references public.profiles(id) on delete cascade,
+  entity_type text not null check (entity_type in ('user', 'post', 'comment', 'event', 'community')),
+  entity_id uuid not null,
+  reason text not null,
+  created_at timestamptz not null default now()
+);
+
 create table public.stories (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
   media_url text not null,
   media_kind text not null default 'image',
+  body text,
   expires_at timestamptz not null default (now() + interval '24 hours'),
   created_at timestamptz not null default now()
 );
@@ -230,6 +261,17 @@ create index courts_geo_idx on public.courts using gist (geo);
 create trigger courts_set_updated_at
 before update on public.courts
 for each row execute function public.set_updated_at();
+
+create table public.court_bookings (
+  id uuid primary key default gen_random_uuid(),
+  court_id uuid not null references public.courts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'cancelled')),
+  created_at timestamptz not null default now(),
+  constraint court_bookings_valid_time check (ends_at > starts_at)
+);
 
 create table public.sport_events (
   id uuid primary key default gen_random_uuid(),
@@ -314,6 +356,7 @@ create table public.conversations (
   is_group boolean not null default false,
   created_by uuid references public.profiles(id) on delete set null,
   last_message text,
+  last_sender_id uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -327,6 +370,7 @@ create table public.conversation_members (
   user_id uuid not null references public.profiles(id) on delete cascade,
   role text not null default 'member',
   last_read_at timestamptz,
+  cleared_at timestamptz,
   created_at timestamptz not null default now(),
   primary key (conversation_id, user_id)
 );
@@ -368,6 +412,65 @@ create table public.saved_posts (
   constraint saved_posts_unique unique (user_id, post_id)
 );
 
+create table public.post_shares (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint post_shares_unique unique (post_id, user_id)
+);
+
+create table public.post_mentions (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  mentioned_user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, mentioned_user_id)
+);
+
+create table public.story_views (
+  story_id uuid not null references public.stories(id) on delete cascade,
+  viewer_id uuid not null references public.profiles(id) on delete cascade,
+  viewed_at timestamptz not null default now(),
+  primary key (story_id, viewer_id)
+);
+
+create table public.story_reactions (
+  id uuid primary key default gen_random_uuid(),
+  story_id uuid not null references public.stories(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reaction text not null,
+  created_at timestamptz not null default now(),
+  constraint story_reactions_unique unique (story_id, user_id, reaction)
+);
+
+create table public.story_replies (
+  id uuid primary key default gen_random_uuid(),
+  story_id uuid not null references public.stories(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+create table public.notification_preferences (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  push_enabled boolean not null default true,
+  likes boolean not null default true,
+  comments boolean not null default true,
+  follows boolean not null default true,
+  messages boolean not null default true,
+  events boolean not null default true,
+  invites boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create table public.conversation_mutes (
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  muted_until timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
 create table public.push_tokens (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -384,10 +487,21 @@ for each row execute function public.set_updated_at();
 create index posts_author_created_idx on public.posts(author_id, created_at desc);
 create index saved_posts_user_idx on public.saved_posts(user_id);
 create index saved_posts_post_idx on public.saved_posts(post_id);
+create index follow_requests_target_status_idx on public.follow_requests(target_id, status);
+create index court_bookings_court_time_idx on public.court_bookings(court_id, starts_at);
+create index court_bookings_user_idx on public.court_bookings(user_id);
+create index post_shares_post_idx on public.post_shares(post_id);
+create index post_mentions_user_idx on public.post_mentions(mentioned_user_id);
+create index story_views_viewer_idx on public.story_views(viewer_id);
+create index story_reactions_story_idx on public.story_reactions(story_id);
+create index story_replies_story_idx on public.story_replies(story_id);
 create index comments_post_created_idx on public.comments(post_id, created_at);
 create index likes_entity_idx on public.likes(entity_type, entity_id);
 create index follows_follower_idx on public.follows(follower_id);
 create index follows_following_idx on public.follows(following_id);
+create index blocks_blocker_idx on public.blocks(blocker_id);
+create index blocks_blocked_idx on public.blocks(blocked_id);
+create index reports_reporter_idx on public.reports(reporter_id);
 create index sport_events_starts_idx on public.sport_events(starts_at);
 create index event_attendees_event_idx on public.event_attendees(event_id);
 create index messages_conversation_created_idx on public.messages(conversation_id, created_at);
@@ -400,7 +514,8 @@ select
   pr.username,
   pr.avatar_url,
   coalesce(like_counts.likes_count, 0) as likes_count,
-  coalesce(comment_counts.comments_count, 0) as comments_count
+  coalesce(comment_counts.comments_count, 0) as comments_count,
+  coalesce(share_counts.shares_count, 0) as shares_count
 from public.posts p
 join public.profiles pr on pr.id = p.author_id
 left join (
@@ -413,7 +528,12 @@ left join (
   select post_id, count(*)::int as comments_count
   from public.comments
   group by post_id
-) comment_counts on comment_counts.post_id = p.id;
+) comment_counts on comment_counts.post_id = p.id
+left join (
+  select post_id, count(*)::int as shares_count
+  from public.post_shares
+  group by post_id
+) share_counts on share_counts.post_id = p.id;
 
 create or replace view public.event_player_counts as
 select
@@ -424,6 +544,235 @@ left join public.event_attendees a
   on a.event_id = e.id and a.status = 'going'
 group by e.id;
 
+create or replace function public.users_blocked_each_other(left_user_id uuid, right_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.blocks b
+    where (b.blocker_id = left_user_id and b.blocked_id = right_user_id)
+       or (b.blocker_id = right_user_id and b.blocked_id = left_user_id)
+  );
+$$;
+
+create or replace function public.request_or_follow_profile(target_user_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  target_is_private boolean;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to follow players.';
+  end if;
+
+  if target_user_id is null or target_user_id = current_user_id then
+    raise exception 'You cannot follow yourself.';
+  end if;
+
+  if public.users_blocked_each_other(current_user_id, target_user_id) then
+    raise exception 'You cannot follow this player.';
+  end if;
+
+  select coalesce(is_private, false)
+  into target_is_private
+  from public.profiles
+  where id = target_user_id;
+
+  if target_is_private is null then
+    raise exception 'Profile not found.';
+  end if;
+
+  if target_is_private then
+    insert into public.follow_requests (requester_id, target_id, status)
+    values (current_user_id, target_user_id, 'pending')
+    on conflict (requester_id, target_id)
+    do update set status = 'pending', responded_at = null, created_at = now()
+    where public.follow_requests.status in ('declined', 'cancelled');
+    return 'requested';
+  end if;
+
+  insert into public.follows (follower_id, following_id)
+  values (current_user_id, target_user_id)
+  on conflict (follower_id, following_id) do nothing;
+  return 'following';
+end;
+$$;
+
+create or replace function public.respond_to_follow_request(request_id uuid, approve boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  request_row public.follow_requests%rowtype;
+begin
+  select *
+  into request_row
+  from public.follow_requests
+  where id = request_id
+    and target_id = auth.uid()
+    and status = 'pending'
+  for update;
+
+  if request_row.id is null then
+    raise exception 'Follow request not found.';
+  end if;
+
+  update public.follow_requests
+  set status = case when approve then 'approved' else 'declined' end,
+      responded_at = now()
+  where id = request_id;
+
+  if approve then
+    insert into public.follows (follower_id, following_id)
+    values (request_row.requester_id, request_row.target_id)
+    on conflict (follower_id, following_id) do nothing;
+  end if;
+end;
+$$;
+
+create or replace function public.create_direct_conversation(other_user_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  existing_conversation_id uuid;
+  new_conversation_id uuid;
+  other_display_name text;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to start a conversation.';
+  end if;
+
+  if other_user_id is null or other_user_id = current_user_id then
+    raise exception 'Choose another player to message.';
+  end if;
+
+  if public.users_blocked_each_other(current_user_id, other_user_id) then
+    raise exception 'You cannot message this player.';
+  end if;
+
+  select c.id
+  into existing_conversation_id
+  from public.conversations c
+  where c.is_group = false
+    and exists (select 1 from public.conversation_members cm where cm.conversation_id = c.id and cm.user_id = current_user_id)
+    and exists (select 1 from public.conversation_members om where om.conversation_id = c.id and om.user_id = other_user_id)
+    and (select count(*) from public.conversation_members count_members where count_members.conversation_id = c.id) = 2
+  order by c.updated_at desc
+  limit 1;
+
+  if existing_conversation_id is not null then
+    return existing_conversation_id;
+  end if;
+
+  select display_name into other_display_name from public.profiles where id = other_user_id;
+  if other_display_name is null then
+    raise exception 'Player profile not found.';
+  end if;
+
+  insert into public.conversations (is_group, created_by, title, last_message)
+  values (false, current_user_id, other_display_name, '')
+  returning id into new_conversation_id;
+
+  insert into public.conversation_members (conversation_id, user_id)
+  values
+    (new_conversation_id, current_user_id),
+    (new_conversation_id, other_user_id)
+  on conflict (conversation_id, user_id) do nothing;
+
+  return new_conversation_id;
+end;
+$$;
+
+create or replace function public.join_sport_event(target_event_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  event_row public.sport_events%rowtype;
+  going_count integer;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to join events.';
+  end if;
+
+  select * into event_row from public.sport_events where id = target_event_id for update;
+  if event_row.id is null then
+    raise exception 'Event not found.';
+  end if;
+
+  if event_row.status <> 'open' then
+    raise exception 'This event is not open for joins.';
+  end if;
+
+  if event_row.visibility <> 'public' and event_row.organizer_id <> current_user_id then
+    raise exception 'This event is invite-only.';
+  end if;
+
+  select count(*) into going_count
+  from public.event_attendees
+  where event_id = target_event_id and status = 'going' and user_id <> current_user_id;
+
+  if going_count >= event_row.max_players then
+    update public.sport_events set status = 'full' where id = target_event_id;
+    raise exception 'This event is full.';
+  end if;
+
+  insert into public.event_attendees (event_id, user_id, status)
+  values (target_event_id, current_user_id, 'going')
+  on conflict (event_id, user_id) do update set status = 'going';
+end;
+$$;
+
+create extension if not exists btree_gist;
+
+alter table public.court_bookings
+  add constraint court_bookings_no_overlap
+  exclude using gist (
+    court_id with =,
+    tstzrange(starts_at, ends_at, '[)') with &&
+  )
+  where (status in ('pending', 'confirmed'));
+
+create or replace function public.book_court_slot(target_court_id uuid, target_starts_at timestamptz, target_ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'You must be signed in to book a court.';
+  end if;
+
+  if target_ends_at <= target_starts_at then
+    raise exception 'Booking end time must be after the start time.';
+  end if;
+
+  insert into public.court_bookings (court_id, user_id, starts_at, ends_at, status)
+  values (target_court_id, auth.uid(), target_starts_at, target_ends_at, 'pending');
+exception
+  when exclusion_violation then
+    raise exception 'That time slot is already requested. Choose another time.';
+end;
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.follows enable row level security;
 alter table public.stories enable row level security;
@@ -431,7 +780,18 @@ alter table public.posts enable row level security;
 alter table public.comments enable row level security;
 alter table public.likes enable row level security;
 alter table public.saved_posts enable row level security;
+alter table public.follow_requests enable row level security;
+alter table public.blocks enable row level security;
+alter table public.reports enable row level security;
+alter table public.post_shares enable row level security;
+alter table public.post_mentions enable row level security;
+alter table public.story_views enable row level security;
+alter table public.story_reactions enable row level security;
+alter table public.story_replies enable row level security;
+alter table public.notification_preferences enable row level security;
+alter table public.conversation_mutes enable row level security;
 alter table public.courts enable row level security;
+alter table public.court_bookings enable row level security;
 alter table public.sport_events enable row level security;
 alter table public.event_attendees enable row level security;
 alter table public.event_messages enable row level security;
@@ -448,7 +808,28 @@ create policy "profiles are readable" on public.profiles for select using (true)
 create policy "users update own profile" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 
 create policy "follows are readable" on public.follows for select using (true);
-create policy "users manage own follows" on public.follows for all using (auth.uid() = follower_id) with check (auth.uid() = follower_id);
+create policy "users insert public follows" on public.follows for insert with check (
+  auth.uid() = follower_id
+  and follower_id <> following_id
+  and exists (
+    select 1 from public.profiles p
+    where p.id = following_id and coalesce(p.is_private, false) = false
+  )
+);
+create policy "users delete own follows" on public.follows for delete using (auth.uid() in (follower_id, following_id));
+
+create policy "follow request participants read" on public.follow_requests for select using (auth.uid() in (requester_id, target_id));
+create policy "requesters create follow requests" on public.follow_requests for insert with check (auth.uid() = requester_id);
+create policy "requesters cancel follow requests" on public.follow_requests
+  for update using (auth.uid() = requester_id and status = 'pending')
+  with check (auth.uid() = requester_id and status = 'cancelled');
+create policy "targets respond to follow requests" on public.follow_requests
+  for update using (auth.uid() = target_id and status = 'pending')
+  with check (auth.uid() = target_id and status in ('approved', 'declined'));
+create policy "users read own blocks" on public.blocks for select using (auth.uid() = blocker_id);
+create policy "users manage own blocks" on public.blocks for all using (auth.uid() = blocker_id) with check (auth.uid() = blocker_id);
+create policy "users create own reports" on public.reports for insert with check (auth.uid() = reporter_id);
+create policy "users read own reports" on public.reports for select using (auth.uid() = reporter_id);
 
 create policy "public stories readable" on public.stories for select using (expires_at > now());
 create policy "users manage own stories" on public.stories for all using (auth.uid() = author_id) with check (auth.uid() = author_id);
@@ -482,8 +863,36 @@ create policy "users read own saved posts" on public.saved_posts
 create policy "users manage own saved posts" on public.saved_posts
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+create policy "post shares readable" on public.post_shares for select using (true);
+create policy "users create own post shares" on public.post_shares for insert with check (auth.uid() = user_id);
+create policy "post mentions readable" on public.post_mentions for select using (true);
+create policy "authors create post mentions" on public.post_mentions for insert with check (
+  exists (select 1 from public.posts p where p.id = post_id and p.author_id = auth.uid())
+);
+
+create policy "story viewers read own views or authors read views" on public.story_views for select using (
+  auth.uid() = viewer_id or exists (select 1 from public.stories s where s.id = story_id and s.author_id = auth.uid())
+);
+create policy "users create own story views" on public.story_views for insert with check (auth.uid() = viewer_id);
+create policy "story authors read reactions" on public.story_reactions for select using (
+  auth.uid() = user_id or exists (select 1 from public.stories s where s.id = story_id and s.author_id = auth.uid())
+);
+create policy "users create own story reactions" on public.story_reactions for insert with check (auth.uid() = user_id);
+create policy "story authors read replies" on public.story_replies for select using (
+  auth.uid() = user_id or exists (select 1 from public.stories s where s.id = story_id and s.author_id = auth.uid())
+);
+create policy "users create own story replies" on public.story_replies for insert with check (auth.uid() = user_id);
+
+create policy "users manage own notification preferences" on public.notification_preferences
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "users manage own conversation mutes" on public.conversation_mutes
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 create policy "courts readable" on public.courts for select using (true);
 create policy "admins manage courts" on public.courts for all using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
+create policy "users read own court bookings" on public.court_bookings for select using (auth.uid() = user_id);
+create policy "users create own court bookings" on public.court_bookings for insert with check (auth.uid() = user_id);
+create policy "users update own court bookings" on public.court_bookings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "public events readable" on public.sport_events for select using (visibility = 'public' or auth.uid() = organizer_id);
 create policy "users create own events" on public.sport_events for insert with check (auth.uid() = organizer_id);
@@ -514,6 +923,8 @@ create policy "conversation creators add members" on public.conversation_members
   exists (select 1 from public.conversations c where c.id = conversation_id and c.created_by = auth.uid())
   or auth.uid() = user_id
 );
+create policy "members update own conversation membership" on public.conversation_members
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "members read conversations" on public.conversations for select using (
   exists (select 1 from public.conversation_members m where m.conversation_id = id and m.user_id = auth.uid())
@@ -524,7 +935,18 @@ create policy "members read messages" on public.messages for select using (
   exists (select 1 from public.conversation_members m where m.conversation_id = messages.conversation_id and m.user_id = auth.uid())
 );
 create policy "members send messages" on public.messages for insert with check (
-  auth.uid() = sender_id and exists (select 1 from public.conversation_members m where m.conversation_id = messages.conversation_id and m.user_id = auth.uid())
+  auth.uid() = sender_id
+  and exists (select 1 from public.conversation_members m where m.conversation_id = messages.conversation_id and m.user_id = auth.uid())
+  and not exists (
+    select 1
+    from public.conversation_members other_member
+    join public.blocks b on (
+      (b.blocker_id = auth.uid() and b.blocked_id = other_member.user_id)
+      or (b.blocker_id = other_member.user_id and b.blocked_id = auth.uid())
+    )
+    where other_member.conversation_id = messages.conversation_id
+      and other_member.user_id <> auth.uid()
+  )
 );
 
 create policy "users read own receipts" on public.message_receipts for select using (auth.uid() = user_id);

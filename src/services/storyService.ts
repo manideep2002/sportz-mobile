@@ -124,6 +124,51 @@ export const storyService = {
     } catch {
       // The in-memory state still keeps the rail accurate for the current session.
     }
+
+    assertSupabaseConfigured();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return;
+
+    const { error } = await supabase.from('story_views').upsert(
+      {
+        story_id: storyId,
+        viewer_id: authData.user.id,
+        viewed_at: new Date().toISOString()
+      },
+      { onConflict: 'story_id,viewer_id' }
+    );
+    if (error && error.code !== '42P01') throw error;
+  },
+
+  async recordReaction(storyId: string, reaction: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to react to stories.');
+
+    const { error } = await supabase.from('story_reactions').insert({
+      story_id: storyId,
+      user_id: authData.user.id,
+      reaction
+    });
+    if (error && error.code !== '23505' && error.code !== '42P01') throw error;
+  },
+
+  async recordReply(storyId: string, body: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to reply to stories.');
+
+    const { error } = await supabase.from('story_replies').insert({
+      story_id: storyId,
+      user_id: authData.user.id,
+      body
+    });
+    if (error && error.code !== '42P01') throw error;
   },
 
   async deleteStory(storyId: string): Promise<void> {

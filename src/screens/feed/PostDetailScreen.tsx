@@ -7,11 +7,12 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost } from '@/hooks/useFeed';
+import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
+import type { Comment } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'PostDetail'>;
@@ -23,10 +24,12 @@ export function PostDetailScreen() {
   const { data: comments = [] } = useComments(route.params.postId);
   const profile = useAuthStore((state) => state.profile);
   const [commentBody, setCommentBody] = useState('');
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const commentInputRef = useRef<TextInput>(null);
   const createComment = useCreateComment(route.params.postId);
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
+  const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
   const likeCommentMutation = useOptimisticCommentLike(route.params.postId);
   const deleteCommentMutation = useDeleteComment(route.params.postId);
@@ -57,7 +60,8 @@ export function PostDetailScreen() {
 
     try {
       setCommentBody('');
-      await createComment.mutateAsync(body);
+      await createComment.mutateAsync({ body, parentCommentId: replyingTo?.id });
+      setReplyingTo(null);
     } catch (error) {
       setCommentBody(body);
       Alert.alert('Could not comment', error instanceof Error ? error.message : 'Please try again.');
@@ -78,7 +82,9 @@ export function PostDetailScreen() {
           onAuthorPress={openAuthor}
           onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => commentInputRef.current?.focus()}
-          onShare={() => void sharePost(post)}
+          onShare={() => {
+            void sharePost(post).then(() => shareMutation.mutate(post.id));
+          }}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
@@ -92,7 +98,7 @@ export function PostDetailScreen() {
               { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: openAuthor },
               { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
               { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
-              { text: 'Share', onPress: () => void sharePost(post) },
+              { text: 'Share', onPress: () => void sharePost(post).then(() => shareMutation.mutate(post.id)) },
               { text: 'Report Post', onPress: reportPost },
               ...(isOwnPost ? [{
                 text: 'Delete',
@@ -126,8 +132,9 @@ export function PostDetailScreen() {
         <Pressable
           key={comment.id}
           accessibilityRole="button"
-          style={styles.commentRow}
+          style={[styles.commentRow, comment.parentCommentId ? styles.commentReplyRow : null]}
           onPress={() => {
+            setReplyingTo(comment);
             setCommentBody(`@${comment.author.username} `);
             commentInputRef.current?.focus();
           }}
@@ -162,6 +169,19 @@ export function PostDetailScreen() {
       <View style={styles.commentInput}>
         <Avatar initials={profile?.initials ?? 'MK'} uri={profile?.avatarUrl} size={36} />
         <View style={styles.inputWrap}>
+          {replyingTo ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setReplyingTo(null);
+                setCommentBody('');
+              }}
+            >
+              <AppText variant="small" style={styles.replyingTo}>
+                Replying to {replyingTo.author.displayName}
+              </AppText>
+            </Pressable>
+          ) : null}
           <Input
             ref={commentInputRef}
             value={commentBody}
@@ -208,6 +228,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     marginBottom: 14
   },
+  commentReplyRow: {
+    paddingLeft: spacing.screen + 32
+  },
   commentBody: {
     flex: 1,
     backgroundColor: colors.dark[800],
@@ -237,5 +260,9 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     flex: 1
+  },
+  replyingTo: {
+    color: colors.orange[300],
+    marginBottom: 4
   }
 });

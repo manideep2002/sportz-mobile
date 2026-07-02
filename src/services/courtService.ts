@@ -66,25 +66,10 @@ export const courtService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to book a court.');
 
-    const { data: overlapping, error: overlapError } = await supabase
-      .from('court_bookings')
-      .select('id')
-      .eq('court_id', courtId)
-      .in('status', ['pending', 'confirmed'])
-      .lt('starts_at', endsAt)
-      .gt('ends_at', startsAt)
-      .limit(1);
-    if (overlapError) throw overlapError;
-    if (overlapping?.length) {
-      throw new Error('That time slot is already requested. Choose another time.');
-    }
-
-    const { error } = await supabase.from('court_bookings').insert({
-      court_id: courtId,
-      user_id: authData.user.id,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      status: 'pending'
+    const { error } = await supabase.rpc('book_court_slot', {
+      target_court_id: courtId,
+      target_starts_at: startsAt,
+      target_ends_at: endsAt
     });
     if (error) throw error;
   }

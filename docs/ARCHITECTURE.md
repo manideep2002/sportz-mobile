@@ -25,21 +25,32 @@ Supabase tables:
 
 - `profiles`
 - `follows`
+- `follow_requests`
+- `blocks`
+- `reports`
 - `stories`
+- `story_views`
+- `story_reactions`
+- `story_replies`
 - `posts`
+- `post_mentions`
+- `post_shares`
 - `comments`
 - `likes`
 - `sport_events`
 - `event_attendees`
 - `event_messages`
 - `courts`
+- `court_bookings`
 - `communities`
 - `community_members`
 - `conversations`
 - `conversation_members`
 - `messages`
 - `message_receipts`
+- `conversation_mutes`
 - `notifications`
+- `notification_preferences`
 - `push_tokens`
 
 Realtime tables:

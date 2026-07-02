@@ -108,7 +108,8 @@ export function CreatePostScreen() {
         mediaKind,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
         visibility: visibility.toLowerCase() as 'public' | 'followers',
-        communityId: route.params?.communityId
+        communityId: route.params?.communityId,
+        mentionedUserIds: taggedUsers.map((user) => user.id)
       });
       navigation.goBack();
     } catch (error) {

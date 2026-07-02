@@ -142,7 +142,6 @@ sportz-mobile/
   src/components/courts/    map preview, court cards
   src/components/messages/  rows and bubbles
   src/components/community/ group/page cards
-  src/data/                 mock/demo data fallback
   src/design/               tokens and navigation themes
   src/hooks/                React Query, realtime, push hooks
   src/lib/                  Supabase, env, query cache, notifications

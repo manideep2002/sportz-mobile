@@ -11,7 +11,7 @@ export const sharePost = (post: Post) =>
 
 export const shareEvent = async (event: SportEvent) => {
   try {
-    const message = `Join me at ${event.title}!\n\n${event.sport} • ${eventDate(event.startsAt)} at ${formatTime(event.startsAt)}\n${event.locationName}, ${event.city}\n\n${event.playerCount}/${event.maxPlayers} players • ${event.entryFeeLabel}`;
+    const message = `Join me at ${event.title}!\n\n${event.sport} - ${eventDate(event.startsAt)} at ${formatTime(event.startsAt)}\n${event.locationName}, ${event.city}\n\n${event.playerCount}/${event.maxPlayers} players - ${event.entryFeeLabel}`;
     
     await Share.share({
       message,

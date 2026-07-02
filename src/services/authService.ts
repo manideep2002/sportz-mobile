@@ -20,7 +20,6 @@ export interface RegisterInput {
   username: string;
   city: string;
   mobileNumber: string;
-  mobileOtp?: string;
   dateOfBirth: string;
   gender: Gender;
   primarySport: Sport;
@@ -73,7 +72,7 @@ export const authService = {
           username,
           city: input.city.trim(),
           mobile_number: normalizeIndianPhoneNumber(input.mobileNumber),
-          mobile_otp_verified: Boolean(input.mobileOtp?.trim()),
+          mobile_otp_verified: false,
           date_of_birth: input.dateOfBirth,
           gender: input.gender,
           primary_sport: input.primarySport,
@@ -88,7 +87,7 @@ export const authService = {
     return { session: data.session, user: data.user };
   },
 
-  async generateMobileOtp(mobileNumber: string): Promise<{ demoCode?: string }> {
+  async generateMobileOtp(mobileNumber: string): Promise<void> {
     assertSupabaseConfigured();
 
     const phone = normalizeIndianPhoneNumber(mobileNumber);
@@ -98,7 +97,6 @@ export const authService = {
 
     const { error } = await supabase.auth.signInWithOtp({ phone });
     if (error) throw error;
-    return {};
   },
 
   async signInWithIdToken(provider: 'google' | 'apple', idToken: string): Promise<AuthResult> {

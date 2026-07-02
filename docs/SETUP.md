@@ -66,4 +66,4 @@ sportz://reset-password
 npm run start
 ```
 
-The app has mock fallbacks when Supabase env values are missing, but authentication, storage, realtime, and persistence require a configured Supabase project.
+The app requires a configured Supabase project for authentication, storage, realtime, and persistence.
