@@ -44,7 +44,8 @@ module.exports = {
           color: '#FF5A1F',
           sounds: []
         }
-      ]
+      ],
+      '@react-native-community/datetimepicker'
     ],
     extra: {
       eas: {

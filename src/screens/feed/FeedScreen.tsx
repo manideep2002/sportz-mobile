@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollVi
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
+import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { StoryRail } from '@/components/feed/StoryRail';
 import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
 import { sportsFilters } from '@/constants/sports';
@@ -27,6 +28,7 @@ export function FeedScreen() {
   const navigation = useNavigation<Navigation>();
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
+  const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
   const { data, isLoading, isError, error, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
   const { data: stories = [], refetch: refetchStories } = useStories();
   const { data: liveEvents = [] } = useQuery({
@@ -182,37 +184,38 @@ export function FeedScreen() {
               ? openAuthor(post)
               : openPost(post.id)
           }
-          onMore={() => {
-            const isOwnPost = post.author.id === profile?.id;
-            Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
-              { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: () => openAuthor(post) },
-              { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
-              { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
-              { text: 'Share', onPress: () => void sharePost(post).then(() => shareMutation.mutate(post.id)) },
-              { text: 'Report Post', onPress: () => reportPost(post) },
-              ...(isOwnPost ? [{
-                text: 'Delete',
-                style: 'destructive' as const,
-                onPress: () => Alert.alert(
-                  'Delete Post',
-                  'Are you sure you want to delete this post? This action cannot be undone.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => deletePostMutation.mutate(post.id)
-                    }
-                  ],
-                  { cancelable: true }
-                )
-              }] : []),
-              { text: 'Cancel', style: 'cancel' }
-            ], { cancelable: true });
-          }}
+          onMore={() => setActiveOptionsPost(post)}
         />
         )}
         ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : <View style={styles.footer} />}
+      />
+      <PostOptionsSheet
+        open={activeOptionsPost !== null}
+        post={activeOptionsPost}
+        currentUserId={profile?.id}
+        onClose={() => setActiveOptionsPost(null)}
+        onViewAuthor={() => {
+          if (activeOptionsPost) openAuthor(activeOptionsPost);
+        }}
+        onSaveToggle={() => {
+          if (activeOptionsPost) {
+            saveMutation.mutate({ postId: activeOptionsPost.id, saved: activeOptionsPost.savedByMe });
+          }
+        }}
+        onViewSavedPosts={() => {
+          navigation.navigate('SavedPosts');
+        }}
+        onShare={() => {
+          if (activeOptionsPost) {
+            void sharePost(activeOptionsPost).then(() => shareMutation.mutate(activeOptionsPost.id));
+          }
+        }}
+        onReport={() => {
+          if (activeOptionsPost) reportPost(activeOptionsPost);
+        }}
+        onDelete={() => {
+          if (activeOptionsPost) deletePostMutation.mutate(activeOptionsPost.id);
+        }}
       />
     </View>
   );

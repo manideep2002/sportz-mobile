@@ -5,6 +5,7 @@ import { ChevronLeft, Heart, Send } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
+import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
@@ -25,6 +26,7 @@ export function PostDetailScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [commentBody, setCommentBody] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const [optionsSheetOpen, setOptionsSheetOpen] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
   const createComment = useCreateComment(route.params.postId);
   const likeMutation = useOptimisticPostLike();
@@ -92,37 +94,7 @@ export function PostDetailScreen() {
               ? openAuthor()
               : commentInputRef.current?.focus()
           }
-          onMore={() => {
-            const isOwnPost = post.author.id === profile?.id;
-            Alert.alert('Post options', `Choose an action for ${post.author.displayName}'s post.`, [
-              { text: post.author.id.startsWith('page-') ? 'View page' : 'View athlete', onPress: openAuthor },
-              { text: post.savedByMe ? 'Unsave' : 'Save', onPress: () => saveMutation.mutate({ postId: post.id, saved: post.savedByMe }) },
-              { text: 'View Saved Posts', onPress: () => navigation.navigate('SavedPosts') },
-              { text: 'Share', onPress: () => void sharePost(post).then(() => shareMutation.mutate(post.id)) },
-              { text: 'Report Post', onPress: reportPost },
-              ...(isOwnPost ? [{
-                text: 'Delete',
-                style: 'destructive' as const,
-                onPress: () => Alert.alert(
-                  'Delete Post',
-                  'Are you sure you want to delete this post? This action cannot be undone.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => {
-                        deletePostMutation.mutate(post.id);
-                        navigation.goBack();
-                      }
-                    }
-                  ],
-                  { cancelable: true }
-                )
-              }] : []),
-              { text: 'Cancel', style: 'cancel' }
-            ], { cancelable: true });
-          }}
+          onMore={() => setOptionsSheetOpen(true)}
         />
       ) : null}
       <View style={styles.commentsHeader}>
@@ -200,6 +172,29 @@ export function PostDetailScreen() {
           onPress={() => void submitComment()}
         />
       </View>
+      <PostOptionsSheet
+        open={optionsSheetOpen}
+        post={post}
+        currentUserId={profile?.id}
+        onClose={() => setOptionsSheetOpen(false)}
+        onViewAuthor={openAuthor}
+        onSaveToggle={() => {
+          if (post) saveMutation.mutate({ postId: post.id, saved: post.savedByMe });
+        }}
+        onViewSavedPosts={() => {
+          navigation.navigate('SavedPosts');
+        }}
+        onShare={() => {
+          if (post) void sharePost(post).then(() => shareMutation.mutate(post.id));
+        }}
+        onReport={reportPost}
+        onDelete={() => {
+          if (post) {
+            deletePostMutation.mutate(post.id);
+            navigation.goBack();
+          }
+        }}
+      />
     </Screen>
   );
 }
