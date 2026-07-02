@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft, Calendar, Clock } from 'lucide-react-native';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, View, Modal } from 'react-native';
 import { addDays, format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
@@ -36,6 +37,9 @@ export function CreateEventScreen() {
   tomorrow.setHours(18, 0, 0, 0);
   const [startDate, setStartDate] = useState(tomorrow);
   const [duration, setDuration] = useState('2'); // hours
+  
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   
   const createEvent = useCreateEvent();
 
@@ -118,6 +122,102 @@ export function CreateEventScreen() {
     setStartDate(newDate);
   };
 
+  const renderDatePicker = () => {
+    if (!showDatePicker) return null;
+
+    if (Platform.OS === 'ios') {
+      return (
+        <Modal transparent visible={showDatePicker} animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+          <Pressable style={styles.pickerModalScrim} onPress={() => setShowDatePicker(false)}>
+            <Pressable style={styles.pickerModalContainer} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.pickerHeader}>
+                <AppText variant="h4">Select Date</AppText>
+                <Button size="sm" onPress={() => setShowDatePicker(false)}>Done</Button>
+              </View>
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                display="spinner"
+                themeVariant="dark"
+                onChange={(event, date) => {
+                  if (date) {
+                    const newDate = new Date(startDate);
+                    newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                    setStartDate(newDate);
+                  }
+                }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      );
+    }
+
+    return (
+      <DateTimePicker
+        value={startDate}
+        mode="date"
+        display="default"
+        onChange={(event, date) => {
+          setShowDatePicker(false);
+          if (event.type === 'set' && date) {
+            const newDate = new Date(startDate);
+            newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+            setStartDate(newDate);
+          }
+        }}
+      />
+    );
+  };
+
+  const renderTimePicker = () => {
+    if (!showTimePicker) return null;
+
+    if (Platform.OS === 'ios') {
+      return (
+        <Modal transparent visible={showTimePicker} animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
+          <Pressable style={styles.pickerModalScrim} onPress={() => setShowTimePicker(false)}>
+            <Pressable style={styles.pickerModalContainer} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.pickerHeader}>
+                <AppText variant="h4">Select Time</AppText>
+                <Button size="sm" onPress={() => setShowTimePicker(false)}>Done</Button>
+              </View>
+              <DateTimePicker
+                value={startDate}
+                mode="time"
+                display="spinner"
+                themeVariant="dark"
+                onChange={(event, date) => {
+                  if (date) {
+                    const newDate = new Date(startDate);
+                    newDate.setHours(date.getHours(), date.getMinutes());
+                    setStartDate(newDate);
+                  }
+                }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      );
+    }
+
+    return (
+      <DateTimePicker
+        value={startDate}
+        mode="time"
+        display="default"
+        onChange={(event, date) => {
+          setShowTimePicker(false);
+          if (event.type === 'set' && date) {
+            const newDate = new Date(startDate);
+            newDate.setHours(date.getHours(), date.getMinutes());
+            setStartDate(newDate);
+          }
+        }}
+      />
+    );
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -161,14 +261,20 @@ export function CreateEventScreen() {
         <View style={styles.group}>
           <AppText style={styles.label}>Date & Time</AppText>
           <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeCard}>
+            <Pressable 
+              style={({ pressed }) => [styles.dateTimeCard, pressed && styles.dateTimeCardPressed]} 
+              onPress={() => setShowDatePicker(true)}
+            >
               <Calendar size={16} color={colors.orange[500]} />
               <AppText style={styles.dateTimeText}>{format(startDate, 'EEE, MMM d')}</AppText>
-            </View>
-            <View style={styles.dateTimeCard}>
+            </Pressable>
+            <Pressable 
+              style={({ pressed }) => [styles.dateTimeCard, pressed && styles.dateTimeCardPressed]} 
+              onPress={() => setShowTimePicker(true)}
+            >
               <Clock size={16} color={colors.orange[500]} />
               <AppText style={styles.dateTimeText}>{format(startDate, 'h:mm a')}</AppText>
-            </View>
+            </Pressable>
           </View>
           <View style={styles.dateAdjust}>
             <Button size="sm" variant="dark" onPress={() => adjustDate(-1)}>-1 day</Button>
@@ -239,6 +345,8 @@ export function CreateEventScreen() {
           Create Event
         </Button>
       </ScrollView>
+      {renderDatePicker()}
+      {renderTimePicker()}
     </View>
   );
 }
@@ -307,10 +415,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.dark[700]
   },
+  dateTimeCardPressed: {
+    opacity: 0.7,
+    backgroundColor: colors.dark[700]
+  },
   dateTimeText: {
     color: colors.text.primary,
     fontFamily: typography.bodyMedium,
     fontSize: 13
+  },
+  pickerModalScrim: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl
+  },
+  pickerModalContainer: {
+    backgroundColor: colors.dark[900],
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderColor: colors.dark[700],
+    gap: spacing.md
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.dark[700],
+    paddingBottom: spacing.sm
   },
   dateAdjust: {
     flexDirection: 'row',

@@ -125,7 +125,7 @@ export function NotificationsScreen() {
   }
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen scroll={false} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Activity</AppText>
