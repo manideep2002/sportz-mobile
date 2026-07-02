@@ -45,7 +45,8 @@ export const useConversations = () => {
     queryKey: messageKeys.conversations,
     queryFn: () => messageService.listConversations(readConversationIds),
     refetchInterval: 5000,
-    refetchOnMount: 'always'
+    refetchOnMount: 'always',
+    staleTime: 0
   });
 };
 
