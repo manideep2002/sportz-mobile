@@ -466,6 +466,53 @@ export const messageService = {
     throw new Error('Could not start a safe direct conversation.');
   },
 
+  async createGroupConversation(title: string, memberIds: string[]): Promise<string> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to create a group chat.');
+
+    const { data, error } = await supabase.rpc('create_group_conversation', {
+      group_title: title,
+      member_ids: memberIds
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Could not create the group chat.');
+    return data as string;
+  },
+
+  async addGroupMembers(conversationId: string, memberIds: string[]): Promise<void> {
+    assertSupabaseConfigured();
+    if (!memberIds.length) return;
+
+    const { error } = await supabase.rpc('add_group_conversation_members', {
+      target_conversation_id: conversationId,
+      member_ids: memberIds
+    });
+    if (error) throw error;
+  },
+
+  async removeGroupMember(conversationId: string, userId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('remove_group_conversation_member', {
+      target_conversation_id: conversationId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async leaveConversation(conversationId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to leave a group.');
+
+    await this.removeGroupMember(conversationId, authData.user.id);
+  },
+
   async updateMessage(messageId: string, body: string): Promise<void> {
     assertSupabaseConfigured();
 

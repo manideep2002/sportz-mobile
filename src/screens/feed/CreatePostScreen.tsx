@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
@@ -8,7 +8,7 @@ import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View
 import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
 import { postSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
-import { useCreatePost } from '@/hooks/useFeed';
+import { useCreatePost, usePost, useUpdatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
@@ -24,6 +24,8 @@ const visibilityOptions = ['Public', 'Followers'] as const;
 export function CreatePostScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const editPostId = route.params?.editPostId;
+  const isEditing = Boolean(editPostId);
   const profile = useAuthStore((state) => state.profile);
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
@@ -39,14 +41,31 @@ export function CreatePostScreen() {
   const [taggedUsers, setTaggedUsers] = useState<UserProfile[]>([]);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [tagSearchResults, setTagSearchResults] = useState<UserProfile[]>([]);
+  const [hydratedEditPost, setHydratedEditPost] = useState(false);
+  const { data: editPost } = usePost(editPostId ?? '');
   const createPost = useCreatePost();
-  const canPublish = Boolean(
-    body.trim() ||
-      mediaUri ||
-      (kind === 'stats' && statsLine.trim()) ||
-      taggedUsers.length ||
-      locationLabel
-  );
+  const updatePost = useUpdatePost();
+  const canPublish = isEditing
+    ? Boolean(body.trim() || (kind === 'stats' && statsLine.trim()))
+    : Boolean(
+        body.trim() ||
+          mediaUri ||
+          (kind === 'stats' && statsLine.trim()) ||
+          taggedUsers.length ||
+          locationLabel
+      );
+
+  useEffect(() => {
+    if (!editPost || hydratedEditPost) return;
+    setBody(editPost.body);
+    setSport(editPost.sport);
+    setKind(editPost.kind);
+    setStatsLine(editPost.statsLine ?? '');
+    setMediaUri(editPost.mediaUrl ?? null);
+    setMediaKind(editPost.mediaKind ?? 'none');
+    setVisibility(editPost.visibility === 'followers' ? 'Followers' : 'Public');
+    setHydratedEditPost(true);
+  }, [editPost, hydratedEditPost]);
 
   const handlePickMedia = async () => {
     try {
@@ -81,9 +100,9 @@ export function CreatePostScreen() {
   };
 
   const handlePublish = async () => {
-    const mentions = taggedUsers.map((user) => `@${user.username}`).join(' ');
+    const mentions = isEditing ? '' : taggedUsers.map((user) => `@${user.username}`).join(' ');
     const additions = [
-      locationLabel ? `At ${locationLabel}` : ''
+      !isEditing && locationLabel ? `At ${locationLabel}` : ''
     ].filter(Boolean);
     const fallbackBody =
       kind === 'stats' && statsLine.trim()
@@ -95,11 +114,26 @@ export function CreatePostScreen() {
           : '';
     const publishedBody = [mentions, body.trim() || fallbackBody, ...additions].filter(Boolean).join('\n');
     if (!canPublish) {
-      Alert.alert('Add something to share', 'Write an update or choose a photo or video.');
+      Alert.alert(isEditing ? 'Add post text' : 'Add something to share', isEditing ? 'Write an update before saving.' : 'Write an update or choose a photo or video.');
       return;
     }
 
     try {
+      if (editPostId) {
+        await updatePost.mutateAsync({
+          postId: editPostId,
+          input: {
+            body: body.trim() || fallbackBody,
+            sport,
+            kind,
+            statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
+            visibility: visibility.toLowerCase() as 'public' | 'followers'
+          }
+        });
+        navigation.goBack();
+        return;
+      }
+
       await createPost.mutateAsync({
         body: publishedBody,
         sport,
@@ -121,9 +155,9 @@ export function CreatePostScreen() {
     <View style={styles.root}>
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <AppText variant="h3">New Post</AppText>
-        <Button size="sm" disabled={!canPublish} loading={createPost.isPending} onPress={handlePublish}>
-          Publish
+        <AppText variant="h3">{isEditing ? 'Edit Post' : 'New Post'}</AppText>
+        <Button size="sm" disabled={!canPublish} loading={createPost.isPending || updatePost.isPending} onPress={handlePublish}>
+          {isEditing ? 'Save' : 'Publish'}
         </Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -170,24 +204,30 @@ export function CreatePostScreen() {
                 <AppText variant="small">A preview will appear after upload.</AppText>
               </View>
             )}
-            <IconButton
-              icon={X}
-              accessibilityLabel="Remove media"
-              size={34}
-              style={styles.removeMedia}
-              onPress={() => {
-                setMediaUri(null);
-                setThumbnailUri(null);
-                setMediaKind('none');
-              }}
-            />
+            {!isEditing ? (
+              <IconButton
+                icon={X}
+                accessibilityLabel="Remove media"
+                size={34}
+                style={styles.removeMedia}
+                onPress={() => {
+                  setMediaUri(null);
+                  setThumbnailUri(null);
+                  setMediaKind('none');
+                }}
+              />
+            ) : null}
           </View>
         ) : null}
         <View style={styles.mediaActions}>
-          <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
+          {!isEditing ? (
+            <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
+          ) : null}
           <ComposerAction icon={BarChart3} label="Stats" selected={kind === 'stats'} onPress={() => setKind(kind === 'stats' ? 'post' : 'stats')} />
           <ComposerAction icon={BarChart3} label="Highlight" selected={kind === 'highlight'} onPress={() => setKind(kind === 'highlight' ? 'post' : 'highlight')} />
-          <ComposerAction icon={MapPin} label={detectingLocation ? 'Locating...' : locationLabel || 'Location'} selected={Boolean(locationLabel)} onPress={() => void handleDetectLocation()} />
+          {!isEditing ? (
+            <ComposerAction icon={MapPin} label={detectingLocation ? 'Locating...' : locationLabel || 'Location'} selected={Boolean(locationLabel)} onPress={() => void handleDetectLocation()} />
+          ) : null}
         </View>
         <AppText style={styles.label}>Tag Sport</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
@@ -197,12 +237,14 @@ export function CreatePostScreen() {
             </Chip>
           ))}
         </ScrollView>
-        <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
-          <Users size={16} color={colors.text.tertiary} />
-          <AppText style={styles.tagText}>
-            {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
-          </AppText>
-        </Pressable>
+        {!isEditing ? (
+          <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
+            <Users size={16} color={colors.text.tertiary} />
+            <AppText style={styles.tagText}>
+              {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
+            </AppText>
+          </Pressable>
+        ) : null}
       </ScrollView>
       <Modal visible={tagPickerOpen} transparent animationType="fade" onRequestClose={() => setTagPickerOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setTagPickerOpen(false)}>

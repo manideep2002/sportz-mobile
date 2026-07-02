@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { postService, type CreatePostInput } from '@/services/postService';
+import { postService, type CreatePostInput, type UpdatePostInput } from '@/services/postService';
 import type { Comment, Post } from '@/types/domain';
 
 export const feedKeys = {
@@ -42,7 +42,8 @@ export const useSavedPosts = () =>
 export const usePost = (postId: string) =>
   useQuery({
     queryKey: feedKeys.post(postId),
-    queryFn: () => postService.getPost(postId)
+    queryFn: () => postService.getPost(postId),
+    enabled: Boolean(postId)
   });
 
 export const useComments = (postId: string) =>
@@ -60,6 +61,24 @@ export const useCreatePost = () => {
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
       void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
       void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+    }
+  });
+};
+
+export const useUpdatePost = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ postId, input }: { postId: string; input: UpdatePostInput }) =>
+      postService.updatePost(postId, input),
+    onSuccess: (post) => {
+      queryClient.setQueryData(feedKeys.post(post.id), post);
+      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(post.id, () => post));
+      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+      if (post.author.id) {
+        void queryClient.invalidateQueries({ queryKey: feedKeys.userPosts(post.author.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['feed', 'community'] });
     }
   });
 };

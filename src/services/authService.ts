@@ -126,6 +126,15 @@ export const authService = {
     if (error) throw error;
   },
 
+  async deleteAccount() {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.functions.invoke('delete-account', {
+      method: 'POST'
+    });
+    if (error) throw error;
+  },
+
   async getCurrentProfile(): Promise<UserProfile> {
     assertSupabaseConfigured();
 

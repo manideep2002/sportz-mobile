@@ -23,7 +23,7 @@ export const defaultNotificationPreferences: Record<NotificationPreferenceKey, b
 const preferenceForKind = (kind?: string): NotificationPreferenceKey | null => {
   if (kind === 'like') return 'likes';
   if (kind === 'comment') return 'comments';
-  if (kind === 'follow') return 'follows';
+  if (kind === 'follow' || kind === 'follow_request') return 'follows';
   if (kind === 'message') return 'messages';
   if (kind === 'event') return 'events';
   if (kind === 'invite') return 'invites';

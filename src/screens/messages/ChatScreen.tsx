@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { AppText, Avatar, BottomSheet, Button, IconButton } from '@/components/u
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
 import { messageService } from '@/services/messageService';
+import { realtimeService } from '@/services/realtimeService';
 import { storageService } from '@/services/storageService';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -31,7 +32,10 @@ export function ChatScreen() {
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [attachmentLoading, setAttachmentLoading] = useState<'media' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [typingUserId, setTypingUserId] = useState<string | null>(null);
   const textSendLockedRef = useRef(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingChannelRef = useRef<ReturnType<typeof realtimeService.subscribeToTyping>>(null);
   const targetUserId = route.params.targetUserId;
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useConversationMessages(conversationId);
@@ -39,6 +43,22 @@ export function ChatScreen() {
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   useRealtimeMessages(conversationId);
   useMarkConversationRead(conversationId);
+
+  useEffect(() => {
+    const channel = realtimeService.subscribeToTyping(conversationId, currentUserId, (userId, isTyping) => {
+      setTypingUserId(isTyping ? userId : null);
+    });
+    typingChannelRef.current = channel;
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      realtimeService.unsubscribe(channel);
+      typingChannelRef.current = null;
+    };
+  }, [conversationId, currentUserId]);
 
   const otherParticipant = conversation
     ? targetUserId
@@ -52,7 +72,26 @@ export function ChatScreen() {
     ? conversation.title.slice(0, 2).toUpperCase()
     : otherParticipant?.initials ?? '??';
   const showOnlineStatus = !conversation?.isGroup && Boolean(otherParticipant?.isOnline);
-  const statusLabel = conversation?.isGroup ? `${conversation.participants.length} members` : showOnlineStatus ? 'Online' : 'Offline';
+  const typingParticipant = conversation && typingUserId ? getParticipantById(conversation, typingUserId) : undefined;
+  const statusLabel = typingUserId
+    ? `${typingParticipant?.displayName ?? 'Someone'} is typing...`
+    : conversation?.isGroup
+      ? `${conversation.participants.length} members`
+      : showOnlineStatus
+        ? 'Online'
+        : 'Offline';
+
+  const updateBody = (value: string) => {
+    setBody(value);
+    realtimeService.sendTyping(typingChannelRef.current, currentUserId, Boolean(value.trim()));
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (value.trim()) {
+      typingTimeoutRef.current = setTimeout(() => {
+        realtimeService.sendTyping(typingChannelRef.current, currentUserId, false);
+        typingTimeoutRef.current = null;
+      }, 1600);
+    }
+  };
 
   const handleSend = () => {
     const trimmed = body.trim();
@@ -61,7 +100,7 @@ export function ChatScreen() {
     if (editingId) {
       const messageId = editingId;
       setEditingId(null);
-      setBody('');
+      updateBody('');
       void messageService.updateMessage(messageId, trimmed).then(() => {
         queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
           old.map((message) => (message.id === messageId ? { ...message, body: trimmed } : message))
@@ -69,7 +108,7 @@ export function ChatScreen() {
       });
     } else {
       textSendLockedRef.current = true;
-      setBody('');
+      updateBody('');
       sendMessage.mutate(trimmed, {
         onSettled: () => {
           textSendLockedRef.current = false;
@@ -180,7 +219,7 @@ export function ChatScreen() {
         <IconButton icon={Plus} onPress={() => setAttachmentOpen(true)} accessibilityLabel="Attach photo or video" />
         <TextInput
           value={body}
-          onChangeText={setBody}
+          onChangeText={updateBody}
           placeholder={editingId ? 'Edit message...' : 'Message...'}
           placeholderTextColor={colors.text.tertiary}
           style={styles.input}

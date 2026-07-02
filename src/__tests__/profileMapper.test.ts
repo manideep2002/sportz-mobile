@@ -18,7 +18,7 @@ describe('initialsForName', () => {
   });
 
   it('falls back to a single initial for the fallback word "Athlete"', () => {
-    // "Athlete" is a single word — only one initial is available
+    // "Athlete" is a single word, so only one initial is available.
     expect(initialsForName('')).toBe('A');
     expect(initialsForName(null)).toBe('A');
     expect(initialsForName(undefined)).toBe('A');
@@ -41,7 +41,8 @@ describe('mapProfileRow', () => {
       position: 'SG',
       skill_level: 'Advanced',
       is_verified: true,
-      is_hireable: false
+      is_hireable: false,
+      is_admin: true
     };
 
     const profile = mapProfileRow(row, { followers: 120, following: 45, posts: 30 });
@@ -58,6 +59,7 @@ describe('mapProfileRow', () => {
     expect(profile.skillLevel).toBe('Advanced');
     expect(profile.isVerified).toBe(true);
     expect(profile.isHireable).toBe(false);
+    expect(profile.isAdmin).toBe(true);
     expect(profile.stats.followers).toBe(120);
     expect(profile.stats.following).toBe(45);
     expect(profile.stats.posts).toBe(30);

@@ -106,7 +106,7 @@ export function GroupDetailScreen() {
                   onPress={async () => {
                     try {
                       await communityService.inviteMember(community.id, player.id);
-                      Alert.alert('Invited', `${player.displayName} was added to ${community.name}.`);
+                      Alert.alert('Invite sent', `${player.displayName} will get a community invite.`);
                     } catch (error) {
                       Alert.alert('Invite failed', error instanceof Error ? error.message : 'Please try again.');
                     }

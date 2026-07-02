@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react-native';
 
 import { AppText, Avatar, Button, IconButton, Input } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useCancelEvent, useEvent, useUpdateEvent } from '@/hooks/useEvents';
+import { useCancelEvent, useEvent, useEventWaitlist, useRemoveEventAttendee, useUpdateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -16,8 +16,10 @@ export function ManageEventScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const { data: event } = useEvent(route.params.eventId);
+  const { data: waitlist = [] } = useEventWaitlist(route.params.eventId);
   const updateEvent = useUpdateEvent();
   const cancelEvent = useCancelEvent();
+  const removeAttendee = useRemoveEventAttendee();
   const [title, setTitle] = useState(event?.title ?? '');
   const [description, setDescription] = useState(event?.description ?? '');
   const [startsAt, setStartsAt] = useState(event?.startsAt ?? '');
@@ -73,6 +75,24 @@ export function ManageEventScreen() {
     ]);
   };
 
+  const confirmRemoveAttendee = (userId: string, displayName: string) => {
+    if (!event) return;
+    Alert.alert('Remove attendee', `Remove ${displayName} from this event?`, [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await removeAttendee.mutateAsync({ eventId: event.id, userId });
+          } catch (error) {
+            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }
+      }
+    ]);
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -95,6 +115,29 @@ export function ManageEventScreen() {
             <View style={{ flex: 1 }}>
               <AppText style={styles.attendeeName}>{attendee.displayName}</AppText>
               <AppText variant="small">@{attendee.username}</AppText>
+            </View>
+            {attendee.id !== event.organizer.id ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={removeAttendee.isPending}
+                onPress={() => confirmRemoveAttendee(attendee.id, attendee.displayName)}
+              >
+                Remove
+              </Button>
+            ) : null}
+          </View>
+        ))}
+        <AppText variant="h4">Waitlist</AppText>
+        {waitlist.length === 0 ? (
+          <AppText variant="bodyMuted">No players are waiting for a spot.</AppText>
+        ) : null}
+        {waitlist.map((entry) => (
+          <View key={entry.id} style={styles.attendee}>
+            <Avatar initials={entry.user.initials} uri={entry.user.avatarUrl} size={38} />
+            <View style={{ flex: 1 }}>
+              <AppText style={styles.attendeeName}>{entry.user.displayName}</AppText>
+              <AppText variant="small">@{entry.user.username}</AppText>
             </View>
           </View>
         ))}

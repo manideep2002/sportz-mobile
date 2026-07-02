@@ -8,6 +8,7 @@ import {
   Eraser,
   Flag,
   LogOut,
+  UserPlus,
   UserRound,
   Users,
   type LucideIcon
@@ -17,7 +18,6 @@ import { AppText, BottomSheet } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { blockService } from '@/services/blockService';
-import { communityService } from '@/services/communityService';
 import { messageService } from '@/services/messageService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { useMessagingStore } from '@/store/messagingStore';
@@ -88,6 +88,18 @@ export function ChatOptionsSheet({
     });
   }
 
+  if (isGroup) {
+    options.push({
+      label: 'Add members',
+      detail: 'Invite more players into this chat',
+      icon: UserPlus,
+      onPress: () => {
+        onClose();
+        navigation.navigate('NewMessage', { addToConversationId: conversationId });
+      }
+    });
+  }
+
   options.push(
     {
       label: muted ? 'Unmute notifications' : 'Mute notifications',
@@ -122,7 +134,7 @@ export function ChatOptionsSheet({
       onPress: () => {
         confirm('Leave group?', `You will no longer receive messages from ${participantName}.`, () => {
           void (async () => {
-            if (communityId) await communityService.leaveCommunity(communityId);
+            await messageService.leaveConversation(conversationId);
             onClose();
             navigation.goBack();
             Alert.alert('Left group', `You left ${participantName}.`);

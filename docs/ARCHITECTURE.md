@@ -39,11 +39,13 @@ Supabase tables:
 - `likes`
 - `sport_events`
 - `event_attendees`
+- `event_waitlist`
 - `event_messages`
 - `courts`
 - `court_bookings`
 - `communities`
 - `community_members`
+- `community_invites`
 - `conversations`
 - `conversation_members`
 - `messages`
@@ -58,7 +60,17 @@ Realtime tables:
 - `messages`
 - `notifications`
 - `event_attendees`
+- `event_waitlist`
 - `event_messages`
+
+Realtime broadcast channels:
+
+- `typing:{conversationId}` for ephemeral typing indicators.
+
+Edge functions:
+
+- `push-fanout` sends Expo push notifications from persisted `notifications`.
+- `delete-account` deletes the authenticated Supabase user through the service role.
 
 Storage buckets:
 

@@ -7,7 +7,11 @@
 - Rate-limit edge functions for search, push notification fan-out, and media processing.
 - Validate form input on client with TypeScript and on backend with database constraints.
 - Store push tokens in `push_tokens` with RLS scoped to the current user.
+- Send push notifications only from the `push-fanout` Edge Function; it must use the service-role key server-side and respect `notification_preferences` plus `conversation_mutes`.
 - Restrict message reads to conversation members.
+- Use the `create_direct_conversation`, group conversation, and message RLS paths so blocked users cannot start or continue chats.
 - Restrict event chat to event attendees.
-- Add moderation queues before enabling broad public discovery at scale.
+- Use organizer/admin RPCs for event attendee removal, waitlist promotion, and court booking confirmation.
+- Review reports through the admin-only moderation queue before enabling broad public discovery at scale.
+- Account deletion must go through the `delete-account` Edge Function; never expose auth admin APIs in the client.
 - Run security review on OAuth redirect URLs before App Store submission.

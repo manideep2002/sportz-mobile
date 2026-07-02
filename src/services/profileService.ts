@@ -3,6 +3,14 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { UserProfile } from '@/types/domain';
 
+export interface FollowRequest {
+  id: string;
+  requester: UserProfile;
+  targetId: string;
+  status: 'pending' | 'approved' | 'declined' | 'cancelled';
+  createdAt: string;
+}
+
 export type ProfileUpdateInput = Partial<
   Pick<UserProfile, 'username' | 'displayName' | 'avatarUrl' | 'coverUrl' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable' | 'isPrivate'>
 >;
@@ -69,7 +77,24 @@ export const profileService = {
     const { data, error } = await request;
     if (error) throw error;
 
-    return (data ?? []).map((profile) => mapProfileRow(profile, { followers: 0, following: 0, posts: 0 }));
+    let blockedIds = new Set<string>();
+    if (authData.user) {
+      const { data: blockRows, error: blockError } = await supabase
+        .from('blocks')
+        .select('blocker_id, blocked_id')
+        .or(`blocker_id.eq.${authData.user.id},blocked_id.eq.${authData.user.id}`);
+      if (blockError) throw blockError;
+
+      blockedIds = new Set(
+        (blockRows ?? []).map((row) =>
+          row.blocker_id === authData.user?.id ? (row.blocked_id as string) : (row.blocker_id as string)
+        )
+      );
+    }
+
+    return (data ?? [])
+      .filter((profile) => !blockedIds.has(profile.id as string))
+      .map((profile) => mapProfileRow(profile, { followers: 0, following: 0, posts: 0 }));
   },
 
   async listFollowedIds(profileIds: string[]): Promise<Set<string>> {
@@ -189,6 +214,40 @@ export const profileService = {
     if (error && error.code !== '42P01') throw error;
 
     return (data?.status as 'pending' | 'approved' | 'declined' | 'cancelled' | undefined) ?? null;
+  },
+
+  async listIncomingFollowRequests(): Promise<FollowRequest[]> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return [];
+
+    const { data, error } = await supabase
+      .from('follow_requests')
+      .select('id, target_id, status, created_at, requester:requester_id(*)')
+      .eq('target_id', authData.user.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      targetId: row.target_id as string,
+      status: row.status as FollowRequest['status'],
+      createdAt: row.created_at as string,
+      requester: mapProfileRow((row as { requester?: Record<string, any> | null }).requester)
+    }));
+  },
+
+  async respondToFollowRequest(requestId: string, approve: boolean): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('respond_to_follow_request', {
+      request_id: requestId,
+      approve
+    });
+    if (error) throw error;
   },
 
   async unfollowProfile(profileId: string): Promise<void> {

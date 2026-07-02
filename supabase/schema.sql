@@ -10,7 +10,7 @@ create type public.sportz_visibility as enum ('public', 'followers', 'group', 'i
 create type public.sportz_event_status as enum ('open', 'full', 'live', 'cancelled', 'completed');
 create type public.sportz_rsvp_status as enum ('going', 'interested', 'declined');
 create type public.sportz_community_type as enum ('group', 'page');
-create type public.sportz_notification_kind as enum ('like', 'comment', 'follow', 'event', 'message', 'invite', 'achievement');
+create type public.sportz_notification_kind as enum ('like', 'comment', 'follow', 'follow_request', 'event', 'message', 'invite', 'achievement');
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -183,6 +183,10 @@ create table public.reports (
   entity_type text not null check (entity_type in ('user', 'post', 'comment', 'event', 'community')),
   entity_id uuid not null,
   reason text not null,
+  status text not null default 'open' check (status in ('open', 'reviewed', 'dismissed', 'actioned')),
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  resolution text,
   created_at timestamptz not null default now()
 );
 
@@ -313,6 +317,20 @@ create trigger event_attendees_set_updated_at
 before update on public.event_attendees
 for each row execute function public.set_updated_at();
 
+create table public.event_waitlist (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.sport_events(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'waiting' check (status in ('waiting', 'promoted', 'cancelled')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint event_waitlist_unique unique (event_id, user_id)
+);
+
+create trigger event_waitlist_set_updated_at
+before update on public.event_waitlist
+for each row execute function public.set_updated_at();
+
 create table public.event_messages (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.sport_events(id) on delete cascade,
@@ -348,6 +366,18 @@ create table public.community_members (
   role text not null default 'member' check (role in ('owner', 'admin', 'member')),
   created_at timestamptz not null default now(),
   primary key (community_id, user_id)
+);
+
+create table public.community_invites (
+  id uuid primary key default gen_random_uuid(),
+  community_id uuid not null references public.communities(id) on delete cascade,
+  inviter_id uuid not null references public.profiles(id) on delete cascade,
+  invitee_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  constraint community_invites_no_self check (inviter_id <> invitee_id),
+  constraint community_invites_unique unique (community_id, invitee_id)
 );
 
 create table public.conversations (
@@ -401,6 +431,9 @@ create table public.notifications (
   entity_type text,
   entity_id uuid,
   read_at timestamptz,
+  push_sent_at timestamptz,
+  push_error text,
+  push_attempts integer not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -490,6 +523,7 @@ create index saved_posts_post_idx on public.saved_posts(post_id);
 create index follow_requests_target_status_idx on public.follow_requests(target_id, status);
 create index court_bookings_court_time_idx on public.court_bookings(court_id, starts_at);
 create index court_bookings_user_idx on public.court_bookings(user_id);
+create index event_waitlist_event_status_idx on public.event_waitlist(event_id, status, created_at);
 create index post_shares_post_idx on public.post_shares(post_id);
 create index post_mentions_user_idx on public.post_mentions(mentioned_user_id);
 create index story_views_viewer_idx on public.story_views(viewer_id);
@@ -502,10 +536,13 @@ create index follows_following_idx on public.follows(following_id);
 create index blocks_blocker_idx on public.blocks(blocker_id);
 create index blocks_blocked_idx on public.blocks(blocked_id);
 create index reports_reporter_idx on public.reports(reporter_id);
+create index reports_status_created_idx on public.reports(status, created_at desc);
 create index sport_events_starts_idx on public.sport_events(starts_at);
 create index event_attendees_event_idx on public.event_attendees(event_id);
+create index community_invites_invitee_status_idx on public.community_invites(invitee_id, status, created_at desc);
 create index messages_conversation_created_idx on public.messages(conversation_id, created_at);
 create index notifications_user_created_idx on public.notifications(user_id, created_at desc);
+create index notifications_push_pending_idx on public.notifications(created_at) where push_sent_at is null;
 
 create or replace view public.feed_posts as
 select
@@ -559,6 +596,16 @@ as $$
   );
 $$;
 
+create or replace function public.current_user_is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select p.is_admin from public.profiles p where p.id = auth.uid()), false);
+$$;
+
 create or replace function public.request_or_follow_profile(target_user_id uuid)
 returns text
 language plpgsql
@@ -596,6 +643,17 @@ begin
     on conflict (requester_id, target_id)
     do update set status = 'pending', responded_at = null, created_at = now()
     where public.follow_requests.status in ('declined', 'cancelled');
+
+    insert into public.notifications (user_id, actor_id, kind, title, body, entity_type, entity_id)
+    select target_user_id, current_user_id, 'follow_request', 'New follow request', 'A player requested to follow you.', 'profile', current_user_id
+    where not exists (
+      select 1 from public.notifications n
+      where n.user_id = target_user_id
+        and n.actor_id = current_user_id
+        and n.kind = 'follow_request'
+        and n.entity_id = current_user_id
+        and n.created_at > now() - interval '1 day'
+    );
     return 'requested';
   end if;
 
@@ -636,6 +694,9 @@ begin
     insert into public.follows (follower_id, following_id)
     values (request_row.requester_id, request_row.target_id)
     on conflict (follower_id, following_id) do nothing;
+
+    insert into public.notifications (user_id, actor_id, kind, title, body, entity_type, entity_id)
+    values (request_row.requester_id, request_row.target_id, 'follow', 'Follow request approved', 'Your follow request was approved.', 'profile', request_row.target_id);
   end if;
 end;
 $$;
@@ -697,8 +758,272 @@ begin
 end;
 $$;
 
-create or replace function public.join_sport_event(target_event_id uuid)
+create or replace function public.create_group_conversation(group_title text, member_ids uuid[])
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  new_conversation_id uuid;
+  cleaned_member_ids uuid[];
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to create a group chat.';
+  end if;
+
+  select coalesce(array_agg(distinct member_id), array[]::uuid[])
+  into cleaned_member_ids
+  from unnest(coalesce(member_ids, array[]::uuid[])) as member_id
+  where member_id is not null and member_id <> current_user_id;
+
+  if array_length(cleaned_member_ids, 1) is null then
+    raise exception 'Choose at least one other player.';
+  end if;
+
+  if array_length(cleaned_member_ids, 1) > 49 then
+    raise exception 'Group chats are limited to 50 members.';
+  end if;
+
+  if exists (
+    select 1
+    from unnest(cleaned_member_ids) as member_id
+    join public.blocks b on (
+      (b.blocker_id = current_user_id and b.blocked_id = member_id)
+      or (b.blocker_id = member_id and b.blocked_id = current_user_id)
+    )
+  ) then
+    raise exception 'A blocked player cannot be added to this chat.';
+  end if;
+
+  insert into public.conversations (title, is_group, created_by, last_message)
+  values (nullif(trim(group_title), ''), true, current_user_id, '')
+  returning id into new_conversation_id;
+
+  insert into public.conversation_members (conversation_id, user_id, role)
+  values (new_conversation_id, current_user_id, 'owner');
+
+  insert into public.conversation_members (conversation_id, user_id, role)
+  select new_conversation_id, member_id, 'member'
+  from unnest(cleaned_member_ids) as member_id
+  on conflict (conversation_id, user_id) do nothing;
+
+  return new_conversation_id;
+end;
+$$;
+
+create or replace function public.add_group_conversation_members(target_conversation_id uuid, member_ids uuid[])
 returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  cleaned_member_ids uuid[];
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to add group members.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.conversations c
+    join public.conversation_members cm on cm.conversation_id = c.id
+    where c.id = target_conversation_id
+      and c.is_group = true
+      and cm.user_id = current_user_id
+      and (c.created_by = current_user_id or cm.role in ('owner', 'admin'))
+  ) then
+    raise exception 'Only group owners can add members.';
+  end if;
+
+  select coalesce(array_agg(distinct member_id), array[]::uuid[])
+  into cleaned_member_ids
+  from unnest(coalesce(member_ids, array[]::uuid[])) as member_id
+  where member_id is not null and member_id <> current_user_id;
+
+  if array_length(cleaned_member_ids, 1) is null then
+    return;
+  end if;
+
+  if exists (
+    select 1
+    from unnest(cleaned_member_ids) as member_id
+    join public.blocks b on (
+      (b.blocker_id = current_user_id and b.blocked_id = member_id)
+      or (b.blocker_id = member_id and b.blocked_id = current_user_id)
+    )
+  ) then
+    raise exception 'A blocked player cannot be added to this chat.';
+  end if;
+
+  insert into public.conversation_members (conversation_id, user_id, role)
+  select target_conversation_id, member_id, 'member'
+  from unnest(cleaned_member_ids) as member_id
+  on conflict (conversation_id, user_id) do nothing;
+end;
+$$;
+
+create or replace function public.remove_group_conversation_member(target_conversation_id uuid, target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to leave a group.';
+  end if;
+
+  if target_user_id = current_user_id then
+    delete from public.conversation_members
+    where conversation_id = target_conversation_id and user_id = current_user_id;
+    return;
+  end if;
+
+  if not exists (
+    select 1
+    from public.conversations c
+    join public.conversation_members cm on cm.conversation_id = c.id
+    where c.id = target_conversation_id
+      and c.is_group = true
+      and cm.user_id = current_user_id
+      and (c.created_by = current_user_id or cm.role in ('owner', 'admin'))
+  ) then
+    raise exception 'Only group owners can remove members.';
+  end if;
+
+  delete from public.conversation_members
+  where conversation_id = target_conversation_id and user_id = target_user_id;
+end;
+$$;
+
+create or replace function public.invite_community_member(target_community_id uuid, target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  community_name text;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to invite members.';
+  end if;
+
+  if target_user_id is null or target_user_id = current_user_id then
+    raise exception 'Choose another player to invite.';
+  end if;
+
+  if public.users_blocked_each_other(current_user_id, target_user_id) then
+    raise exception 'You cannot invite this player.';
+  end if;
+
+  select c.name into community_name
+  from public.communities c
+  where c.id = target_community_id
+    and exists (
+      select 1 from public.community_members m
+      where m.community_id = c.id
+        and m.user_id = current_user_id
+        and m.role in ('owner', 'admin')
+    );
+
+  if community_name is null then
+    raise exception 'Only community admins can invite members.';
+  end if;
+
+  insert into public.community_invites (community_id, inviter_id, invitee_id, status)
+  values (target_community_id, current_user_id, target_user_id, 'pending')
+  on conflict (community_id, invitee_id)
+  do update set inviter_id = current_user_id, status = 'pending', responded_at = null, created_at = now();
+
+  insert into public.notifications (user_id, actor_id, kind, title, body, entity_type, entity_id)
+  values (target_user_id, current_user_id, 'invite', 'Community invite', 'You were invited to join ' || community_name || '.', 'group', target_community_id);
+end;
+$$;
+
+create or replace function public.respond_community_invite(invite_id uuid, approve boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  invite_row public.community_invites%rowtype;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to respond to invites.';
+  end if;
+
+  select * into invite_row
+  from public.community_invites
+  where id = invite_id and invitee_id = current_user_id and status = 'pending'
+  for update;
+
+  if invite_row.id is null then
+    raise exception 'Invite not found.';
+  end if;
+
+  update public.community_invites
+  set status = case when approve then 'accepted' else 'declined' end,
+      responded_at = now()
+  where id = invite_id;
+
+  if approve then
+    insert into public.community_members (community_id, user_id, role)
+    values (invite_row.community_id, current_user_id, 'member')
+    on conflict (community_id, user_id) do update set role = excluded.role;
+  end if;
+end;
+$$;
+
+create or replace function public.notify_new_message()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  sender_name text;
+  recipient_id uuid;
+begin
+  select display_name into sender_name from public.profiles where id = new.sender_id;
+
+  for recipient_id in
+    select cm.user_id
+    from public.conversation_members cm
+    where cm.conversation_id = new.conversation_id
+      and cm.user_id <> new.sender_id
+  loop
+    insert into public.notifications (user_id, actor_id, kind, title, body, entity_type, entity_id)
+    values (
+      recipient_id,
+      new.sender_id,
+      'message',
+      coalesce(sender_name, 'A player') || ' sent you a message',
+      left(new.body, 140),
+      'conversation',
+      new.conversation_id
+    );
+  end loop;
+
+  return new;
+end;
+$$;
+
+create trigger messages_notify_conversation_members
+after insert on public.messages
+for each row execute function public.notify_new_message();
+
+create or replace function public.join_sport_event(target_event_id uuid)
+returns text
 language plpgsql
 security definer
 set search_path = public
@@ -717,7 +1042,7 @@ begin
     raise exception 'Event not found.';
   end if;
 
-  if event_row.status <> 'open' then
+  if event_row.status not in ('open', 'full') then
     raise exception 'This event is not open for joins.';
   end if;
 
@@ -725,18 +1050,135 @@ begin
     raise exception 'This event is invite-only.';
   end if;
 
+  if exists (
+    select 1 from public.event_attendees
+    where event_id = target_event_id and user_id = current_user_id and status = 'going'
+  ) then
+    return 'joined';
+  end if;
+
   select count(*) into going_count
   from public.event_attendees
-  where event_id = target_event_id and status = 'going' and user_id <> current_user_id;
+  where event_id = target_event_id and status = 'going';
 
   if going_count >= event_row.max_players then
     update public.sport_events set status = 'full' where id = target_event_id;
-    raise exception 'This event is full.';
+    insert into public.event_waitlist (event_id, user_id, status)
+    values (target_event_id, current_user_id, 'waiting')
+    on conflict (event_id, user_id) do update set status = 'waiting';
+    return 'waitlisted';
   end if;
 
   insert into public.event_attendees (event_id, user_id, status)
   values (target_event_id, current_user_id, 'going')
   on conflict (event_id, user_id) do update set status = 'going';
+
+  update public.event_waitlist
+  set status = 'cancelled'
+  where event_id = target_event_id and user_id = current_user_id and status = 'waiting';
+
+  update public.sport_events set status = 'open' where id = target_event_id and status = 'full';
+  return 'joined';
+end;
+$$;
+
+create or replace function public.leave_sport_event(target_event_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  event_row public.sport_events%rowtype;
+  promoted_user_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to leave events.';
+  end if;
+
+  select * into event_row from public.sport_events where id = target_event_id for update;
+  if event_row.id is null then
+    raise exception 'Event not found.';
+  end if;
+
+  delete from public.event_attendees
+  where event_id = target_event_id and user_id = current_user_id;
+
+  update public.event_waitlist
+  set status = 'cancelled'
+  where event_id = target_event_id and user_id = current_user_id and status = 'waiting';
+
+  select user_id into promoted_user_id
+  from public.event_waitlist
+  where event_id = target_event_id and status = 'waiting'
+  order by created_at
+  limit 1
+  for update skip locked;
+
+  if promoted_user_id is not null then
+    insert into public.event_attendees (event_id, user_id, status)
+    values (target_event_id, promoted_user_id, 'going')
+    on conflict (event_id, user_id) do update set status = 'going';
+
+    update public.event_waitlist
+    set status = 'promoted'
+    where event_id = target_event_id and user_id = promoted_user_id;
+  end if;
+
+  update public.sport_events
+  set status = 'open'
+  where id = target_event_id and status = 'full';
+end;
+$$;
+
+create or replace function public.remove_event_attendee(target_event_id uuid, target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  event_row public.sport_events%rowtype;
+  promoted_user_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'You must be signed in to manage attendees.';
+  end if;
+
+  select * into event_row from public.sport_events where id = target_event_id for update;
+  if event_row.id is null then
+    raise exception 'Event not found.';
+  end if;
+
+  if event_row.organizer_id <> current_user_id and not public.current_user_is_admin() then
+    raise exception 'Only the organizer can manage attendees.';
+  end if;
+
+  delete from public.event_attendees
+  where event_id = target_event_id and user_id = target_user_id;
+
+  select user_id into promoted_user_id
+  from public.event_waitlist
+  where event_id = target_event_id and status = 'waiting'
+  order by created_at
+  limit 1
+  for update skip locked;
+
+  if promoted_user_id is not null then
+    insert into public.event_attendees (event_id, user_id, status)
+    values (target_event_id, promoted_user_id, 'going')
+    on conflict (event_id, user_id) do update set status = 'going';
+
+    update public.event_waitlist
+    set status = 'promoted'
+    where event_id = target_event_id and user_id = promoted_user_id;
+  end if;
+
+  update public.sport_events
+  set status = 'open'
+  where id = target_event_id and status = 'full';
 end;
 $$;
 
@@ -773,6 +1215,27 @@ exception
 end;
 $$;
 
+create or replace function public.update_court_booking_status(target_booking_id uuid, target_status text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.current_user_is_admin() then
+    raise exception 'Only admins can manage court bookings.';
+  end if;
+
+  if target_status not in ('pending', 'confirmed', 'cancelled') then
+    raise exception 'Invalid booking status.';
+  end if;
+
+  update public.court_bookings
+  set status = target_status
+  where id = target_booking_id;
+end;
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.follows enable row level security;
 alter table public.stories enable row level security;
@@ -794,9 +1257,11 @@ alter table public.courts enable row level security;
 alter table public.court_bookings enable row level security;
 alter table public.sport_events enable row level security;
 alter table public.event_attendees enable row level security;
+alter table public.event_waitlist enable row level security;
 alter table public.event_messages enable row level security;
 alter table public.communities enable row level security;
 alter table public.community_members enable row level security;
+alter table public.community_invites enable row level security;
 alter table public.conversations enable row level security;
 alter table public.conversation_members enable row level security;
 alter table public.messages enable row level security;
@@ -827,9 +1292,13 @@ create policy "targets respond to follow requests" on public.follow_requests
   for update using (auth.uid() = target_id and status = 'pending')
   with check (auth.uid() = target_id and status in ('approved', 'declined'));
 create policy "users read own blocks" on public.blocks for select using (auth.uid() = blocker_id);
+create policy "users read blocks involving them" on public.blocks for select using (auth.uid() in (blocker_id, blocked_id));
 create policy "users manage own blocks" on public.blocks for all using (auth.uid() = blocker_id) with check (auth.uid() = blocker_id);
 create policy "users create own reports" on public.reports for insert with check (auth.uid() = reporter_id);
 create policy "users read own reports" on public.reports for select using (auth.uid() = reporter_id);
+create policy "admins read reports" on public.reports for select using (public.current_user_is_admin());
+create policy "admins update reports" on public.reports
+  for update using (public.current_user_is_admin()) with check (public.current_user_is_admin());
 
 create policy "public stories readable" on public.stories for select using (expires_at > now());
 create policy "users manage own stories" on public.stories for all using (auth.uid() = author_id) with check (auth.uid() = author_id);
@@ -893,6 +1362,9 @@ create policy "admins manage courts" on public.courts for all using (exists (sel
 create policy "users read own court bookings" on public.court_bookings for select using (auth.uid() = user_id);
 create policy "users create own court bookings" on public.court_bookings for insert with check (auth.uid() = user_id);
 create policy "users update own court bookings" on public.court_bookings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "admins read all court bookings" on public.court_bookings for select using (public.current_user_is_admin());
+create policy "admins update all court bookings" on public.court_bookings
+  for update using (public.current_user_is_admin()) with check (public.current_user_is_admin());
 
 create policy "public events readable" on public.sport_events for select using (visibility = 'public' or auth.uid() = organizer_id);
 create policy "users create own events" on public.sport_events for insert with check (auth.uid() = organizer_id);
@@ -900,6 +1372,14 @@ create policy "organizers update own events" on public.sport_events for update u
 
 create policy "event attendees readable" on public.event_attendees for select using (true);
 create policy "users manage own rsvp" on public.event_attendees for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "event waitlist readable by participants and organizers" on public.event_waitlist for select using (
+  auth.uid() = user_id
+  or exists (select 1 from public.sport_events e where e.id = event_id and e.organizer_id = auth.uid())
+  or public.current_user_is_admin()
+);
+create policy "users manage own event waitlist rows" on public.event_waitlist
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "event chat readable by attendees" on public.event_messages for select using (
   exists (select 1 from public.event_attendees a where a.event_id = event_messages.event_id and a.user_id = auth.uid())
@@ -917,6 +1397,28 @@ create policy "owners update communities" on public.communities for update using
 create policy "community members readable" on public.community_members for select using (true);
 create policy "users join communities" on public.community_members for insert with check (auth.uid() = user_id);
 create policy "users leave communities" on public.community_members for delete using (auth.uid() = user_id);
+
+create policy "community invite participants read" on public.community_invites for select using (
+  auth.uid() in (inviter_id, invitee_id)
+  or exists (
+    select 1 from public.community_members m
+    where m.community_id = public.community_invites.community_id
+      and m.user_id = auth.uid()
+      and m.role in ('owner', 'admin')
+  )
+);
+create policy "community admins create invites" on public.community_invites for insert with check (
+  auth.uid() = inviter_id
+  and exists (
+    select 1 from public.community_members m
+    where m.community_id = public.community_invites.community_id
+      and m.user_id = auth.uid()
+      and m.role in ('owner', 'admin')
+  )
+);
+create policy "invitees update own community invites" on public.community_invites
+  for update using (auth.uid() = invitee_id and status = 'pending')
+  with check (auth.uid() = invitee_id and status in ('accepted', 'declined'));
 
 create policy "conversation members read own rows" on public.conversation_members for select using (auth.uid() = user_id);
 create policy "conversation creators add members" on public.conversation_members for insert with check (
@@ -957,7 +1459,22 @@ create policy "users update own notifications" on public.notifications for updat
 
 create policy "users manage own push tokens" on public.push_tokens for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+grant execute on function public.request_or_follow_profile(uuid) to authenticated;
+grant execute on function public.respond_to_follow_request(uuid, boolean) to authenticated;
+grant execute on function public.create_direct_conversation(uuid) to authenticated;
+grant execute on function public.create_group_conversation(text, uuid[]) to authenticated;
+grant execute on function public.add_group_conversation_members(uuid, uuid[]) to authenticated;
+grant execute on function public.remove_group_conversation_member(uuid, uuid) to authenticated;
+grant execute on function public.invite_community_member(uuid, uuid) to authenticated;
+grant execute on function public.respond_community_invite(uuid, boolean) to authenticated;
+grant execute on function public.join_sport_event(uuid) to authenticated;
+grant execute on function public.leave_sport_event(uuid) to authenticated;
+grant execute on function public.remove_event_attendee(uuid, uuid) to authenticated;
+grant execute on function public.book_court_slot(uuid, timestamptz, timestamptz) to authenticated;
+grant execute on function public.update_court_booking_status(uuid, text) to authenticated;
+
 alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.notifications;
 alter publication supabase_realtime add table public.event_attendees;
+alter publication supabase_realtime add table public.event_waitlist;
 alter publication supabase_realtime add table public.event_messages;

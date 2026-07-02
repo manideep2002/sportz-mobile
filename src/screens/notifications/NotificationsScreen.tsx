@@ -29,7 +29,7 @@ const filterNotifications = (notifications: SportzNotification[], filter: Filter
     case 'Mentions':
       return notifications.filter((n) => n.kind === 'comment' || n.kind === 'like');
     case 'Social':
-      return notifications.filter((n) => n.kind === 'follow' || n.kind === 'achievement');
+      return notifications.filter((n) => n.kind === 'follow' || n.kind === 'follow_request' || n.kind === 'achievement');
     case 'All':
     default:
       return notifications;
@@ -63,6 +63,7 @@ const navigateForNotification = (
       }
       break;
     case 'follow':
+    case 'follow_request':
       if (entityId && entityType === 'profile') {
         navigation.navigate('UserProfile', { userId: entityId });
       } else if (actor?.id) {
@@ -140,6 +141,11 @@ export function NotificationsScreen() {
       </View>
 
       <SegmentedControl value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
+      <View style={styles.requestRow}>
+        <Button variant="dark" size="sm" onPress={() => navigation.navigate('FollowRequests')}>
+          Follow requests
+        </Button>
+      </View>
 
       {filteredNotifications.length === 0 ? (
         <View style={styles.emptyState}>
@@ -206,6 +212,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
     color: colors.text.secondary
+  },
+  requestRow: {
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.sm,
+    alignItems: 'flex-start'
   },
   emptyState: {
     flex: 1,

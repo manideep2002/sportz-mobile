@@ -24,6 +24,7 @@ export interface UserProfile {
   isVerified?: boolean;
   isHireable?: boolean;
   isPrivate?: boolean;
+  isAdmin?: boolean;
   badges: string[];
   stats: ProfileStats;
 }
@@ -58,6 +59,7 @@ export interface Post {
   mediaUrl?: string | null;
   mediaKind?: 'image' | 'video' | 'court-card' | 'none';
   statsLine?: string;
+  visibility?: 'public' | 'followers' | 'group';
   eventTeaser?: EventTeaser;
   likedByMe: boolean;
   savedByMe: boolean;
@@ -122,6 +124,16 @@ export interface Court {
   availabilityLabel: string;
 }
 
+export interface CourtBooking {
+  id: ID;
+  court: Court;
+  user: UserProfile;
+  startsAt: string;
+  endsAt: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: string;
+}
+
 export interface Conversation {
   id: ID;
   title: string;
@@ -156,6 +168,7 @@ export type NotificationKind =
   | 'like'
   | 'comment'
   | 'follow'
+  | 'follow_request'
   | 'event'
   | 'message'
   | 'invite'

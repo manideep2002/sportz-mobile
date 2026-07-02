@@ -19,6 +19,7 @@ const getNotificationIcon = (kind: SportzNotification['kind']) => {
     case 'comment':
       return <Reply size={20} color={colors.orange[500]} />;
     case 'follow':
+    case 'follow_request':
       return <UserPlus size={20} color={colors.orange[500]} />;
     case 'event':
       return <Calendar size={20} color={colors.orange[500]} />;

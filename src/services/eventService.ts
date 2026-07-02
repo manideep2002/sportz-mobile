@@ -74,6 +74,21 @@ interface AttendeeRow {
   } | null;
 }
 
+export interface EventWaitlistEntry {
+  id: string;
+  user: SportEvent['attendees'][number];
+  status: 'waiting' | 'promoted' | 'cancelled';
+  createdAt: string;
+}
+
+interface WaitlistRow {
+  id: string;
+  user_id: string;
+  status: EventWaitlistEntry['status'];
+  created_at: string;
+  profiles: AttendeeRow['profiles'];
+}
+
 interface EventMessageRow {
   id: string;
   event_id: string;
@@ -224,17 +239,18 @@ export const eventService = {
     };
   },
 
-  async joinEvent(eventId: string): Promise<void> {
+  async joinEvent(eventId: string): Promise<'joined' | 'waitlisted'> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to join events.');
 
-    const { error } = await supabase.rpc('join_sport_event', {
+    const { data, error } = await supabase.rpc('join_sport_event', {
       target_event_id: eventId
     });
     if (error) throw error;
+    return data === 'waitlisted' ? 'waitlisted' : 'joined';
   },
 
   async rsvpEvent(eventId: string, status: 'going' | 'interested' | 'declined'): Promise<void> {
@@ -259,12 +275,42 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to leave events.');
 
-    const { error } = await supabase
-      .from('event_attendees')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('user_id', authData.user.id);
+    const { error } = await supabase.rpc('leave_sport_event', {
+      target_event_id: eventId
+    });
     if (error) throw error;
+  },
+
+  async removeAttendee(eventId: string, userId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('remove_event_attendee', {
+      target_event_id: eventId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async listWaitlist(eventId: string): Promise<EventWaitlistEntry[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('event_waitlist')
+      .select('id, user_id, status, created_at, profiles:user_id(*)')
+      .eq('event_id', eventId)
+      .eq('status', 'waiting')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+
+    return (data ?? []).map((row) => {
+      const waitlistRow = row as unknown as WaitlistRow;
+      return {
+        id: waitlistRow.id,
+        status: waitlistRow.status,
+        createdAt: waitlistRow.created_at,
+        user: mapProfileRow(waitlistRow.profiles ?? { id: waitlistRow.user_id })
+      };
+    });
   },
 
   async updateEvent(eventId: string, updates: Partial<CreateEventInput>): Promise<void> {

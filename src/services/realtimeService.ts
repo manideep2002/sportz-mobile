@@ -43,6 +43,34 @@ export const realtimeService = {
     return channel;
   },
 
+  subscribeToTyping(
+    conversationId: string,
+    currentUserId: string,
+    onTyping: (userId: string, isTyping: boolean) => void
+  ): RealtimeChannel | null {
+    if (!env.isSupabaseConfigured || !currentUserId) return null;
+
+    const channel = supabase
+      .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const typingPayload = payload as { userId?: string; isTyping?: boolean };
+        if (!typingPayload.userId || typingPayload.userId === currentUserId) return;
+        onTyping(typingPayload.userId, Boolean(typingPayload.isTyping));
+      })
+      .subscribe();
+
+    return channel;
+  },
+
+  sendTyping(channel: RealtimeChannel | null, userId: string, isTyping: boolean) {
+    if (!channel || !userId) return;
+    void channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId, isTyping }
+    });
+  },
+
   unsubscribe(channel: RealtimeChannel | null) {
     if (!channel) return;
     supabase.removeChannel(channel);

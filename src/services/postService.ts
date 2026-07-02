@@ -16,6 +16,10 @@ export interface CreatePostInput {
   mentionedUserIds?: string[];
 }
 
+export type UpdatePostInput = Partial<Pick<CreatePostInput, 'body' | 'sport' | 'kind' | 'statsLine'>> & {
+  visibility?: 'public' | 'followers';
+};
+
 export interface FeedPage {
   items: Post[];
   nextCursor?: string;
@@ -57,6 +61,7 @@ interface PostRow {
   media_url: string | null;
   media_kind: Post['mediaKind'] | null;
   stats_line: string | null;
+  visibility: Post['visibility'] | null;
   created_at: string;
   /** Supabase returns the joined relation as `profiles` when using `profiles:author_id(*)`. */
   profiles: EmbeddedProfile | null;
@@ -119,6 +124,7 @@ const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   mediaUrl: row.media_url,
   mediaKind: row.media_kind ?? 'none',
   statsLine: row.stats_line ?? undefined,
+  visibility: row.visibility ?? 'public',
   likedByMe: engagement.likedByMe.has(row.id),
   savedByMe: engagement.savedByMe.has(row.id),
   likes: engagement.likes.get(row.id) ?? row.likes_count ?? 0,
@@ -139,7 +145,7 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   const engagement = emptyEngagement();
   if (!postIds.length) return engagement;
 
-  // Single auth call + 3 parallel queries — all scoped to the known post IDs
+  // Single auth call plus parallel queries scoped to the known post IDs.
   const { data: authData } = await supabase.auth.getUser();
   const currentUserId = authData.user?.id;
 
@@ -369,6 +375,46 @@ export const postService = {
     }
 
     return mapPostRow(data as unknown as PostRow, emptyEngagement());
+  },
+
+  async updatePost(postId: string, input: UpdatePostInput): Promise<Post> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to edit posts.');
+
+    const updateData: Partial<{
+      body: string;
+      sport: string;
+      kind: Post['kind'];
+      stats_line: string | null;
+      visibility: 'public' | 'followers';
+      updated_at: string;
+    }> = {
+      updated_at: new Date().toISOString()
+    };
+    if (input.body !== undefined) updateData.body = input.body;
+    if (input.sport !== undefined) updateData.sport = input.sport;
+    if (input.kind !== undefined) updateData.kind = input.kind;
+    if (input.statsLine !== undefined) updateData.stats_line = input.statsLine ?? null;
+    if (input.visibility !== undefined) updateData.visibility = input.visibility;
+
+    const { data, error } = await supabase
+      .from('posts')
+      .update(updateData)
+      .eq('id', postId)
+      .eq('author_id', authData.user.id)
+      .select('*, profiles:author_id(*)')
+      .single();
+    if (error) throw error;
+
+    if (input.kind === 'stats' || input.statsLine !== undefined) {
+      await updateProfileStatsFromPosts(authData.user.id);
+    }
+
+    const engagement = await loadPostEngagement([postId]);
+    return mapPostRow(data as unknown as PostRow, engagement);
   },
 
   async listSavedPosts(): Promise<Post[]> {

@@ -2,7 +2,8 @@ import * as Location from 'expo-location';
 
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
-import type { Court, Sport } from '@/types/domain';
+import { mapProfileRow } from '@/services/profileMapper';
+import type { Court, CourtBooking, Sport } from '@/types/domain';
 
 export interface CourtFilters {
   sport?: Sport;
@@ -26,6 +27,16 @@ const mapCourtRow = (court: Record<string, any>): Court => ({
   currency: court.currency as Court['currency'],
   availableNow: court.availability_status === 'available',
   availabilityLabel: court.availability_status === 'available' ? 'Available' : court.availability_status
+});
+
+const mapCourtBookingRow = (row: Record<string, any>): CourtBooking => ({
+  id: row.id,
+  court: mapCourtRow(row.courts ?? { id: row.court_id, name: 'Court', sport: 'Basketball', city: '', latitude: 0, longitude: 0 }),
+  user: mapProfileRow(row.profiles ?? { id: row.user_id }),
+  startsAt: row.starts_at,
+  endsAt: row.ends_at,
+  status: row.status,
+  createdAt: row.created_at
 });
 
 export const courtService = {
@@ -70,6 +81,31 @@ export const courtService = {
       target_court_id: courtId,
       target_starts_at: startsAt,
       target_ends_at: endsAt
+    });
+    if (error) throw error;
+  },
+
+  async listCourtBookings(courtId?: string): Promise<CourtBooking[]> {
+    assertSupabaseConfigured();
+
+    let request = supabase
+      .from('court_bookings')
+      .select('*, courts:court_id(*), profiles:user_id(*)')
+      .order('starts_at', { ascending: true })
+      .limit(80);
+    if (courtId) request = request.eq('court_id', courtId);
+
+    const { data, error } = await request;
+    if (error) throw error;
+    return (data ?? []).map((row) => mapCourtBookingRow(row as Record<string, any>));
+  },
+
+  async updateCourtBookingStatus(bookingId: string, status: CourtBooking['status']): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('update_court_booking_status', {
+      target_booking_id: bookingId,
+      target_status: status
     });
     if (error) throw error;
   }

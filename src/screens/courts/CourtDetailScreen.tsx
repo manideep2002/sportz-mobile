@@ -8,6 +8,7 @@ import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCourt } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 import { currency } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -17,6 +18,7 @@ export function CourtDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const { data: court, isLoading } = useCourt(route.params.courtId);
+  const profile = useAuthStore((state) => state.profile);
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -45,6 +47,11 @@ export function CourtDetailScreen() {
           <Button full size="lg" icon={MapPin} onPress={() => navigation.navigate('CourtBooking', { courtId: court.id })}>
             Book Court
           </Button>
+          {profile?.isAdmin ? (
+            <Button full size="lg" variant="dark" onPress={() => navigation.navigate('CourtBookings', { courtId: court.id })}>
+              Manage Bookings
+            </Button>
+          ) : null}
         </>
       ) : null}
     </Screen>
@@ -91,4 +98,3 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold
   }
 });
-

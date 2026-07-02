@@ -33,6 +33,15 @@ describe('notification preferences', () => {
     await expect(shouldHandleNotification({ kind: 'message' })).resolves.toBe(false);
   });
 
+  it('treats follow requests as follow notifications', async () => {
+    await AsyncStorage.setItem(
+      notificationPreferencesKey,
+      JSON.stringify({ ...defaultNotificationPreferences, follows: false })
+    );
+
+    await expect(shouldHandleNotification({ kind: 'follow_request' })).resolves.toBe(false);
+  });
+
   it('suppresses all notifications when push is disabled locally', async () => {
     await AsyncStorage.setItem(pushNotificationsEnabledKey, 'false');
 

@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, ChevronLeft, Globe, Heart, HelpCircle, Lock, LogOut, Moon, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Bell, CalendarCheck, ChevronLeft, Globe, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, IconButton, Screen } from '@/components/ui';
@@ -33,6 +33,8 @@ const preferenceItems: SettingsItemConfig[] = [
 export function SettingsScreen() {
   const navigation = useNavigation<Navigation>();
   const signOut = useAuthStore((state) => state.signOut);
+  const deleteAccount = useAuthStore((state) => state.deleteAccount);
+  const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
 
@@ -44,6 +46,23 @@ export function SettingsScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert('Delete account?', 'This permanently deletes your SPORTZ account and profile data.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteAccount();
+          } catch (error) {
+            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }
+      }
+    ], { cancelable: true });
+  };
+
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -52,6 +71,16 @@ export function SettingsScreen() {
         <View style={{ width: 40 }} />
       </View>
       <Section title="Account" items={accountItems} navigation={navigation} />
+      {profile?.isAdmin ? (
+        <Section
+          title="Admin"
+          items={[
+            { label: 'Moderation Queue', detail: 'Review reports and actions', icon: ShieldCheck, route: 'Moderation' },
+            { label: 'Court Bookings', detail: 'Confirm or cancel booking requests', icon: CalendarCheck, route: 'CourtBookings' }
+          ]}
+          navigation={navigation}
+        />
+      ) : null}
       <Section title="Preferences" items={preferenceItems} navigation={navigation} />
       <Pressable style={styles.item} onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}>
         <View style={styles.itemIcon}><Moon size={18} color={colors.text.secondary} /></View>
@@ -65,6 +94,12 @@ export function SettingsScreen() {
       </Pressable>
       <AppText variant="caption" style={styles.sectionTitle}>Support</AppText>
       <SettingsItem label="Help & Support" icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
+      <Pressable style={styles.item} onPress={handleDeleteAccount}>
+        <View style={[styles.itemIcon, styles.dangerIcon]}><Trash2 size={18} color={colors.semantic.danger} /></View>
+        <View style={{ flex: 1 }}>
+          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>Delete Account</AppText>
+        </View>
+      </Pressable>
       <Pressable style={styles.item} onPress={handleSignOut}>
         <View style={[styles.itemIcon, styles.dangerIcon]}><LogOut size={18} color={colors.semantic.danger} /></View>
         <View style={{ flex: 1 }}>
@@ -102,7 +137,7 @@ function SettingsItem({ label, detail, icon: Icon, onPress }: { label: string; d
         <AppText style={styles.itemLabel}>{label}</AppText>
         {detail ? <AppText variant="small">{detail}</AppText> : null}
       </View>
-      <AppText variant="bodyMuted">›</AppText>
+      <AppText variant="bodyMuted">{'>'}</AppText>
     </Pressable>
   );
 }

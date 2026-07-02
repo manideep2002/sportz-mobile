@@ -56,7 +56,7 @@ describe('applyConversationPreview', () => {
 
     const result = applyConversationPreview([older, newer], 'conv-older', preview);
 
-    // conv-older now has a more recent timestamp → should sort first
+    // conv-older now has a more recent timestamp, so it should sort first.
     expect(result[0].id).toBe('conv-older');
     expect(result[0].lastMessage).toBe('Updated!');
     expect(result[0].lastMessageAt).toBe('2026-06-01T00:00:00.000Z');

@@ -40,6 +40,7 @@ export function mapProfileRow(
     isVerified: Boolean(row?.is_verified),
     isHireable: Boolean(row?.is_hireable),
     isPrivate: Boolean(row?.is_private),
+    isAdmin: Boolean(row?.is_admin),
     badges: [],
     stats: {
       ...emptyStats,

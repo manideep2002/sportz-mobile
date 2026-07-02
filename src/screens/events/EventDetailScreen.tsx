@@ -31,7 +31,10 @@ export function EventDetailScreen() {
     if (!event) return;
     setIsJoining(true);
     try {
-      await joinEvent.mutateAsync(event.id);
+      const result = await joinEvent.mutateAsync(event.id);
+      if (result === 'waitlisted') {
+        Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
+      }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
     } finally {
@@ -87,7 +90,7 @@ export function EventDetailScreen() {
   const isOrganizer = profile?.id === event.organizer.id;
   const hasJoined = attendanceStatus === 'going';
   const isFull = event.playerCount >= event.maxPlayers;
-  const canJoin = !hasJoined && !isFull && event.status === 'open';
+  const canJoin = !hasJoined && (event.status === 'open' || event.status === 'full');
 
   return (
     <Screen contentContainerStyle={styles.content}>
@@ -105,7 +108,7 @@ export function EventDetailScreen() {
         <LinearGradient colors={['transparent', colors.dark[950]]} style={styles.heroGradient} />
         {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
         {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
-        {isFull && event.status === 'open' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
+        {(isFull || event.status === 'full') && event.status !== 'cancelled' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
       </View>
       <View style={styles.body}>
         <Badge tone="orange">{event.sport}</Badge>
@@ -185,7 +188,7 @@ export function EventDetailScreen() {
             onPress={handleJoin}
             disabled={!canJoin}
           >
-            {isFull ? 'Event Full' : `Join Event - ${event.entryFeeLabel}`}
+            {isFull || event.status === 'full' ? 'Join Waitlist' : `Join Event - ${event.entryFeeLabel}`}
           </Button>
         )}
         <Button full size="lg" variant="ghost" onPress={handleShare}>

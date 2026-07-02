@@ -17,6 +17,7 @@ interface AuthState {
   signInWithIdToken: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   setProfile: (profile: UserProfile) => void;
 }
 
@@ -100,6 +101,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ session: null, user: null, profile: null, loading: false });
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : 'Sign out failed.' });
+      throw error;
+    }
+  },
+
+  deleteAccount: async () => {
+    set({ loading: true, error: null });
+    try {
+      await authService.deleteAccount();
+      set({ session: null, user: null, profile: null, loading: false });
+    } catch (error) {
+      set({ loading: false, error: error instanceof Error ? error.message : 'Account deletion failed.' });
       throw error;
     }
   },

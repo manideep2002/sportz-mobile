@@ -150,6 +150,14 @@ export const communityService = {
       role
     });
     if (error) throw error;
+
+    const { error: inviteError } = await supabase
+      .from('community_invites')
+      .update({ status: 'accepted', responded_at: new Date().toISOString() })
+      .eq('community_id', communityId)
+      .eq('invitee_id', authData.user.id)
+      .eq('status', 'pending');
+    if (inviteError && inviteError.code !== '42P01') throw inviteError;
   },
 
   async leaveCommunity(communityId: string): Promise<void> {
@@ -170,10 +178,19 @@ export const communityService = {
   async inviteMember(communityId: string, userId: string): Promise<void> {
     assertSupabaseConfigured();
 
-    const { error } = await supabase.from('community_members').upsert({
-      community_id: communityId,
-      user_id: userId,
-      role: 'member'
+    const { error } = await supabase.rpc('invite_community_member', {
+      target_community_id: communityId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async respondToInvite(inviteId: string, approve: boolean): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('respond_community_invite', {
+      invite_id: inviteId,
+      approve
     });
     if (error) throw error;
   },

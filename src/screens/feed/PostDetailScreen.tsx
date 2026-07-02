@@ -101,6 +101,10 @@ export function PostDetailScreen() {
               { text: 'Share', onPress: () => void sharePost(post).then(() => shareMutation.mutate(post.id)) },
               { text: 'Report Post', onPress: reportPost },
               ...(isOwnPost ? [{
+                text: 'Edit',
+                onPress: () => navigation.navigate('CreatePost', { editPostId: post.id })
+              }] : []),
+              ...(isOwnPost ? [{
                 text: 'Delete',
                 style: 'destructive' as const,
                 onPress: () => Alert.alert(

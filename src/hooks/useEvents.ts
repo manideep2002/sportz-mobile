@@ -5,7 +5,8 @@ import type { SportEvent } from '@/types/domain';
 
 export const eventKeys = {
   all: ['events'] as const,
-  detail: (id: string) => ['events', id] as const
+  detail: (id: string) => ['events', id] as const,
+  waitlist: (id: string) => ['events', id, 'waitlist'] as const
 };
 
 export const useEvents = () =>
@@ -64,6 +65,19 @@ export const useUpdateEvent = () => {
   });
 };
 
+export const useRemoveEventAttendee = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, userId }: { eventId: string; userId: string }) =>
+      eventService.removeAttendee(eventId, userId),
+    onSuccess: (_data, { eventId }) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+      void queryClient.invalidateQueries({ queryKey: eventKeys.waitlist(eventId) });
+    }
+  });
+};
+
 export const useCancelEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -80,4 +94,11 @@ export const useCheckAttendance = (eventId: string) =>
     queryKey: [...eventKeys.detail(eventId), 'attendance'] as const,
     queryFn: () => eventService.checkUserAttendance(eventId),
     staleTime: 1000 * 30
+  });
+
+export const useEventWaitlist = (eventId: string) =>
+  useQuery({
+    queryKey: eventKeys.waitlist(eventId),
+    queryFn: () => eventService.listWaitlist(eventId),
+    enabled: Boolean(eventId)
   });
