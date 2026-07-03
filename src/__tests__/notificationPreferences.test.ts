@@ -1,10 +1,3 @@
-jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
-);
-jest.mock('expo-notifications', () => ({
-  setNotificationHandler: jest.fn()
-}));
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -13,6 +6,13 @@ import {
   pushNotificationsEnabledKey,
   shouldHandleNotification
 } from '@/lib/notifications';
+
+jest.mock('@react-native-async-storage/async-storage', () =>
+  jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn()
+}));
 
 describe('notification preferences', () => {
   beforeEach(async () => {
