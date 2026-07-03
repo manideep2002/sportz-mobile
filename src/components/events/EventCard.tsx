@@ -8,14 +8,27 @@ import { eventDate, formatTime } from '@/utils/format';
 interface EventCardProps {
   event: SportEvent;
   joined?: boolean;
+  waitlisted?: boolean;
+  joining?: boolean;
   onPress?: () => void;
   onJoin?: () => void;
 }
 
-export function EventCard({ event, joined = false, onPress, onJoin }: EventCardProps) {
+export function EventCard({ event, joined = false, waitlisted = false, joining = false, onPress, onJoin }: EventCardProps) {
   const color = event.sport === 'Football' ? colors.semantic.success : colors.orange[500];
   const isFull = event.playerCount >= event.maxPlayers;
-  const canJoin = !joined && !isFull && event.status === 'open';
+  const canJoin = !joined && !waitlisted && (event.status === 'open' || event.status === 'full' || event.status === 'live');
+  const actionLabel = joined
+    ? 'Joined'
+    : waitlisted
+      ? 'Waitlisted'
+      : isFull || event.status === 'full'
+        ? 'Join Waitlist'
+        : event.status === 'live'
+          ? 'Join Now'
+          : event.status === 'cancelled'
+            ? 'Cancelled'
+            : 'Join Event';
   return (
     <Pressable
       onPress={onPress}
@@ -53,21 +66,23 @@ export function EventCard({ event, joined = false, onPress, onJoin }: EventCardP
                 </View>
               ))}
             </View>
-            {joined ? (
+            {joined || waitlisted ? (
               <Button size="sm" variant="dark" disabled style={styles.join}>
-                Joined
-              </Button>
-            ) : isFull ? (
-              <Button size="sm" variant="dark" disabled style={styles.join}>
-                Full
-              </Button>
-            ) : event.status === 'live' ? (
-              <Button size="sm" variant="ghost" onPress={onJoin} style={styles.join}>
-                Join Now
+                {actionLabel}
               </Button>
             ) : (
-              <Button size="sm" onPress={onJoin} disabled={!canJoin} style={styles.join}>
-                Join Event
+              <Button
+                size="sm"
+                variant={event.status === 'live' || isFull || event.status === 'full' ? 'ghost' : 'primary'}
+                loading={joining}
+                disabled={!canJoin}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onJoin?.();
+                }}
+                style={styles.join}
+              >
+                {actionLabel}
               </Button>
             )}
           </View>

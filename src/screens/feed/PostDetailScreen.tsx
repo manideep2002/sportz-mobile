@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
-import { AppText, Avatar, IconButton, Input, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -21,8 +21,20 @@ type Route = RouteProp<AppStackParamList, 'PostDetail'>;
 export function PostDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: post, isLoading: postLoading } = usePost(route.params.postId);
-  const { data: comments = [] } = useComments(route.params.postId);
+  const {
+    data: post,
+    isLoading: postLoading,
+    isError: postIsError,
+    error: postError,
+    refetch: refetchPost
+  } = usePost(route.params.postId);
+  const {
+    data: comments = [],
+    isLoading: commentsLoading,
+    isError: commentsIsError,
+    error: commentsError,
+    refetch: refetchComments
+  } = useComments(route.params.postId);
   const profile = useAuthStore((state) => state.profile);
   const [commentBody, setCommentBody] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -58,7 +70,7 @@ export function PostDetailScreen() {
   };
   const submitComment = async () => {
     const body = commentBody.trim();
-    if (!body) return;
+    if (!body || !post) return;
 
     try {
       setCommentBody('');
@@ -78,6 +90,22 @@ export function PostDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
       {postLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {postIsError ? (
+        <View style={styles.state}>
+          <AppText variant="h4">Could not load post</AppText>
+          <AppText variant="bodyMuted" style={styles.stateText}>
+            {postError instanceof Error ? postError.message : 'Please try again.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetchPost()}>Retry</Button>
+        </View>
+      ) : null}
+      {!postLoading && !postIsError && !post ? (
+        <View style={styles.state}>
+          <AppText variant="h4">Post not found</AppText>
+          <AppText variant="bodyMuted" style={styles.stateText}>This post may have been deleted.</AppText>
+          <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
+        </View>
+      ) : null}
       {post ? (
         <PostCard
           post={post}
@@ -100,6 +128,20 @@ export function PostDetailScreen() {
       <View style={styles.commentsHeader}>
         <AppText variant="h4">Comments ({comments.length})</AppText>
       </View>
+      {commentsLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {commentsIsError ? (
+        <View style={styles.state}>
+          <AppText variant="bodyMuted" style={styles.stateText}>
+            {commentsError instanceof Error ? commentsError.message : 'Could not load comments.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetchComments()}>Retry</Button>
+        </View>
+      ) : null}
+      {!commentsLoading && !commentsIsError && comments.length === 0 ? (
+        <View style={styles.state}>
+          <AppText variant="bodyMuted">No comments yet. Start the conversation.</AppText>
+        </View>
+      ) : null}
       {comments.map((comment) => (
         <Pressable
           key={comment.id}
@@ -168,7 +210,8 @@ export function PostDetailScreen() {
           accessibilityLabel="Send comment"
           filled
           size={40}
-          disabled={!commentBody.trim() || createComment.isPending}
+          disabled={!commentBody.trim() || createComment.isPending || !post}
+          accessibilityState={{ disabled: !commentBody.trim() || createComment.isPending || !post }}
           onPress={() => void submitComment()}
         />
       </View>
@@ -219,6 +262,15 @@ const styles = StyleSheet.create({
   },
   loader: {
     paddingVertical: spacing.xl
+  },
+  state: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.lg
+  },
+  stateText: {
+    textAlign: 'center'
   },
   commentRow: {
     flexDirection: 'row',

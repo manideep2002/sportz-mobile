@@ -3,9 +3,9 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Avatar, IconButton } from '@/components/ui';
+import { AppText, Avatar, Button, IconButton } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventService } from '@/services/eventService';
@@ -26,7 +26,7 @@ export function EventChatScreen() {
   const currentUserId = useAuthStore((state) => state.user?.id);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  const { data: messages = [], isLoading } = useQuery({
+  const { data: messages = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: eventMessageKey(eventId),
     queryFn: () => eventService.listEventMessages(eventId)
   });
@@ -48,6 +48,9 @@ export function EventChatScreen() {
     try {
       const message = await eventService.sendEventMessage(eventId, trimmed);
       queryClient.setQueryData<EventMessage[]>(eventMessageKey(eventId), (old = []) => [...old, message]);
+    } catch (error) {
+      setBody(trimmed);
+      Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSending(false);
     }
@@ -62,6 +65,19 @@ export function EventChatScreen() {
       </View>
       {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
       <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+        {isError ? (
+          <View style={styles.state}>
+            <AppText variant="bodyMuted" style={styles.stateText}>
+              {error instanceof Error ? error.message : 'Could not load event chat.'}
+            </AppText>
+            <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+          </View>
+        ) : null}
+        {!isLoading && !isError && messages.length === 0 ? (
+          <View style={styles.state}>
+            <AppText variant="bodyMuted" style={styles.stateText}>No event messages yet.</AppText>
+          </View>
+        ) : null}
         {messages.map((message) => {
           const mine = message.sender.id === currentUserId;
           return (
@@ -85,7 +101,7 @@ export function EventChatScreen() {
           style={styles.input}
           onSubmitEditing={() => void send()}
         />
-        <IconButton icon={Send} filled disabled={!body.trim() || sending} onPress={() => void send()} />
+        <IconButton icon={Send} filled disabled={!body.trim() || sending || isError} onPress={() => void send()} />
       </View>
     </View>
   );
@@ -108,6 +124,15 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: spacing.xl
+  },
+  state: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.xl
+  },
+  stateText: {
+    textAlign: 'center'
   },
   messages: {
     paddingVertical: spacing.md,
@@ -172,4 +197,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md
   }
 });
-

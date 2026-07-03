@@ -20,7 +20,7 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: event, isLoading } = useEvent(route.params.eventId);
+  const { data: event, isLoading, isError, error, refetch } = useEvent(route.params.eventId);
   const { data: attendanceStatus } = useCheckAttendance(route.params.eventId);
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
@@ -71,6 +71,20 @@ export function EventDetailScreen() {
       <Screen>
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.orange[500]} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Screen>
+        <View style={styles.loading}>
+          <AppText variant="h3">Could not load event</AppText>
+          <AppText variant="bodyMuted" style={styles.centerText}>
+            {error instanceof Error ? error.message : 'Please try again.'}
+          </AppText>
+          <Button onPress={() => void refetch()}>Retry</Button>
         </View>
       </Screen>
     );
@@ -208,6 +222,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.lg
+  },
+  centerText: {
+    textAlign: 'center'
   },
   header: {
     flexDirection: 'row',

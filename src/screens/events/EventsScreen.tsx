@@ -32,6 +32,8 @@ export function EventsScreen() {
   const [selectedDay, setSelectedDay] = useState<Date>(weekDays[0]);
   const [selectedSport, setSelectedSport] = useState<Sport | 'All'>('All');
   const [joinedEventIds, setJoinedEventIds] = useState<Set<string>>(new Set());
+  const [waitlistedEventIds, setWaitlistedEventIds] = useState<Set<string>>(new Set());
+  const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   // Check attendance status for all events — single batched DB query instead
@@ -50,12 +52,20 @@ export function EventsScreen() {
   }, [events]);
 
   const handleJoin = async (eventId: string) => {
-    if (joinedEventIds.has(eventId)) return;
+    if (joinedEventIds.has(eventId) || waitlistedEventIds.has(eventId) || joiningEventId) return;
+    setJoiningEventId(eventId);
     try {
-      await joinEvent.mutateAsync(eventId);
-      setJoinedEventIds((prev) => new Set([...prev, eventId]));
+      const result = await joinEvent.mutateAsync(eventId);
+      if (result === 'waitlisted') {
+        setWaitlistedEventIds((prev) => new Set([...prev, eventId]));
+        Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
+      } else {
+        setJoinedEventIds((prev) => new Set([...prev, eventId]));
+      }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
+    } finally {
+      setJoiningEventId(null);
     }
   };
 
@@ -170,6 +180,8 @@ export function EventsScreen() {
             key={event.id}
             event={event}
             joined={joinedEventIds.has(event.id)}
+            waitlisted={waitlistedEventIds.has(event.id)}
+            joining={joiningEventId === event.id}
             onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
             onJoin={() => handleJoin(event.id)}
           />

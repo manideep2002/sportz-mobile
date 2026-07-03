@@ -2,7 +2,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, MoreHorizontal, Plus, UserPlus, type LucideIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
@@ -21,17 +21,45 @@ type Route = RouteProp<AppStackParamList, 'GroupDetail'>;
 export function GroupDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: community, isLoading } = useCommunity(route.params.communityId);
-  const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+  const { data: community, isLoading, isError, error, refetch } = useCommunity(route.params.communityId);
+  const {
+    data: posts = [],
+    isLoading: postsLoading,
+    isError: postsIsError,
+    refetch: refetchPosts
+  } = useCommunityPosts(route.params.communityId);
   const joinCommunity = useJoinCommunity(route.params.communityId);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState<UserProfile[]>([]);
 
-  if (isLoading || !community) {
+  if (isLoading) {
     return (
       <Screen contentContainerStyle={styles.content}>
-        <AppText>Loading...</AppText>
+        <View style={styles.fallback}>
+          <ActivityIndicator color={colors.orange[500]} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isError || !community) {
+    return (
+      <Screen contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        </View>
+        <View style={styles.fallback}>
+          <AppText variant="h4">{isError ? 'Could not load group' : 'Group not found'}</AppText>
+          <AppText variant="bodyMuted" style={styles.fallbackText}>
+            {error instanceof Error ? error.message : 'This community may have been removed.'}
+          </AppText>
+          {isError ? (
+            <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+          ) : (
+            <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
+          )}
+        </View>
       </Screen>
     );
   }
@@ -64,7 +92,15 @@ export function GroupDetailScreen() {
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
         {!community.isMember ? (
-          <Button loading={joinCommunity.isPending} onPress={() => joinCommunity.mutate('member')} full>
+          <Button
+            loading={joinCommunity.isPending}
+            onPress={() => joinCommunity.mutate('member', {
+              onError: (error) => {
+                Alert.alert('Join failed', error instanceof Error ? error.message : 'Please try again.');
+              }
+            })}
+            full
+          >
             Join Group
           </Button>
         ) : null}
@@ -74,6 +110,16 @@ export function GroupDetailScreen() {
           {community.isAdmin ? <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} /> : null}
         </View>
         <AppText variant="h4">Recent Posts</AppText>
+        {postsLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        {postsIsError ? (
+          <View style={styles.fallbackInline}>
+            <AppText variant="bodyMuted">Could not load posts.</AppText>
+            <Button size="sm" onPress={() => void refetchPosts()}>Retry</Button>
+          </View>
+        ) : null}
+        {!postsLoading && !postsIsError && posts.length === 0 ? (
+          <AppText variant="bodyMuted">No posts in this group yet.</AppText>
+        ) : null}
       </View>
       {posts.slice(0, 3).map((post) => (
         <PostCard
@@ -94,7 +140,11 @@ export function GroupDetailScreen() {
                   setInviteResults([]);
                   return;
                 }
-                setInviteResults(await profileService.listPlayers(value));
+                try {
+                  setInviteResults(await profileService.listPlayers(value));
+                } catch (error) {
+                  Alert.alert('Search failed', error instanceof Error ? error.message : 'Please try again.');
+                }
               }}
               placeholder="Search players"
             />
@@ -159,6 +209,24 @@ const styles = StyleSheet.create({
   body: {
     padding: spacing.screen,
     gap: spacing.sm
+  },
+  fallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.xl
+  },
+  fallbackInline: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.dark[800],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    padding: spacing.md
+  },
+  fallbackText: {
+    textAlign: 'center'
   },
   badges: {
     flexDirection: 'row',

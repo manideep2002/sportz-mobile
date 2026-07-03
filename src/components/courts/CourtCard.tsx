@@ -36,10 +36,11 @@ export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
           size="sm"
           onPress={(event) => {
             event.stopPropagation();
-            onBook?.();
+            if (court.availableNow) onBook?.();
+            else onPress?.();
           }}
         >
-          {court.availableNow ? 'Book' : 'Notify'}
+          {court.availableNow ? 'Book' : 'View'}
         </Button>
       </Card>
     </Pressable>

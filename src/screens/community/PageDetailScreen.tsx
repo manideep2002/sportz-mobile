@@ -2,7 +2,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, MoreHorizontal, Share2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
@@ -17,15 +17,43 @@ type Route = RouteProp<AppStackParamList, 'PageDetail'>;
 export function PageDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: community, isLoading } = useCommunity(route.params.communityId);
-  const { data: posts = [] } = useCommunityPosts(route.params.communityId);
+  const { data: community, isLoading, isError, error, refetch } = useCommunity(route.params.communityId);
+  const {
+    data: posts = [],
+    isLoading: postsLoading,
+    isError: postsIsError,
+    refetch: refetchPosts
+  } = useCommunityPosts(route.params.communityId);
   const followPage = useJoinCommunity(route.params.communityId);
   const unfollowPage = useLeaveCommunity(route.params.communityId);
 
-  if (isLoading || !community) {
+  if (isLoading) {
     return (
       <Screen contentContainerStyle={styles.content}>
-        <AppText>Loading...</AppText>
+        <View style={styles.fallback}>
+          <ActivityIndicator color={colors.orange[500]} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isError || !community) {
+    return (
+      <Screen contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        </View>
+        <View style={styles.fallback}>
+          <AppText variant="h4">{isError ? 'Could not load page' : 'Page not found'}</AppText>
+          <AppText variant="bodyMuted" style={styles.fallbackText}>
+            {error instanceof Error ? error.message : 'This community page may have been removed.'}
+          </AppText>
+          {isError ? (
+            <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+          ) : (
+            <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
+          )}
+        </View>
       </Screen>
     );
   }
@@ -60,8 +88,19 @@ export function PageDetailScreen() {
             style={styles.actionButton}
             loading={followPage.isPending || unfollowPage.isPending}
             onPress={() => {
-              if (community.isMember) unfollowPage.mutate();
-              else followPage.mutate('follower');
+              if (community.isMember) {
+                unfollowPage.mutate(undefined, {
+                  onError: (error) => {
+                    Alert.alert('Unfollow failed', error instanceof Error ? error.message : 'Please try again.');
+                  }
+                });
+              } else {
+                followPage.mutate('follower', {
+                  onError: (error) => {
+                    Alert.alert('Follow failed', error instanceof Error ? error.message : 'Please try again.');
+                  }
+                });
+              }
             }}
           >
             {community.isMember ? 'Following' : 'Follow'}
@@ -72,6 +111,16 @@ export function PageDetailScreen() {
           <IconButton icon={Share2} onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })} />
         </View>
         <AppText variant="h4">Latest Posts</AppText>
+        {postsLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        {postsIsError ? (
+          <View style={styles.fallbackInline}>
+            <AppText variant="bodyMuted">Could not load posts.</AppText>
+            <Button size="sm" onPress={() => void refetchPosts()}>Retry</Button>
+          </View>
+        ) : null}
+        {!postsLoading && !postsIsError && posts.length === 0 ? (
+          <AppText variant="bodyMuted">No page posts yet.</AppText>
+        ) : null}
       </View>
       {posts.slice(0, 3).map((post) => (
         <PostCard key={post.id} post={post} onPress={() => navigation.navigate('PostDetail', { postId: post.id })} />
@@ -99,6 +148,24 @@ const styles = StyleSheet.create({
   body: {
     padding: spacing.screen,
     gap: spacing.sm
+  },
+  fallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.xl
+  },
+  fallbackInline: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.dark[800],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700],
+    padding: spacing.md
+  },
+  fallbackText: {
+    textAlign: 'center'
   },
   badges: {
     flexDirection: 'row',

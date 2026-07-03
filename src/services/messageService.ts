@@ -147,7 +147,8 @@ export const messageService = {
       .eq('id', conversationId)
       .maybeSingle();
 
-    if (error || !data) return null;
+    if (error) throw error;
+    if (!data) return null;
 
     const { data: members, error: membersError } = await supabase
       .from('conversation_members')
@@ -189,16 +190,18 @@ export const messageService = {
       .eq('user_id', authData.user.id)
       .order('conversation_id');
 
-    if (error || !data) return [];
+    if (error) throw error;
+    if (!data) return [];
 
     const rows = data as unknown as ConversationMemberRow[];
     const conversationIds = rows.map((r) => r.conversation_id);
     if (!conversationIds.length) return [];
 
-    const { data: memberRows } = await supabase
+    const { data: memberRows, error: memberRowsError } = await supabase
       .from('conversation_members')
       .select('conversation_id, user_id, profiles:user_id(*)')
       .in('conversation_id', conversationIds);
+    if (memberRowsError) throw memberRowsError;
 
     const participantsByConversation = new Map<string, Conversation['participants']>();
     for (const member of (memberRows ?? []) as unknown as ConversationParticipantRow[]) {
@@ -209,17 +212,19 @@ export const messageService = {
     }
 
     // Single bulk query for unread counts instead of one COUNT per conversation
-    const { data: unreadRows } = await supabase
+    const { data: unreadRows, error: unreadError } = await supabase
       .from('messages')
       .select('conversation_id, created_at')
       .in('conversation_id', conversationIds)
       .neq('sender_id', authData.user.id);
+    if (unreadError) throw unreadError;
 
-    const { data: latestRows } = await supabase
+    const { data: latestRows, error: latestError } = await supabase
       .from('messages')
       .select('conversation_id, sender_id, body, created_at')
       .in('conversation_id', conversationIds)
       .order('created_at', { ascending: false });
+    if (latestError) throw latestError;
 
     const lastReadAtByConversation = new Map(
       rows.map((row) => [row.conversation_id, row.last_read_at ?? '1970-01-01T00:00:00.000Z'])
@@ -298,7 +303,8 @@ export const messageService = {
 
     const { data, error } = await request;
 
-    if (error || !data) return [];
+    if (error) throw error;
+    if (!data) return [];
 
     return (data as unknown as MessageRow[]).map((message) => {
       const receiptUserIds = (message.message_receipts ?? []).map(

@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
@@ -37,10 +37,23 @@ export function ChatScreen() {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof realtimeService.subscribeToTyping>>(null);
   const targetUserId = route.params.targetUserId;
-  const { data: conversation } = useConversation(conversationId);
-  const { data: messages = [] } = useConversationMessages(conversationId);
+  const {
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationIsError,
+    error: conversationError,
+    refetch: refetchConversation
+  } = useConversation(conversationId);
+  const {
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesIsError,
+    error: messagesError,
+    refetch: refetchMessages
+  } = useConversationMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
+  const chatUnavailable = !conversationLoading && !conversationIsError && !conversation;
   useRealtimeMessages(conversationId);
   useMarkConversationRead(conversationId);
 
@@ -101,15 +114,25 @@ export function ChatScreen() {
       const messageId = editingId;
       setEditingId(null);
       updateBody('');
-      void messageService.updateMessage(messageId, trimmed).then(() => {
-        queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
-          old.map((message) => (message.id === messageId ? { ...message, body: trimmed } : message))
-        );
-      });
+      void (async () => {
+        try {
+          await messageService.updateMessage(messageId, trimmed);
+          queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
+            old.map((message) => (message.id === messageId ? { ...message, body: trimmed } : message))
+          );
+        } catch (error) {
+          setEditingId(messageId);
+          setBody(trimmed);
+          Alert.alert('Edit failed', error instanceof Error ? error.message : 'Please try again.');
+        }
+      })();
     } else {
       textSendLockedRef.current = true;
       updateBody('');
       sendMessage.mutate(trimmed, {
+        onError: (error) => {
+          Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
+        },
         onSettled: () => {
           textSendLockedRef.current = false;
         }
@@ -147,10 +170,14 @@ export function ChatScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await messageService.deleteMessage(message.id);
-          queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
-            old.map((item) => (item.id === message.id ? { ...item, body: '[deleted]' } : item))
-          );
+          try {
+            await messageService.deleteMessage(message.id);
+            queryClient.setQueryData(messageKeys.messages(conversationId), (old: Message[] = []) =>
+              old.map((item) => (item.id === message.id ? { ...item, body: '[deleted]' } : item))
+            );
+          } catch (error) {
+            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Please try again.');
+          }
         }
       },
       { text: 'Cancel', style: 'cancel' }
@@ -159,9 +186,13 @@ export function ChatScreen() {
 
   const handleClearChat = () => {
     void (async () => {
-      await messageService.clearConversation(conversationId);
-      queryClient.setQueryData(messageKeys.messages(conversationId), []);
-      await queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+      try {
+        await messageService.clearConversation(conversationId);
+        queryClient.setQueryData(messageKeys.messages(conversationId), []);
+        await queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+      } catch (error) {
+        Alert.alert('Clear failed', error instanceof Error ? error.message : 'Please try again.');
+      }
     })();
   };
 
@@ -186,6 +217,21 @@ export function ChatScreen() {
         onClose={() => setOptionsOpen(false)}
         onClearChat={handleClearChat}
       />
+      {conversationLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {conversationIsError ? (
+        <View style={styles.state}>
+          <AppText variant="bodyMuted" style={styles.stateText}>
+            {conversationError instanceof Error ? conversationError.message : 'Could not load chat details.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetchConversation()}>Retry</Button>
+        </View>
+      ) : null}
+      {chatUnavailable ? (
+        <View style={styles.state}>
+          <AppText variant="bodyMuted" style={styles.stateText}>This chat is no longer available.</AppText>
+          <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
+        </View>
+      ) : null}
       <BottomSheet open={attachmentOpen} title="Attach" onClose={() => setAttachmentOpen(false)}>
         <View style={styles.attachmentSheet}>
           <Button full variant="dark" loading={attachmentLoading === 'media'} disabled={Boolean(attachmentLoading)} onPress={() => void sendMedia()}>Photo / Video</Button>
@@ -195,6 +241,20 @@ export function ChatScreen() {
         <View style={styles.today}>
           <AppText variant="small">Today</AppText>
         </View>
+        {messagesLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+        {messagesIsError ? (
+          <View style={styles.state}>
+            <AppText variant="bodyMuted" style={styles.stateText}>
+              {messagesError instanceof Error ? messagesError.message : 'Could not load messages.'}
+            </AppText>
+            <Button size="sm" onPress={() => void refetchMessages()}>Retry</Button>
+          </View>
+        ) : null}
+        {!messagesLoading && !messagesIsError && messages.length === 0 ? (
+          <View style={styles.state}>
+            <AppText variant="bodyMuted" style={styles.stateText}>No messages yet. Send the first one.</AppText>
+          </View>
+        ) : null}
         {messages.map((message) => {
           const sender =
             message.senderId === currentUserId
@@ -216,7 +276,12 @@ export function ChatScreen() {
         })}
       </ScrollView>
       <View style={styles.composer}>
-        <IconButton icon={Plus} onPress={() => setAttachmentOpen(true)} accessibilityLabel="Attach photo or video" />
+        <IconButton
+          icon={Plus}
+          disabled={messagesIsError || conversationIsError || chatUnavailable}
+          onPress={() => setAttachmentOpen(true)}
+          accessibilityLabel="Attach photo or video"
+        />
         <TextInput
           value={body}
           onChangeText={updateBody}
@@ -224,7 +289,12 @@ export function ChatScreen() {
           placeholderTextColor={colors.text.tertiary}
           style={styles.input}
         />
-        <IconButton icon={Send} filled disabled={!body.trim() || (!editingId && sendMessage.isPending)} onPress={handleSend} />
+        <IconButton
+          icon={Send}
+          filled
+          disabled={!body.trim() || (!editingId && sendMessage.isPending) || messagesIsError || conversationIsError || chatUnavailable}
+          onPress={handleSend}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -260,6 +330,18 @@ const styles = StyleSheet.create({
   messages: {
     paddingVertical: 16,
     gap: spacing.sm
+  },
+  loader: {
+    paddingVertical: spacing.md
+  },
+  state: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.lg
+  },
+  stateText: {
+    textAlign: 'center'
   },
   today: {
     alignSelf: 'center',

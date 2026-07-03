@@ -23,7 +23,7 @@ export function CourtBookingsScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const courtId = route.params?.courtId;
-  const { data: bookings = [], isLoading } = useCourtBookings(courtId);
+  const { data: bookings = [], isLoading, isError, error, refetch } = useCourtBookings(courtId);
   const updateStatus = useUpdateCourtBookingStatus(courtId);
 
   const setStatus = async (booking: CourtBooking, status: CourtBooking['status']) => {
@@ -43,8 +43,16 @@ export function CourtBookingsScreen() {
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isError ? (
+        <View style={styles.empty}>
+          <AppText variant="bodyMuted">
+            {error instanceof Error ? error.message : 'Could not load court bookings.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+        </View>
+      ) : null}
 
-      {!isLoading && bookings.length === 0 ? (
+      {!isLoading && !isError && bookings.length === 0 ? (
         <View style={styles.empty}>
           <CalendarCheck size={42} color={colors.text.tertiary} />
           <AppText variant="h4">No bookings</AppText>

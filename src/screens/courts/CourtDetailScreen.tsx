@@ -17,7 +17,7 @@ type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
 export function CourtDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: court, isLoading } = useCourt(route.params.courtId);
+  const { data: court, isLoading, isError, refetch } = useCourt(route.params.courtId);
   const profile = useAuthStore((state) => state.profile);
 
   return (
@@ -28,6 +28,18 @@ export function CourtDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
       {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isError ? (
+        <View style={styles.empty}>
+          <AppText variant="bodyMuted">Could not load this court.</AppText>
+          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+        </View>
+      ) : null}
+      {!isLoading && !isError && !court ? (
+        <View style={styles.empty}>
+          <AppText variant="h4">Court not found</AppText>
+          <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
+        </View>
+      ) : null}
       {court ? (
         <>
           <CourtMapPreview court={court} />
@@ -44,8 +56,14 @@ export function CourtDetailScreen() {
             <Meta label="Rating" value={court.rating.toFixed(1)} />
             <Meta label="Price" value={`${currency(court.hourlyPrice, court.currency)}/hr`} />
           </View>
-          <Button full size="lg" icon={MapPin} onPress={() => navigation.navigate('CourtBooking', { courtId: court.id })}>
-            Book Court
+          <Button
+            full
+            size="lg"
+            icon={MapPin}
+            disabled={!court.availableNow}
+            onPress={() => navigation.navigate('CourtBooking', { courtId: court.id })}
+          >
+            {court.availableNow ? 'Book Court' : 'Court Unavailable'}
           </Button>
           {profile?.isAdmin ? (
             <Button full size="lg" variant="dark" onPress={() => navigation.navigate('CourtBookings', { courtId: court.id })}>
@@ -88,6 +106,11 @@ const styles = StyleSheet.create({
     borderColor: colors.dark[700],
     padding: spacing.md,
     gap: spacing.sm
+  },
+  empty: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xl
   },
   meta: {
     flexDirection: 'row',
