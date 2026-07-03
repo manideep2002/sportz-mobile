@@ -36,10 +36,13 @@ export function MainTabs() {
           tabBarItemStyle: styles.item,
           tabBarBackground: () => (
             <BlurView
-              intensity={Platform.OS === 'ios' ? 80 : 90}
-              tint="dark"
+              intensity={Platform.OS === 'ios' ? 60 : 90}
+              tint={Platform.OS === 'ios' ? 'systemUltraThinMaterialDark' : 'dark'}
               style={styles.blurContainer}
-            />
+            >
+              {/* Specular rim — the 1px bright edge that makes the bar read as glass */}
+              <View style={styles.specularRim} />
+            </BlurView>
           )
         }}
       >
@@ -126,24 +129,42 @@ const styles = StyleSheet.create({
   },
   blurContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(10,9,7,0.75)' : 'rgba(10,9,7,0.92)',
+    // Lower opacity so content bleeds through — essential for the liquid glass look
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(10,9,7,0.42)' : 'rgba(10,9,7,0.92)',
     borderRadius: 28,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.14)',
     overflow: 'hidden'
+  },
+  specularRim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    // Bright stripe that simulates light catching the top glass edge
+    backgroundColor: 'rgba(255,255,255,0.30)',
   },
   item: {
     paddingTop: 0
   },
   iconWrap: {
-    width: 32,
+    // Wider than the icon so the active capsule spans the full column
+    width: 60,
     height: 32,
-    borderRadius: 10,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center'
   },
   iconActive: {
-    backgroundColor: colors.overlays.orangeSoft
+    // Apple uses a neutral frosted-white capsule — NOT a brand-color tint.
+    // The icon itself carries the orange color via tabBarActiveTintColor.
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    // Subtle inner border for the capsule rim
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   label: {
     fontFamily: typography.bodyMedium,
