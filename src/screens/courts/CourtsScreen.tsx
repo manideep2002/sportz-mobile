@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, SlidersHorizontal } from 'lucide-react-native';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CourtCard } from '@/components/courts/CourtCard';
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
@@ -24,7 +24,7 @@ export function CourtsScreen() {
   const [surface, setSurface] = useState<string | undefined>();
   const [maxPrice, setMaxPrice] = useState('');
   const [availableOnly, setAvailableOnly] = useState(false);
-  const { data: courts = [], isLoading, isError, refetch } = useCourts({
+  const { data: courts = [], isLoading, isError, isRefetching, refetch } = useCourts({
     sport: filter === 'All Sports' ? undefined : filter,
     city,
     surface,
@@ -33,7 +33,17 @@ export function CourtsScreen() {
   });
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h2">

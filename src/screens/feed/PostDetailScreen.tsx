@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Heart, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
@@ -25,6 +25,7 @@ export function PostDetailScreen() {
     data: post,
     isLoading: postLoading,
     isError: postIsError,
+    isRefetching: postRefetching,
     error: postError,
     refetch: refetchPost
   } = usePost(route.params.postId);
@@ -32,6 +33,7 @@ export function PostDetailScreen() {
     data: comments = [],
     isLoading: commentsLoading,
     isError: commentsIsError,
+    isRefetching: commentsRefetching,
     error: commentsError,
     refetch: refetchComments
   } = useComments(route.params.postId);
@@ -83,7 +85,18 @@ export function PostDetailScreen() {
   };
 
   return (
-    <Screen keyboard contentContainerStyle={styles.content}>
+    <Screen
+      keyboard
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={postRefetching || commentsRefetching}
+          onRefresh={() => void Promise.all([refetchPost(), refetchComments()])}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Post</AppText>

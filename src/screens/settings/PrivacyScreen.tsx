@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Lock } from 'lucide-react-native';
@@ -20,8 +20,24 @@ export function PrivacyScreen() {
   const setProfile = useAuthStore((state) => state.setProfile);
   const [blocked, setBlocked] = useState<UserProfile[]>([]);
   const [privateAccount, setPrivateAccount] = useState(Boolean(profile?.isPrivate));
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadBlocked = async () => setBlocked(await blockService.listBlocked());
+  const loadBlocked = async () => {
+    try {
+      setBlocked(await blockService.listBlocked());
+    } catch (error) {
+      Alert.alert('Could not load blocked users', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const refreshBlocked = async () => {
+    setRefreshing(true);
+    try {
+      await loadBlocked();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     void loadBlocked();
@@ -41,7 +57,17 @@ export function PrivacyScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refreshBlocked()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Privacy</AppText>
@@ -66,7 +92,18 @@ export function PrivacyScreen() {
             <AppText style={styles.itemLabel}>{user.displayName}</AppText>
             <AppText variant="small">@{user.username}</AppText>
           </View>
-          <Button size="sm" variant="ghost" onPress={async () => { await blockService.unblockUser(user.id); await loadBlocked(); }}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onPress={async () => {
+              try {
+                await blockService.unblockUser(user.id);
+                await loadBlocked();
+              } catch (error) {
+                Alert.alert('Unblock failed', error instanceof Error ? error.message : 'Please try again.');
+              }
+            }}
+          >
             Unblock
           </Button>
         </View>
@@ -135,4 +172,3 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[800]
   }
 });
-

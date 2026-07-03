@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -24,6 +24,7 @@ export function FindPlayersScreen() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,9 +36,10 @@ export function FindPlayersScreen() {
     nextPage = 0,
     replace = false,
     nextQuery = query,
-    nextSport: 'All Sports' | Sport = sport
+    nextSport: 'All Sports' | Sport = sport,
+    showLoader = true
   ) => {
-    setLoading(true);
+    if (showLoader) setLoading(true);
     try {
       const results = await profileService.listPlayers(
         nextQuery,
@@ -51,7 +53,16 @@ export function FindPlayersScreen() {
     } catch (error) {
       Alert.alert('Could not load players', error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
+    }
+  };
+
+  const refreshPlayers = async () => {
+    setRefreshing(true);
+    try {
+      await loadPlayers(0, true, query, sport, false);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -79,7 +90,17 @@ export function FindPlayersScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refreshPlayers()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Find Players</AppText>

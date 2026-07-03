@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -27,16 +27,34 @@ export function SearchScreen() {
   const navigation = useNavigation<Navigation>();
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const { data = [] } = useSearch(query);
-  const { data: trendingTags = [] } = useTrendingTags();
-  const { data: blockedIds = [] } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
+  const { data = [], isRefetching: searchRefetching, refetch: refetchSearch } = useSearch(query);
+  const {
+    data: trendingTags = [],
+    isRefetching: trendingRefetching,
+    refetch: refetchTrending
+  } = useTrendingTags();
+  const {
+    data: blockedIds = [],
+    isRefetching: blockedRefetching,
+    refetch: refetchBlocked
+  } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
   const selectedType = filterTypes[selectedFilter];
   const blockedIdSet = toBlockedIdSet(blockedIds);
   const visibleData = data.filter((result) => !(result.type === 'player' && blockedIdSet.has(result.id)));
   const filteredData = selectedType ? visibleData.filter((result) => result.type === selectedType) : visibleData;
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={searchRefetching || trendingRefetching || blockedRefetching}
+          onRefresh={() => void Promise.all([refetchSearch(), refetchTrending(), refetchBlocked()])}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={styles.searchBox}>

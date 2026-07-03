@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, IconButton } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -26,7 +26,7 @@ export function EventChatScreen() {
   const currentUserId = useAuthStore((state) => state.user?.id);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  const { data: messages = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: messages = [], isLoading, isError, isRefetching, error, refetch } = useQuery({
     queryKey: eventMessageKey(eventId),
     queryFn: () => eventService.listEventMessages(eventId)
   });
@@ -64,7 +64,18 @@ export function EventChatScreen() {
         <View style={{ width: 40 }} />
       </View>
       {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
-      <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.messages}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         {isError ? (
           <View style={styles.state}>
             <AppText variant="bodyMuted" style={styles.stateText}>

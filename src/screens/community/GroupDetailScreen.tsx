@@ -2,7 +2,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, MoreHorizontal, Plus, UserPlus, type LucideIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
@@ -21,11 +21,12 @@ type Route = RouteProp<AppStackParamList, 'GroupDetail'>;
 export function GroupDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: community, isLoading, isError, error, refetch } = useCommunity(route.params.communityId);
+  const { data: community, isLoading, isError, isRefetching, error, refetch } = useCommunity(route.params.communityId);
   const {
     data: posts = [],
     isLoading: postsLoading,
     isError: postsIsError,
+    isRefetching: postsRefetching,
     refetch: refetchPosts
   } = useCommunityPosts(route.params.communityId);
   const joinCommunity = useJoinCommunity(route.params.communityId);
@@ -35,7 +36,17 @@ export function GroupDetailScreen() {
 
   if (isLoading) {
     return (
-      <Screen contentContainerStyle={styles.content}>
+      <Screen
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.fallback}>
           <ActivityIndicator color={colors.orange[500]} />
         </View>
@@ -65,7 +76,17 @@ export function GroupDetailScreen() {
   }
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching || postsRefetching}
+          onRefresh={() => void Promise.all([refetch(), refetchPosts()])}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />

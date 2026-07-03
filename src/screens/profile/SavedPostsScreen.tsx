@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 import { Bookmark, ChevronLeft } from 'lucide-react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
@@ -14,12 +14,22 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function SavedPostsScreen() {
   const navigation = useNavigation<Navigation>();
-  const { data: posts = [], isLoading, isError, refetch } = useSavedPosts();
+  const { data: posts = [], isLoading, isError, isRefetching, refetch } = useSavedPosts();
   const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Saved Posts</AppText>
@@ -76,4 +86,3 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   }
 });
-

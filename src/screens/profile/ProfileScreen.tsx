@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import { Bookmark, Heart, MessageCircle, MessageSquare, Settings, Trophy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 
@@ -12,6 +13,7 @@ import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { UserProfile } from '@/types/domain';
 import { useAuthStore } from '@/store/authStore';
+import { authService } from '@/services/authService';
 import { compactNumber } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -19,8 +21,28 @@ type Tab = 'Posts' | 'Stats' | 'Highlights';
 
 export function ProfileScreen() {
   const navigation = useNavigation<Navigation>();
+  const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
+  const setProfile = useAuthStore((state) => state.setProfile);
   const [tab, setTab] = useState<Tab>('Posts');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshProfile = async () => {
+    if (!profile) return;
+    setRefreshing(true);
+    try {
+      const freshProfile = await authService.getCurrentProfile();
+      setProfile(freshProfile);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['feed', 'user', profile.id] }),
+        queryClient.invalidateQueries({ queryKey: ['profile', profile.id] })
+      ]);
+    } catch (error) {
+      Alert.alert('Refresh failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (!profile) {
     return (
@@ -34,7 +56,18 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen withTabPadding contentContainerStyle={styles.content}>
+    <Screen
+      withTabPadding
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refreshProfile()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.settings}>
         <IconButton icon={Settings} onPress={() => navigation.navigate('Settings')} />
       </View>

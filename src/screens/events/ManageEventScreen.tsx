@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { AppText, Avatar, Button, IconButton, Input } from '@/components/ui';
@@ -15,8 +15,13 @@ type Route = RouteProp<AppStackParamList, 'ManageEvent'>;
 export function ManageEventScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: event, isLoading, isError, error, refetch } = useEvent(route.params.eventId);
-  const { data: waitlist = [], isError: waitlistIsError, refetch: refetchWaitlist } = useEventWaitlist(route.params.eventId);
+  const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
+  const {
+    data: waitlist = [],
+    isError: waitlistIsError,
+    isRefetching: waitlistRefetching,
+    refetch: refetchWaitlist
+  } = useEventWaitlist(route.params.eventId);
   const updateEvent = useUpdateEvent();
   const cancelEvent = useCancelEvent();
   const removeAttendee = useRemoveEventAttendee();
@@ -104,7 +109,18 @@ export function ManageEventScreen() {
         <AppText variant="h3">Manage Event</AppText>
         <Button size="sm" disabled={!event || isLoading} loading={updateEvent.isPending} onPress={save}>Save</Button>
       </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching || waitlistRefetching}
+            onRefresh={() => void Promise.all([refetch(), refetchWaitlist()])}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
         {isError ? (
           <View style={styles.state}>

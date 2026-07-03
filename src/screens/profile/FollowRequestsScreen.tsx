@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronLeft, UserPlus } from 'lucide-react-native';
 
 import { AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
@@ -15,7 +15,7 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 export function FollowRequestsScreen() {
   const navigation = useNavigation<Navigation>();
   const queryClient = useQueryClient();
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading, isError, error, isRefetching, refetch } = useQuery({
     queryKey: ['follow-requests', 'incoming'],
     queryFn: profileService.listIncomingFollowRequests
   });
@@ -32,7 +32,17 @@ export function FollowRequestsScreen() {
   });
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Follow Requests</AppText>
@@ -40,8 +50,17 @@ export function FollowRequestsScreen() {
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isError ? (
+        <View style={styles.empty}>
+          <AppText variant="h4">Could not load requests</AppText>
+          <AppText variant="bodyMuted" style={styles.emptyText}>
+            {error instanceof Error ? error.message : 'Please try again.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+        </View>
+      ) : null}
 
-      {!isLoading && requests.length === 0 ? (
+      {!isLoading && !isError && requests.length === 0 ? (
         <View style={styles.empty}>
           <UserPlus size={42} color={colors.text.tertiary} />
           <AppText variant="h4">No pending requests</AppText>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronLeft, Users } from 'lucide-react-native';
 
 import { AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
@@ -22,10 +22,11 @@ export function FollowersScreen() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [followLoadingId, setFollowLoadingId] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showInitialLoader = true) => {
+    if (showInitialLoader) setLoading(true);
     try {
       const nextProfiles = mode === 'followers'
         ? await profileService.listFollowers(userId)
@@ -35,7 +36,16 @@ export function FollowersScreen() {
     } catch (error) {
       Alert.alert('Could not load profiles', error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setLoading(false);
+      if (showInitialLoader) setLoading(false);
+    }
+  };
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await load(false);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -67,7 +77,17 @@ export function FollowersScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refresh()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">{mode === 'followers' ? 'Followers' : 'Following'}</AppText>

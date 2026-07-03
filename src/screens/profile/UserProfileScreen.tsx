@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import { Ban, ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -21,17 +22,28 @@ type Route = RouteProp<AppStackParamList, 'UserProfile'>;
 export function UserProfileScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const queryClient = useQueryClient();
   const { userId } = route.params;
 
-  const { data: profile, isLoading, isError } = useProfile(userId);
-  const { data: isFollowing = false } = useIsFollowing(userId);
-  const { data: followRequestStatus = null } = useFollowRequestStatus(userId);
-  const { data: isBlocked = false, isLoading: isBlockedLoading } = useIsBlocked(userId);
+  const { data: profile, isLoading, isError, isRefetching, refetch } = useProfile(userId);
+  const { data: isFollowing = false, refetch: refetchFollowing } = useIsFollowing(userId);
+  const { data: followRequestStatus = null, refetch: refetchFollowRequestStatus } = useFollowRequestStatus(userId);
+  const { data: isBlocked = false, isLoading: isBlockedLoading, refetch: refetchBlocked } = useIsBlocked(userId);
   const toggleFollow = useToggleFollow(userId);
   const toggleBlock = useToggleBlock(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
   const [messageLoading, setMessageLoading] = useState(false);
   const blockActionLoading = isBlockedLoading || toggleBlock.isPending;
+
+  const refreshProfile = async () => {
+    await Promise.all([
+      refetch(),
+      refetchFollowing(),
+      refetchFollowRequestStatus(),
+      refetchBlocked(),
+      queryClient.invalidateQueries({ queryKey: ['feed', 'user', userId] })
+    ]);
+  };
 
   const handleFollow = () => {
     if (followRequestStatus === 'pending' && !isFollowing) {
@@ -152,7 +164,17 @@ export function UserProfileScreen() {
   // -- Loading state ----------------------------------------------------------
   if (isLoading) {
     return (
-      <Screen contentContainerStyle={styles.centered}>
+      <Screen
+        contentContainerStyle={styles.centered}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.header}>
           <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         </View>
@@ -164,7 +186,17 @@ export function UserProfileScreen() {
   // -- Error / not found ------------------------------------------------------
   if (isError || !profile) {
     return (
-      <Screen contentContainerStyle={styles.centered}>
+      <Screen
+        contentContainerStyle={styles.centered}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.header}>
           <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         </View>
@@ -179,7 +211,17 @@ export function UserProfileScreen() {
   }
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refreshProfile()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />

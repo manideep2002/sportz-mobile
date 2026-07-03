@@ -147,45 +147,47 @@ export function NotificationsScreen() {
         </Button>
       </View>
 
-      {filteredNotifications.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Filter size={48} color={colors.text.tertiary} />
-          <AppText variant="h4" style={styles.emptyTitle}>
-            {filter === 'All' ? 'No activity yet' : `No ${filter.toLowerCase()} notifications`}
-          </AppText>
-          <AppText variant="bodyMuted" style={styles.emptySubtitle}>
-            {filter === 'All'
-              ? 'When someone interacts with your posts, events, or profile, it will show up here.'
-              : 'Try another filter or check back later.'}
-          </AppText>
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={filteredNotifications}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing || isRefetching}
-              onRefresh={onRefresh}
-              tintColor={colors.orange[500]}
-              colors={[colors.orange[500]]}
-            />
-          }
-          ListHeaderComponent={
+      <FlatList
+        ref={flatListRef}
+        data={filteredNotifications}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={filteredNotifications.length === 0 ? styles.emptyListContent : undefined}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing || isRefetching}
+            onRefresh={onRefresh}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Filter size={48} color={colors.text.tertiary} />
+            <AppText variant="h4" style={styles.emptyTitle}>
+              {filter === 'All' ? 'No activity yet' : `No ${filter.toLowerCase()} notifications`}
+            </AppText>
+            <AppText variant="bodyMuted" style={styles.emptySubtitle}>
+              {filter === 'All'
+                ? 'When someone interacts with your posts, events, or profile, it will show up here.'
+                : 'Try another filter or check back later.'}
+            </AppText>
+          </View>
+        }
+        ListHeaderComponent={
+          filteredNotifications.length > 0 ? (
             <AppText variant="caption" style={styles.sectionHeader}>New</AppText>
-          }
-          renderItem={({ item }) => (
-            <NotificationRow
-              notification={item}
-              onPress={() => handleNotificationPress(item)}
-              onCtaPress={() => handleCtaPress(item)}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <NotificationRow
+            notification={item}
+            onPress={() => handleNotificationPress(item)}
+            onCtaPress={() => handleCtaPress(item)}
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
     </Screen>
   );
 }
@@ -217,6 +219,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     paddingTop: spacing.sm,
     alignItems: 'flex-start'
+  },
+  emptyListContent: {
+    flexGrow: 1
   },
   emptyState: {
     flex: 1,

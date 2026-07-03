@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
@@ -41,6 +41,7 @@ export function ChatScreen() {
     data: conversation,
     isLoading: conversationLoading,
     isError: conversationIsError,
+    isRefetching: conversationRefetching,
     error: conversationError,
     refetch: refetchConversation
   } = useConversation(conversationId);
@@ -48,6 +49,7 @@ export function ChatScreen() {
     data: messages = [],
     isLoading: messagesLoading,
     isError: messagesIsError,
+    isRefetching: messagesRefetching,
     error: messagesError,
     refetch: refetchMessages
   } = useConversationMessages(conversationId);
@@ -237,7 +239,18 @@ export function ChatScreen() {
           <Button full variant="dark" loading={attachmentLoading === 'media'} disabled={Boolean(attachmentLoading)} onPress={() => void sendMedia()}>Photo / Video</Button>
         </View>
       </BottomSheet>
-      <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.messages}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={conversationRefetching || messagesRefetching}
+            onRefresh={() => void Promise.all([refetchConversation(), refetchMessages()])}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.today}>
           <AppText variant="small">Today</AppText>
         </View>

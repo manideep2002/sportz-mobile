@@ -1,6 +1,6 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronLeft, MapPin } from 'lucide-react-native';
 
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
@@ -17,11 +17,21 @@ type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
 export function CourtDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: court, isLoading, isError, refetch } = useCourt(route.params.courtId);
+  const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
   const profile = useAuthStore((state) => state.profile);
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Court</AppText>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -17,7 +17,7 @@ type Route = RouteProp<AppStackParamList, 'CourtBooking'>;
 export function CourtBookingScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: court, isLoading, isError, refetch } = useCourt(route.params.courtId);
+  const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
   const [selectedDayOffset, setSelectedDayOffset] = useState(0);
   const [selectedHour, setSelectedHour] = useState(18);
   const [durationHours, setDurationHours] = useState(1);
@@ -53,7 +53,17 @@ export function CourtBookingScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Book Court</AppText>

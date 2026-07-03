@@ -30,12 +30,12 @@ export function FeedScreen() {
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
   const { data, isLoading, isError, error, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
-  const { data: stories = [], refetch: refetchStories } = useStories();
-  const { data: liveEvents = [] } = useQuery({
+  const { data: stories = [], refetch: refetchStories, isRefetching: storiesRefetching } = useStories();
+  const { data: liveEvents = [], refetch: refetchLiveEvents, isRefetching: liveEventsRefetching } = useQuery({
     queryKey: ['events', 'live'],
     queryFn: eventService.listLiveEvents
   });
-  const { data: blockedIds = [] } = useQuery({
+  const { data: blockedIds = [], refetch: refetchBlockedIds, isRefetching: blockedIdsRefetching } = useQuery({
     queryKey: ['blocks', 'ids'],
     queryFn: blockService.listBlockedIds
   });
@@ -46,7 +46,12 @@ export function FeedScreen() {
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
-  const refreshFeed = () => void Promise.all([refetch(), refetchStories()]);
+  const refreshFeed = () => void Promise.all([
+    refetch(),
+    refetchStories(),
+    refetchLiveEvents(),
+    refetchBlockedIds()
+  ]);
   
   // Dynamic greeting based on time of day
   const getGreeting = () => {
@@ -86,7 +91,7 @@ export function FeedScreen() {
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching || storiesRefetching || liveEventsRefetching || blockedIdsRefetching}
             onRefresh={refreshFeed}
             tintColor={colors.orange[500]}
             colors={[colors.orange[500]]}

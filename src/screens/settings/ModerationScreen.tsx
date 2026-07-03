@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronLeft, ShieldAlert } from 'lucide-react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
@@ -18,7 +18,7 @@ export function ModerationScreen() {
   const navigation = useNavigation<Navigation>();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>('open');
-  const { data: reports = [], isLoading } = useQuery({
+  const { data: reports = [], isLoading, isError, error, isRefetching, refetch } = useQuery({
     queryKey: ['moderation-reports', filter],
     queryFn: () => reportService.listReports(filter)
   });
@@ -34,7 +34,17 @@ export function ModerationScreen() {
   });
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Moderation</AppText>
@@ -44,8 +54,17 @@ export function ModerationScreen() {
       <SegmentedControl value={filter} options={['open', 'all']} onChange={setFilter} />
 
       {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isError ? (
+        <View style={styles.empty}>
+          <AppText variant="h4">Could not load reports</AppText>
+          <AppText variant="bodyMuted" style={styles.emptyText}>
+            {error instanceof Error ? error.message : 'Please try again.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+        </View>
+      ) : null}
 
-      {!isLoading && reports.length === 0 ? (
+      {!isLoading && !isError && reports.length === 0 ? (
         <View style={styles.empty}>
           <ShieldAlert size={42} color={colors.text.tertiary} />
           <AppText variant="h4">No reports</AppText>
@@ -103,6 +122,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.xxl
+  },
+  emptyText: {
+    textAlign: 'center'
   },
   report: {
     gap: spacing.sm,

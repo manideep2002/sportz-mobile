@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
 import { CourtArt } from '@/components/feed/CourtArt';
@@ -20,8 +20,12 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const { data: event, isLoading, isError, error, refetch } = useEvent(route.params.eventId);
-  const { data: attendanceStatus } = useCheckAttendance(route.params.eventId);
+  const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
+  const {
+    data: attendanceStatus,
+    isRefetching: attendanceRefetching,
+    refetch: refetchAttendance
+  } = useCheckAttendance(route.params.eventId);
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
   const profile = useAuthStore((state) => state.profile);
@@ -78,7 +82,16 @@ export function EventDetailScreen() {
 
   if (isError) {
     return (
-      <Screen>
+      <Screen
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.loading}>
           <AppText variant="h3">Could not load event</AppText>
           <AppText variant="bodyMuted" style={styles.centerText}>
@@ -92,7 +105,16 @@ export function EventDetailScreen() {
 
   if (!event) {
     return (
-      <Screen>
+      <Screen
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+            tintColor={colors.orange[500]}
+            colors={[colors.orange[500]]}
+          />
+        }
+      >
         <View style={styles.loading}>
           <AppText variant="h3">Event not found</AppText>
           <Button onPress={() => navigation.goBack()}>Go Back</Button>
@@ -107,7 +129,17 @@ export function EventDetailScreen() {
   const canJoin = !hasJoined && (event.status === 'open' || event.status === 'full');
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching || attendanceRefetching}
+          onRefresh={() => void Promise.all([refetch(), refetchAttendance()])}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format, isAfter, isSameDay, startOfDay } from 'date-fns';
 
 import { EventCard } from '@/components/events/EventCard';
@@ -87,7 +87,18 @@ export function EventsScreen() {
   );
 
   return (
-    <Screen withTabPadding contentContainerStyle={styles.content}>
+    <Screen
+      withTabPadding
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={handleRefresh}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <AppText variant="h2">
           Events<AppText variant="h2" color={colors.orange[500]}>.</AppText>

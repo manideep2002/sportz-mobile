@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Plus } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { CommunityCard } from '@/components/community/CommunityCard';
 import { AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
@@ -16,7 +16,7 @@ type Tab = 'Groups' | 'Pages';
 export function CommunityScreen() {
   const navigation = useNavigation<Navigation>();
   const [tab, setTab] = useState<Tab>('Groups');
-  const { data: communities = [], isLoading, isError, refetch } = useCommunities();
+  const { data: communities = [], isLoading, isError, isRefetching, refetch } = useCommunities();
   const filtered = communities.filter((community) => (tab === 'Groups' ? community.type === 'group' : community.type === 'page'));
   const openCommunity = (community: (typeof communities)[number]) => {
     if (community.type === 'group') navigation.navigate('GroupDetail', { communityId: community.id });
@@ -24,7 +24,17 @@ export function CommunityScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h2">

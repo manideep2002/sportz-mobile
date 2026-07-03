@@ -1,6 +1,6 @@
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import { CalendarCheck, ChevronLeft } from 'lucide-react-native';
 
 import { AppText, Avatar, Badge, Button, IconButton, Screen } from '@/components/ui';
@@ -23,7 +23,7 @@ export function CourtBookingsScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const courtId = route.params?.courtId;
-  const { data: bookings = [], isLoading, isError, error, refetch } = useCourtBookings(courtId);
+  const { data: bookings = [], isLoading, isError, isRefetching, error, refetch } = useCourtBookings(courtId);
   const updateStatus = useUpdateCourtBookingStatus(courtId);
 
   const setStatus = async (booking: CourtBooking, status: CourtBooking['status']) => {
@@ -35,7 +35,17 @@ export function CourtBookingsScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.orange[500]}
+          colors={[colors.orange[500]]}
+        />
+      }
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Court Bookings</AppText>
