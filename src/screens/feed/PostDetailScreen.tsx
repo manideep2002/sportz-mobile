@@ -2,11 +2,13 @@ import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Heart, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
-import { AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -89,11 +91,9 @@ export function PostDetailScreen() {
       keyboard
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={postRefetching || commentsRefetching}
           onRefresh={() => void Promise.all([refetchPost(), refetchComments()])}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

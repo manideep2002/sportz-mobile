@@ -2,10 +2,12 @@ import { useCallback, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Filter } from 'lucide-react-native';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
-import { AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import {
   useInfiniteNotifications,
@@ -154,11 +156,9 @@ export function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={filteredNotifications.length === 0 ? styles.emptyListContent : undefined}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={refreshing || isRefetching}
             onRefresh={onRefresh}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
         ListEmptyComponent={

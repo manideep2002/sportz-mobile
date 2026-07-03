@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
@@ -93,11 +95,9 @@ export function FindPlayersScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={refreshing}
           onRefresh={() => void refreshPlayers()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

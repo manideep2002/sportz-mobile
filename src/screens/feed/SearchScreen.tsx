@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useSearch, useTrendingTags } from '@/hooks/useSearch';
 import { blockService, toBlockedIdSet } from '@/services/blockService';
@@ -47,11 +49,9 @@ export function SearchScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={searchRefetching || trendingRefetching || blockedRefetching}
           onRefresh={() => void Promise.all([refetchSearch(), refetchTrending(), refetchBlocked()])}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

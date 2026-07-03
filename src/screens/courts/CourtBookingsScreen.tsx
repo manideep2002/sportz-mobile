@@ -1,9 +1,11 @@
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { CalendarCheck, ChevronLeft } from 'lucide-react-native';
 
-import { AppText, Avatar, Badge, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCourtBookings, useUpdateCourtBookingStatus } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -38,11 +40,9 @@ export function CourtBookingsScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

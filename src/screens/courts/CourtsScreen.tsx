@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, SlidersHorizontal } from 'lucide-react-native';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CourtCard } from '@/components/courts/CourtCard';
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
-import { AppText, BottomSheet, Button, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
+import { AppRefreshControl, AppText, BottomSheet, Button, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useCourts } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -36,11 +38,9 @@ export function CourtsScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

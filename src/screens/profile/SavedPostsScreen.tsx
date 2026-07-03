@@ -1,10 +1,12 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Bookmark, ChevronLeft } from 'lucide-react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useOptimisticPostLike, useOptimisticPostSave, useSavedPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -22,11 +24,9 @@ export function SavedPostsScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

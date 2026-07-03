@@ -3,13 +3,15 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { StoryRail } from '@/components/feed/StoryRail';
-import { AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
+
 import { sportsFilters } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
 import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
@@ -90,11 +92,9 @@ export function FeedScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching || storiesRefetching || liveEventsRefetching || blockedIdsRefetching}
             onRefresh={refreshFeed}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
         onEndReachedThreshold={0.35}

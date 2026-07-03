@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Plus } from 'lucide-react-native';
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { CommunityCard } from '@/components/community/CommunityCard';
-import { AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useCommunities } from '@/hooks/useCommunities';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -27,11 +29,9 @@ export function CommunityScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

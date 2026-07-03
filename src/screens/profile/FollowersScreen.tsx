@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { ChevronLeft, Users } from 'lucide-react-native';
 
-import { AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
@@ -80,11 +82,9 @@ export function FollowersScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={refreshing}
           onRefresh={() => void refresh()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

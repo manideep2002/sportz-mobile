@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Lock } from 'lucide-react-native';
 
-import { AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { blockService } from '@/services/blockService';
@@ -60,11 +62,9 @@ export function PrivacyScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={refreshing}
           onRefresh={() => void refreshBlocked()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

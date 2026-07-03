@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { ChevronLeft, ShieldAlert } from 'lucide-react-native';
 
-import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { reportService, type ReportStatus } from '@/services/reportService';
@@ -37,11 +39,9 @@ export function ModerationScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

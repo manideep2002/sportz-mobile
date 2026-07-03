@@ -4,9 +4,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bookmark, Heart, MessageCircle, MessageSquare, Settings, Trophy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useUserPosts } from '@/hooks/useFeed';
@@ -60,11 +62,9 @@ export function ProfileScreen() {
       withTabPadding
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={refreshing}
           onRefresh={() => void refreshProfile()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

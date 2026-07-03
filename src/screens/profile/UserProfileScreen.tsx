@@ -4,9 +4,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
-import { AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
@@ -167,11 +169,9 @@ export function UserProfileScreen() {
       <Screen
         contentContainerStyle={styles.centered}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -189,11 +189,9 @@ export function UserProfileScreen() {
       <Screen
         contentContainerStyle={styles.centered}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -214,11 +212,9 @@ export function UserProfileScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refreshProfile()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

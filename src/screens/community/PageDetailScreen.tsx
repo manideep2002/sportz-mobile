@@ -2,10 +2,12 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, MoreHorizontal, Share2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, RefreshControl, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
 import { useCommunityPosts } from '@/hooks/useFeed';
@@ -33,11 +35,9 @@ export function PageDetailScreen() {
       <Screen
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -73,11 +73,9 @@ export function PageDetailScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching || postsRefetching}
           onRefresh={() => void Promise.all([refetch(), refetchPosts()])}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

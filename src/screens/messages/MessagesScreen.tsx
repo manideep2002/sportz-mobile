@@ -2,10 +2,12 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw, Search } from 'lucide-react-native';
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
-import { AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
+import { AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -39,11 +41,9 @@ export function MessagesScreen() {
       withTabPadding
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

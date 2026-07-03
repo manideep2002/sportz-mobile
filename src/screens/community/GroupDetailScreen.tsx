@@ -2,11 +2,13 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, MoreHorizontal, Plus, UserPlus, type LucideIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
-import { AppText, Avatar, Badge, Button, IconButton, Input, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen } from '@/components/ui';
+
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity } from '@/hooks/useCommunities';
 import { useCommunityPosts } from '@/hooks/useFeed';
@@ -39,11 +41,9 @@ export function GroupDetailScreen() {
       <Screen
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -79,11 +79,9 @@ export function GroupDetailScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching || postsRefetching}
           onRefresh={() => void Promise.all([refetch(), refetchPosts()])}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

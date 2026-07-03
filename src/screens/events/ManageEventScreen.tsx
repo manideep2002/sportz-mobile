@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 
-import { AppText, Avatar, Button, IconButton, Input } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCancelEvent, useEvent, useEventWaitlist, useRemoveEventAttendee, useUpdateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -113,11 +115,9 @@ export function ManageEventScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching || waitlistRefetching}
             onRefresh={() => void Promise.all([refetch(), refetchWaitlist()])}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >

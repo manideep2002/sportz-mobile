@@ -3,9 +3,11 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Image, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
+
 import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useEvent, useJoinEvent, useLeaveEvent, useCheckAttendance } from '@/hooks/useEvents';
@@ -84,11 +86,9 @@ export function EventDetailScreen() {
     return (
       <Screen
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -107,11 +107,9 @@ export function EventDetailScreen() {
     return (
       <Screen
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
@@ -132,11 +130,9 @@ export function EventDetailScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching || attendanceRefetching}
           onRefresh={() => void Promise.all([refetch(), refetchAttendance()])}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

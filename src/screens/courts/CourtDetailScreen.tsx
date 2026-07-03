@@ -1,10 +1,12 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { ChevronLeft, MapPin } from 'lucide-react-native';
 
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
-import { AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCourt } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -24,11 +26,9 @@ export function CourtDetailScreen() {
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.orange[500]}
-          colors={[colors.orange[500]]}
         />
       }
     >

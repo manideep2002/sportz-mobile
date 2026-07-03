@@ -3,11 +3,13 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, MoreVertical, Plus, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
-import { AppText, Avatar, BottomSheet, Button, IconButton } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, BottomSheet, Button, IconButton } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
 import { messageService } from '@/services/messageService';
@@ -243,11 +245,9 @@ export function ChatScreen() {
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={conversationRefetching || messagesRefetching}
             onRefresh={() => void Promise.all([refetchConversation(), refetchMessages()])}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >

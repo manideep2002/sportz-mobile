@@ -3,9 +3,11 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Avatar, Button, IconButton } from '@/components/ui';
+
+import { AppRefreshControl, AppText, Avatar, Button, IconButton } from '@/components/ui';
+
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventService } from '@/services/eventService';
@@ -68,11 +70,9 @@ export function EventChatScreen() {
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor={colors.orange[500]}
-            colors={[colors.orange[500]]}
           />
         }
       >
