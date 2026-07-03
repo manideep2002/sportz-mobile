@@ -143,11 +143,6 @@ export function NotificationsScreen() {
       </View>
 
       <SegmentedControl value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
-      <View style={styles.requestRow}>
-        <Button variant="dark" size="sm" onPress={() => navigation.navigate('FollowRequests')}>
-          Follow requests
-        </Button>
-      </View>
 
       <FlatList
         ref={flatListRef}
@@ -217,11 +212,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
     color: colors.text.secondary
-  },
-  requestRow: {
-    paddingHorizontal: spacing.screen,
-    paddingTop: spacing.sm,
-    alignItems: 'flex-start'
   },
   listContent: {
     flexGrow: 1
