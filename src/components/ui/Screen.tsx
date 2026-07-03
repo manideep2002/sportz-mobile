@@ -35,6 +35,9 @@ export function Screen({
       style={[styles.root, style]}
       contentContainerStyle={contentStyle}
       refreshControl={refreshControl}
+      alwaysBounceVertical
+      bounces
+      overScrollMode="always"
       showsVerticalScrollIndicator={false}
     >
       {children}
@@ -58,6 +61,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[950]
   },
   content: {
+    flexGrow: 1,
     paddingHorizontal: spacing.screen
   }
 });

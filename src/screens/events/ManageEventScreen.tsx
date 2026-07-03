@@ -112,8 +112,12 @@ export function ManageEventScreen() {
         <Button size="sm" disabled={!event || isLoading} loading={updateEvent.isPending} onPress={save}>Save</Button>
       </View>
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        bounces
+        overScrollMode="always"
         refreshControl={
           <AppRefreshControl
             refreshing={isRefetching || waitlistRefetching}
@@ -207,7 +211,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between'
   },
+  scroll: {
+    flex: 1
+  },
   content: {
+    flexGrow: 1,
     padding: spacing.screen,
     gap: spacing.md,
     paddingBottom: 40

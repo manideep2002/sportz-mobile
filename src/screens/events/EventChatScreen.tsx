@@ -67,8 +67,12 @@ export function EventChatScreen() {
       </View>
       {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
       <ScrollView
+        style={styles.messagesScroller}
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        bounces
+        overScrollMode="always"
         refreshControl={
           <AppRefreshControl
             refreshing={isRefetching}
@@ -145,7 +149,11 @@ const styles = StyleSheet.create({
   stateText: {
     textAlign: 'center'
   },
+  messagesScroller: {
+    flex: 1
+  },
   messages: {
+    flexGrow: 1,
     paddingVertical: spacing.md,
     gap: spacing.sm
   },

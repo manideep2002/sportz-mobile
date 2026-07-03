@@ -154,7 +154,10 @@ export function NotificationsScreen() {
         data={filteredNotifications}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={filteredNotifications.length === 0 ? styles.emptyListContent : undefined}
+        alwaysBounceVertical
+        bounces
+        overScrollMode="always"
+        contentContainerStyle={[styles.listContent, filteredNotifications.length === 0 ? styles.emptyListContent : null]}
         refreshControl={
           <AppRefreshControl
             refreshing={refreshing || isRefetching}
@@ -219,6 +222,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     paddingTop: spacing.sm,
     alignItems: 'flex-start'
+  },
+  listContent: {
+    flexGrow: 1
   },
   emptyListContent: {
     flexGrow: 1

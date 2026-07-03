@@ -242,8 +242,12 @@ export function ChatScreen() {
         </View>
       </BottomSheet>
       <ScrollView
+        style={styles.messagesScroller}
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        bounces
+        overScrollMode="always"
         refreshControl={
           <AppRefreshControl
             refreshing={conversationRefetching || messagesRefetching}
@@ -340,7 +344,11 @@ const styles = StyleSheet.create({
   online: {
     color: colors.semantic.success
   },
+  messagesScroller: {
+    flex: 1
+  },
   messages: {
+    flexGrow: 1,
     paddingVertical: 16,
     gap: spacing.sm
   },

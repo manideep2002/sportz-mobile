@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshControl, type RefreshControlProps } from 'react-native';
+import { Platform, RefreshControl, type RefreshControlProps } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 
 interface AppRefreshControlProps extends Omit<RefreshControlProps, 'refreshing' | 'onRefresh'> {
   refreshing?: boolean;
@@ -17,10 +18,18 @@ export function AppRefreshControl({
   refreshing = false,
   onRefresh,
   minVisibleMs = DEFAULT_MIN_VISIBLE_MS,
+  progressViewOffset,
+  tintColor = colors.orange[500],
+  colors: indicatorColors = [colors.orange[500], colors.light[0]],
+  progressBackgroundColor = colors.dark[800],
+  enabled = true,
+  size = Platform.OS === 'android' ? 1 : undefined,
   ...props
 }: AppRefreshControlProps) {
+  const insets = useSafeAreaInsets();
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const mountedRef = useRef(true);
+  const indicatorOffset = progressViewOffset ?? Math.max(insets.top + spacing.md, spacing.xl);
 
   useEffect(() => {
     return () => {
@@ -53,8 +62,13 @@ export function AppRefreshControl({
     <RefreshControl
       refreshing={refreshing || localRefreshing}
       onRefresh={handleRefresh}
-      tintColor={colors.orange[500]}
-      colors={[colors.orange[500]]}
+      enabled={enabled}
+      tintColor={tintColor}
+      titleColor={tintColor}
+      colors={indicatorColors}
+      progressBackgroundColor={progressBackgroundColor}
+      progressViewOffset={indicatorOffset}
+      size={size}
       {...props}
     />
   );

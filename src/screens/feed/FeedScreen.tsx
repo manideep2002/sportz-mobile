@@ -90,6 +90,9 @@ export function FeedScreen() {
         data={filteredFeed}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        bounces
+        overScrollMode="always"
         contentContainerStyle={styles.listContent}
         refreshControl={
           <AppRefreshControl
@@ -235,6 +238,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[950]
   },
   listContent: {
+    flexGrow: 1,
     paddingTop: 52,
     paddingBottom: 104
   },
