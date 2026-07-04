@@ -137,23 +137,23 @@ function PostCardComponent({
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'} style={styles.action} onPress={(event) => runAction(event, onLike)}>
               <Heart
-                size={17}
+                size={22}
                 color={post.likedByMe ? colors.orange[400] : colors.text.tertiary}
                 fill={post.likedByMe ? colors.orange[400] : 'transparent'}
               />
               <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
-              <MessageCircle size={17} color={colors.text.tertiary} />
+              <MessageCircle size={22} color={colors.text.tertiary} />
               <AppText style={styles.actionText}>{post.comments}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
-              <Share2 size={17} color={colors.text.tertiary} />
+              <Share2 size={22} color={colors.text.tertiary} />
               <AppText style={styles.actionText}>{post.shares}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
               <Bookmark
-                size={17}
+                size={22}
                 color={post.savedByMe ? colors.orange[400] : colors.text.tertiary}
                 fill={post.savedByMe ? colors.orange[400] : 'transparent'}
               />
@@ -162,11 +162,7 @@ function PostCardComponent({
               <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
                 View Athlete
               </Button>
-            ) : (
-              <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onPrimaryAction)}>
-                <AppText style={styles.reply}>{post.kind === 'thread' ? 'Reply' : 'Comment'}</AppText>
-              </Pressable>
-            )}
+            ) : null}
           </View>
           <View style={styles.footer}>
             <AppText variant="bodyMuted">
@@ -303,31 +299,27 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
+    gap: 24,
     paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 6
+    paddingTop: 12,
+    paddingBottom: 10
   },
   action: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5
+    gap: 6,
+    minHeight: 44,
+    justifyContent: 'center'
   },
   actionText: {
     color: colors.text.tertiary,
-    fontSize: 12
+    fontSize: 13
   },
   actionActive: {
     color: colors.orange[400]
   },
   join: {
     marginLeft: 'auto'
-  },
-  reply: {
-    marginLeft: 'auto',
-    color: colors.orange[400],
-    fontSize: 12,
-    fontFamily: typography.bodyBold
   },
   footer: {
     paddingHorizontal: 14,
