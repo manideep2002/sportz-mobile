@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-na
 import { ChevronLeft } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCancelEvent, useEvent, useEventWaitlist, useRemoveEventAttendee, useUpdateEvent } from '@/hooks/useEvents';
@@ -154,7 +154,7 @@ export function ManageEventScreen() {
               <View key={attendee.id} style={styles.attendee}>
                 <Avatar initials={attendee.initials} uri={attendee.avatarUrl} size={38} />
                 <View style={{ flex: 1 }}>
-                  <AppText style={styles.attendeeName}>{attendee.displayName}</AppText>
+                  <VerifiedName profile={attendee} style={styles.attendeeName} numberOfLines={1} />
                   <AppText variant="small">@{attendee.username}</AppText>
                 </View>
                 {attendee.id !== event.organizer.id ? (
@@ -183,7 +183,7 @@ export function ManageEventScreen() {
               <View key={entry.id} style={styles.attendee}>
                 <Avatar initials={entry.user.initials} uri={entry.user.avatarUrl} size={38} />
                 <View style={{ flex: 1 }}>
-                  <AppText style={styles.attendeeName}>{entry.user.displayName}</AppText>
+                  <VerifiedName profile={entry.user} style={styles.attendeeName} numberOfLines={1} />
                   <AppText variant="small">@{entry.user.username}</AppText>
                 </View>
               </View>

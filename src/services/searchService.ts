@@ -12,7 +12,7 @@ export const searchService = {
     const [profiles, sportEvents, sportCourts, communities] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, display_name, primary_sport, city')
+        .select('id, display_name, primary_sport, city, skill_level')
         .or(`display_name.ilike.${pattern},username.ilike.${pattern},primary_sport.ilike.${pattern}`)
         .limit(10),
       supabase
@@ -42,7 +42,8 @@ export const searchService = {
         id: profile.id,
         type: 'player' as const,
         title: profile.display_name,
-        subtitle: `${profile.primary_sport ?? 'Athlete'} - ${profile.city ?? ''}`
+        subtitle: `${profile.primary_sport ?? 'Athlete'} - ${profile.city ?? ''}`,
+        skillLevel: profile.skill_level
       })),
       ...(sportEvents.data ?? []).map((event) => ({
         id: event.id,

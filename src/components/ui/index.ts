@@ -14,3 +14,4 @@ export * from './Screen';
 export * from './SectionHeader';
 export * from './SegmentedControl';
 export * from './StatCard';
+export * from './VerifiedName';

@@ -41,7 +41,7 @@ export interface ProfileStats {
 
 export interface Story {
   id: ID;
-  user: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl'>;
+  user: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl' | 'skillLevel'>;
   mediaUrl?: string | null;
   body?: string | null;
   seen: boolean;
@@ -208,4 +208,5 @@ export interface SearchResult {
   type: 'player' | 'event' | 'group' | 'page' | 'court';
   title: string;
   subtitle: string;
+  skillLevel?: SkillLevel;
 }

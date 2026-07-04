@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen, VerifiedName } from '@/components/ui';
 
 import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -190,7 +190,7 @@ export function EventDetailScreen() {
         <View style={styles.organizer}>
           <Avatar initials={event.organizer.initials} uri={event.organizer.avatarUrl} size={44} />
           <View style={{ flex: 1 }}>
-            <AppText style={styles.organizerName}>{event.organizer.displayName}</AppText>
+            <VerifiedName profile={event.organizer} style={styles.organizerName} numberOfLines={1} />
             <AppText variant="small">Event organizer</AppText>
           </View>
           <Button variant="dark" size="sm" onPress={() => navigation.navigate('UserProfile', { userId: event.organizer.id })}>

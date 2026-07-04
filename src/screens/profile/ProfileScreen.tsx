@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
 
 import { colors, spacing, typography } from '@/design/tokens';
@@ -80,7 +80,7 @@ export function ProfileScreen() {
       <View style={styles.profileInfo}>
         <View style={styles.nameRow}>
           <View style={{ flex: 1 }}>
-            <AppText variant="h1" style={styles.name}>{profile.displayName}</AppText>
+            <VerifiedName profile={profile} variant="h1" style={styles.name} badgeSize={19} />
             <AppText variant="bodyMuted">@{profile.username} · {profile.city}, {profile.country}</AppText>
           </View>
           <Button size="sm" onPress={() => navigation.navigate('EditProfile')}>Edit Profile</Button>

@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-nat
 import { ChevronLeft, Users } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -109,7 +109,7 @@ export function FollowersScreen() {
         >
           <Avatar initials={profile.initials} uri={profile.avatarUrl} size={48} online={profile.isOnline} />
           <View style={styles.meta}>
-            <AppText style={styles.name}>{profile.displayName}</AppText>
+            <VerifiedName profile={profile} style={styles.name} numberOfLines={1} />
             <AppText variant="small">@{profile.username} - {profile.primarySport}</AppText>
           </View>
           {profile.id !== currentUserId ? (

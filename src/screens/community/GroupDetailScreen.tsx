@@ -7,7 +7,7 @@ import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity } from '@/hooks/useCommunities';
@@ -183,7 +183,7 @@ export function GroupDetailScreen() {
                 >
                   <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
                   <View style={{ flex: 1 }}>
-                    <AppText style={styles.inviteName}>{player.displayName}</AppText>
+                    <VerifiedName profile={player} style={styles.inviteName} numberOfLines={1} />
                     <AppText variant="small">@{player.username}</AppText>
                   </View>
                 </Pressable>

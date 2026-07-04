@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { ChevronLeft, ShieldAlert } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -83,7 +83,7 @@ export function ModerationScreen() {
           <View style={styles.reporter}>
             <Avatar initials={report.reporter.initials} uri={report.reporter.avatarUrl} size={34} />
             <View style={{ flex: 1 }}>
-              <AppText style={styles.reporterName}>{report.reporter.displayName}</AppText>
+              <VerifiedName profile={report.reporter} style={styles.reporterName} numberOfLines={1} />
               <AppText variant="small">@{report.reporter.username}</AppText>
             </View>
           </View>

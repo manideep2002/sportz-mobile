@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Lock } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -89,7 +89,7 @@ export function PrivacyScreen() {
         <View key={user.id} style={styles.blockedRow}>
           <Avatar initials={user.initials} uri={user.avatarUrl} size={42} />
           <View style={{ flex: 1 }}>
-            <AppText style={styles.itemLabel}>{user.displayName}</AppText>
+            <VerifiedName profile={user} style={styles.itemLabel} numberOfLines={1} />
             <AppText variant="small">@{user.username}</AppText>
           </View>
           <Button

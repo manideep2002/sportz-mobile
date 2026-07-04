@@ -8,7 +8,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, S
 import { ChatOptionsSheet } from '@/components/messages/ChatOptionsSheet';
 import { MessageBubble } from '@/components/messages/MessageBubble';
 
-import { AppRefreshControl, AppText, Avatar, BottomSheet, Button, IconButton } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, BottomSheet, Button, IconButton, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation, useConversationMessages, useMarkConversationRead, useSendMessage } from '@/hooks/useMessages';
@@ -206,7 +206,11 @@ export function ChatScreen() {
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <Avatar initials={headerInitials} uri={otherParticipant?.avatarUrl} size={40} online={showOnlineStatus} />
         <View style={{ flex: 1 }}>
-          <AppText style={styles.title}>{headerTitle}</AppText>
+          {!conversation?.isGroup && otherParticipant ? (
+            <VerifiedName profile={otherParticipant} style={styles.title} numberOfLines={1} />
+          ) : (
+            <AppText style={styles.title} numberOfLines={1}>{headerTitle}</AppText>
+          )}
           <AppText style={[styles.status, showOnlineStatus ? styles.online : null]}>{statusLabel}</AppText>
         </View>
         <IconButton icon={MoreVertical} accessibilityLabel="Chat options" onPress={() => setOptionsOpen(true)} />

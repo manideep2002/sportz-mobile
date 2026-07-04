@@ -6,7 +6,7 @@ import { ChevronLeft, Send } from 'lucide-react-native';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -99,7 +99,7 @@ export function EventChatScreen() {
             <View key={message.id} style={[styles.messageRow, mine ? styles.mineRow : null]}>
               {!mine ? <Avatar initials={message.sender.initials} uri={message.sender.avatarUrl} size={32} /> : null}
               <View style={[styles.bubble, mine ? styles.mine : styles.them]}>
-                {!mine ? <AppText style={styles.sender}>{message.sender.displayName}</AppText> : null}
+                {!mine ? <VerifiedName profile={message.sender} style={styles.sender} numberOfLines={1} /> : null}
                 <AppText style={[styles.messageText, mine ? styles.mineText : null]}>{message.body}</AppText>
                 <AppText style={[styles.time, mine ? styles.mineText : null]}>{formatTime(message.createdAt)}</AppText>
               </View>

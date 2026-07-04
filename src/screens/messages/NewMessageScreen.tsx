@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Check, ChevronLeft, Search, Users } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
@@ -118,7 +118,7 @@ export function NewMessageScreen() {
           <View style={styles.selectedChips}>
             {selected.map((player) => (
               <Pressable key={player.id} style={styles.chip} onPress={() => toggleSelected(player)}>
-                <AppText style={styles.chipText}>{player.displayName}</AppText>
+                <VerifiedName profile={player} style={styles.chipText} badgeSize={13} numberOfLines={1} />
               </Pressable>
             ))}
           </View>
@@ -136,7 +136,7 @@ export function NewMessageScreen() {
               <Pressable style={styles.playerPressArea} onPress={() => toggleSelected(player)}>
                 <Avatar initials={player.initials} uri={player.avatarUrl} size={44} />
                 <View style={styles.playerMeta}>
-                  <AppText style={styles.playerName}>{player.displayName}</AppText>
+                  <VerifiedName profile={player} style={styles.playerName} numberOfLines={1} />
                   <AppText variant="small">@{player.username} - {player.primarySport}</AppText>
                 </View>
               </Pressable>

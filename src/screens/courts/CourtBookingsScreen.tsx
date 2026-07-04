@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { CalendarCheck, ChevronLeft } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCourtBookings, useUpdateCourtBookingStatus } from '@/hooks/useCourts';
@@ -82,7 +82,7 @@ export function CourtBookingsScreen() {
           <View style={styles.userRow}>
             <Avatar initials={booking.user.initials} uri={booking.user.avatarUrl} size={36} />
             <View style={{ flex: 1 }}>
-              <AppText style={styles.userName}>{booking.user.displayName}</AppText>
+              <VerifiedName profile={booking.user} style={styles.userName} numberOfLines={1} />
               <AppText variant="small">{eventDate(booking.startsAt)} - {formatTime(booking.startsAt)} to {formatTime(booking.endsAt)}</AppText>
             </View>
           </View>

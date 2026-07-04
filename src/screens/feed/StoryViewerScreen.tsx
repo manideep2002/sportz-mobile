@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Trash2, X } from 'lucide-react-native';
 import { Alert, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Avatar, IconButton, ProgressBar } from '@/components/ui';
+import { AppText, Avatar, IconButton, ProgressBar, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -171,9 +171,16 @@ export function StoryViewerScreen() {
         <View style={styles.authorRow}>
           <Avatar initials={story?.user.initials ?? 'ME'} uri={story?.user.avatarUrl} size={38} />
           <View style={styles.authorMeta}>
-            <AppText style={styles.authorName}>
-              {story?.user.displayName ?? 'My Story'}
-            </AppText>
+            {story ? (
+              <VerifiedName
+                profile={story.user}
+                style={styles.authorName}
+                color={colors.light[0]}
+                numberOfLines={1}
+              />
+            ) : (
+              <AppText style={styles.authorName}>My Story</AppText>
+            )}
             {story ? (
               <AppText style={styles.time}>{timeAgo(story.createdAt)}</AppText>
             ) : null}
@@ -199,7 +206,16 @@ export function StoryViewerScreen() {
       {!displayMediaUrl ? (
         <View pointerEvents="none" style={styles.placeholder}>
           <Avatar initials={story?.user.initials ?? 'ST'} uri={story?.user.avatarUrl} size={96} />
-          <AppText variant="h2">{story?.user.displayName ?? 'Story unavailable'}</AppText>
+          {story ? (
+            <VerifiedName
+              profile={story.user}
+              variant="h2"
+              color={colors.light[0]}
+              badgeSize={17}
+            />
+          ) : (
+            <AppText variant="h2">Story unavailable</AppText>
+          )}
           <AppText variant="bodyMuted">
             {story
               ? 'Media unavailable'

@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
+import { AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 import { postSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost, usePost, useUpdatePost } from '@/hooks/useFeed';
@@ -164,7 +164,11 @@ export function CreatePostScreen() {
         <View style={styles.author}>
           <Avatar initials={profile?.initials ?? '??'} uri={profile?.avatarUrl} size={42} />
           <View style={styles.authorMeta}>
-            <AppText style={styles.authorName}>{profile?.displayName ?? 'Athlete'}</AppText>
+            {profile ? (
+              <VerifiedName profile={profile} style={styles.authorName} numberOfLines={1} />
+            ) : (
+              <AppText style={styles.authorName}>Athlete</AppText>
+            )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {visibilityOptions.map((item) => (
                 <Chip key={item} selected={item === visibility} onPress={() => setVisibility(item)}>
@@ -281,7 +285,7 @@ export function CreatePostScreen() {
               >
                 <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
                 <View style={styles.tagOptionMeta}>
-                  <AppText style={styles.authorName}>{user.displayName}</AppText>
+                  <VerifiedName profile={user} style={styles.authorName} numberOfLines={1} />
                   <AppText variant="small">@{user.username}</AppText>
                 </View>
                 <AppText color={colors.orange[400]}>Tag</AppText>
@@ -295,7 +299,7 @@ export function CreatePostScreen() {
               >
                 <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
                 <View style={styles.tagOptionMeta}>
-                  <AppText style={styles.authorName}>{user.displayName}</AppText>
+                  <VerifiedName profile={user} style={styles.authorName} numberOfLines={1} />
                   <AppText variant="small">@{user.username}</AppText>
                 </View>
                 <AppText color={colors.text.tertiary}>Remove</AppText>

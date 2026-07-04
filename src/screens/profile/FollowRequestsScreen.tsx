@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-nat
 import { ChevronLeft, UserPlus } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -78,7 +78,7 @@ export function FollowRequestsScreen() {
           >
             <Avatar initials={request.requester.initials} uri={request.requester.avatarUrl} size={46} />
             <View style={styles.meta}>
-              <AppText style={styles.name}>{request.requester.displayName}</AppText>
+              <VerifiedName profile={request.requester} style={styles.name} numberOfLines={1} />
               <AppText variant="small">@{request.requester.username} - {timeAgo(request.createdAt)}</AppText>
             </View>
           </Pressable>

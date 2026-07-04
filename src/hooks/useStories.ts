@@ -20,7 +20,7 @@ export const useCreateStories = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ assets, author, body }: { assets: ImagePickerAsset[]; author: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl'>; body?: string }) =>
+    mutationFn: ({ assets, author, body }: { assets: ImagePickerAsset[]; author: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl' | 'skillLevel'>; body?: string }) =>
       storyService.createStories(assets, author, body),
     onSuccess: (createdStories) => {
       queryClient.setQueryData<Story[]>(storyKeys.all, (old = []) => [

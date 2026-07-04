@@ -5,7 +5,7 @@ import { ChevronLeft, Search } from 'lucide-react-native';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useSearch, useTrendingTags } from '@/hooks/useSearch';
@@ -107,7 +107,15 @@ export function SearchScreen() {
         >
           <Avatar initials={result.title.slice(0, 2).toUpperCase()} size={46} tone={index % 2 === 0 ? 'orange' : 'green'} />
           <View style={styles.resultMeta}>
-            <AppText style={styles.resultTitle}>{result.title}</AppText>
+            {result.type === 'player' ? (
+              <VerifiedName
+                profile={{ displayName: result.title, skillLevel: result.skillLevel ?? 'Intermediate' }}
+                style={styles.resultTitle}
+                numberOfLines={1}
+              />
+            ) : (
+              <AppText style={styles.resultTitle} numberOfLines={1}>{result.title}</AppText>
+            )}
             <AppText variant="small">{result.subtitle}</AppText>
           </View>
           <Badge tone={result.type === 'event' ? 'green' : 'dark'}>{result.type}</Badge>

@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
-import { Avatar, Badge, Button, Card, AppText, MediaViewerModal } from '@/components/ui';
+import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
 import { CourtArt } from './CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
@@ -50,7 +50,7 @@ function PostCardComponent({
               <Avatar initials={post.author.initials} uri={post.author.avatarUrl} size={40} tone="orange" online={post.author.isOnline} />
             </Pressable>
             <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
-              <AppText style={styles.authorName}>{post.author.displayName}</AppText>
+              <VerifiedName profile={post.author} style={styles.authorName} numberOfLines={1} />
               <AppText variant="small">
                 {post.sport} - {timeAgo(post.createdAt)}
               </AppText>

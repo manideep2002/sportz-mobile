@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
@@ -230,7 +230,7 @@ export function UserProfileScreen() {
       <View style={styles.body}>
         <View style={styles.nameRow}>
           <View style={{ flex: 1 }}>
-            <AppText variant="h2">{profile.displayName}</AppText>
+            <VerifiedName profile={profile} variant="h2" badgeSize={17} />
             <AppText variant="bodyMuted">
               @{profile.username} - {profile.city}
               {profile.country ? `, ${profile.country}` : ''}

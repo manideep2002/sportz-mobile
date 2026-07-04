@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
@@ -177,7 +177,7 @@ export function PostDetailScreen() {
             <Avatar initials={comment.author.initials} uri={comment.author.avatarUrl} size={36} tone="green" />
           </Pressable>
           <View style={styles.commentBody}>
-            <AppText style={styles.commentAuthor}>{comment.author.displayName}</AppText>
+            <VerifiedName profile={comment.author} style={styles.commentAuthor} numberOfLines={1} />
             <AppText variant="bodyMuted">{comment.body}</AppText>
             <Pressable
               style={styles.commentLike}
@@ -204,9 +204,16 @@ export function PostDetailScreen() {
                 setCommentBody('');
               }}
             >
-              <AppText variant="small" style={styles.replyingTo}>
-                Replying to {replyingTo.author.displayName}
-              </AppText>
+              <View style={styles.replyingToRow}>
+                <AppText variant="small" style={styles.replyingTo}>Replying to</AppText>
+                <VerifiedName
+                  profile={replyingTo.author}
+                  variant="small"
+                  style={styles.replyingTo}
+                  badgeSize={12}
+                  numberOfLines={1}
+                />
+              </View>
             </Pressable>
           ) : null}
           <Input
@@ -326,6 +333,12 @@ const styles = StyleSheet.create({
   },
   replyingTo: {
     color: colors.orange[300],
+    marginBottom: 4
+  },
+  replyingToRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
     marginBottom: 4
   }
 });

@@ -5,7 +5,7 @@ import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -135,7 +135,7 @@ export function FindPlayersScreen() {
           <View style={styles.playerTop}>
             <Avatar initials={player.initials} uri={player.avatarUrl} size={54} online={player.isOnline} />
             <View style={{ flex: 1 }}>
-              <AppText style={styles.playerName}>{player.displayName}</AppText>
+              <VerifiedName profile={player} style={styles.playerName} numberOfLines={1} />
               <AppText variant="small">{player.primarySport} - {player.position}</AppText>
               <View style={styles.badges}>
                 <Badge tone={player.skillLevel === 'Pro' ? 'orange' : 'dark'}>{player.skillLevel}</Badge>

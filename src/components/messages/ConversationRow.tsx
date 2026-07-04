@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar } from '@/components/ui';
+import { AppText, Avatar, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Conversation } from '@/types/domain';
 import { getOtherParticipant } from '@/utils/conversation';
@@ -27,7 +27,11 @@ export function ConversationRow({ conversation, currentUserId, onPress }: Conver
       />
       <View style={styles.meta}>
         <View style={styles.titleRow}>
-          <AppText style={styles.title}>{title}</AppText>
+          {!conversation.isGroup && other ? (
+            <VerifiedName profile={other} style={styles.title} containerStyle={styles.titleName} numberOfLines={1} />
+          ) : (
+            <AppText style={styles.title} numberOfLines={1}>{title}</AppText>
+          )}
           <AppText variant="small">{timeAgo(conversation.lastMessageAt).replace(' ago', '')}</AppText>
         </View>
         <AppText variant="bodyMuted" numberOfLines={1}>
@@ -64,7 +68,12 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
-    fontSize: 15
+    fontSize: 15,
+    flexShrink: 1
+  },
+  titleName: {
+    flex: 1,
+    marginRight: spacing.xs
   },
   badge: {
     minWidth: 20,
