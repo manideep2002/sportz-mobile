@@ -1,11 +1,13 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { CalendarDays, Grid2X2, MessageCircle, Plus, UserRound, type LucideIcon } from 'lucide-react-native';
+import { CalendarDays, Grid2X2, MessageCircle, Plus, type LucideIcon } from 'lucide-react-native';
 import { Pressable, StyleSheet, View, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 
+import { Avatar } from '@/components/ui';
 import { colors, layout, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import type { MainTabParamList } from './routes';
 import { FeedScreen } from '@/screens/feed/FeedScreen';
@@ -81,7 +83,7 @@ export function MainTabs() {
            component={ProfileScreen}
            options={{
              title: 'Profile',
-             tabBarIcon: TabIcon(UserRound),
+             tabBarIcon: ProfileTabIcon,
              tabBarBadge: unreadNotifications ? '' : undefined,
              tabBarBadgeStyle: styles.dotBadge
            }}
@@ -101,6 +103,18 @@ const TabIcon = (Icon: LucideIcon) => {
   Component.displayName = `TabIcon(${typeof Icon === 'function' ? Icon.name ?? 'icon' : 'icon'})`;
   return Component;
 };
+
+function ProfileTabIcon({ focused }: { color: string; focused: boolean }) {
+  const profile = useAuthStore((state) => state.profile);
+
+  return (
+    <View style={[styles.iconWrap, focused ? styles.iconActive : null]}>
+      <View style={[styles.profileAvatarFrame, focused ? styles.profileAvatarFrameActive : null]}>
+        <Avatar initials={profile?.initials ?? '??'} uri={profile?.avatarUrl} size={25} />
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   tabBar: {
@@ -165,6 +179,18 @@ const styles = StyleSheet.create({
     // Subtle inner border for the capsule rim
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.18)',
+  },
+  profileAvatarFrame: {
+    width: 29,
+    height: 29,
+    borderRadius: 14.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.18)'
+  },
+  profileAvatarFrameActive: {
+    borderColor: colors.orange[500]
   },
   label: {
     fontFamily: typography.bodyMedium,

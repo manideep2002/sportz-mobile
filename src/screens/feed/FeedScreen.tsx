@@ -10,7 +10,7 @@ import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { StoryRail } from '@/components/feed/StoryRail';
 
-import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
+import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
 
 import { sportsFilters } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
@@ -115,9 +115,6 @@ export function FeedScreen() {
         </View>
         <View style={styles.topActions}>
           <IconButton icon={Bell} accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => navigation.navigate('MainTabs', { screen: 'ProfileTab' })}>
-            <Avatar initials={profile?.initials ?? 'MK'} uri={profile?.avatarUrl} online size={40} />
-          </Pressable>
         </View>
       </View>
 
