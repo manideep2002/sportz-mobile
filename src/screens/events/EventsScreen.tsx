@@ -118,6 +118,7 @@ export function EventsScreen() {
       {/* Dynamic 7-day calendar strip */}
       <ScrollView
         horizontal
+        style={styles.horizontalScroller}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.calendar}
       >
@@ -148,6 +149,7 @@ export function EventsScreen() {
       {/* Sport filter chips */}
       <ScrollView
         horizontal
+        style={styles.horizontalScroller}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filters}
       >
@@ -267,6 +269,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   calendar: {
     paddingHorizontal: spacing.screen,
