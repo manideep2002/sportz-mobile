@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Button, Chip, IconButton, Input } from '@/components/ui';
+import { AppText, Avatar, BottomSheet, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -34,6 +34,8 @@ export function EditProfileScreen() {
   const [coverUrl, setCoverUrl] = useState(profile?.coverUrl ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profilePhotoSheetOpen, setProfilePhotoSheetOpen] = useState(false);
+  const hasProfilePhoto = Boolean(avatarUrl || profile?.avatarUrl);
 
   const uploadProfileMedia = async (kind: 'avatar' | 'cover') => {
     if (!profile) return;
@@ -54,6 +56,37 @@ export function EditProfileScreen() {
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Could not update media.');
     }
+  };
+
+  const removeProfilePhoto = async () => {
+    if (!profile || !hasProfilePhoto) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      await profileService.updateProfile(profile.id, { avatarUrl: null });
+      setAvatarUrl(null);
+      setProfile({ ...profile, avatarUrl: null });
+      setProfilePhotoSheetOpen(false);
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : 'Could not remove profile photo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const showProfilePhotoOptions = () => {
+    setError(null);
+    setProfilePhotoSheetOpen(true);
+  };
+
+  const chooseNewProfilePhoto = () => {
+    setProfilePhotoSheetOpen(false);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        void uploadProfileMedia('avatar');
+      }, 100);
+    });
   };
 
   const handleSave = async () => {
@@ -91,13 +124,15 @@ export function EditProfileScreen() {
         <Button size="sm" loading={saving} onPress={handleSave}>Save</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Pressable style={styles.avatarEdit} onPress={() => void uploadProfileMedia('avatar')} accessibilityRole="button" accessibilityLabel="Change profile photo">
-          <Avatar initials={profile?.initials ?? 'MK'} uri={avatarUrl} size={84} />
-          <View style={styles.camera}>
-            <Camera size={14} color={colors.light[0]} />
-          </View>
-        </Pressable>
-        <Button variant="ghost" size="sm" style={styles.coverButton} onPress={() => void uploadProfileMedia('cover')}>Change Cover Photo</Button>
+        <View style={styles.avatarContainer}>
+          <Pressable style={styles.avatarEdit} onPress={showProfilePhotoOptions} accessibilityRole="button" accessibilityLabel="Change profile photo">
+            <Avatar initials={profile?.initials ?? 'MK'} uri={avatarUrl} size={84} />
+            <View style={styles.camera}>
+              <Camera size={14} color={colors.light[0]} />
+            </View>
+          </Pressable>
+        </View>
+        <Button variant="ghost" size="sm" style={styles.photoButton} onPress={showProfilePhotoOptions}>Change Profile Photo</Button>
         {error ? <AppText style={styles.error}>{error}</AppText> : null}
         <Input label="Display Name" value={displayName} onChangeText={setDisplayName} />
         <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
@@ -117,6 +152,23 @@ export function EditProfileScreen() {
           ))}
         </ScrollView>
       </ScrollView>
+      <BottomSheet open={profilePhotoSheetOpen} title="Profile Photo" onClose={() => setProfilePhotoSheetOpen(false)}>
+        <View style={styles.photoSheet}>
+          <Button
+            variant="dark"
+            full
+            disabled={saving}
+            onPress={chooseNewProfilePhoto}
+          >
+            Choose New Photo
+          </Button>
+          {hasProfilePhoto ? (
+            <Button variant="danger" full loading={saving} onPress={() => void removeProfilePhoto()}>
+              Remove Photo
+            </Button>
+          ) : null}
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -139,8 +191,11 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingBottom: 40
   },
-  avatarEdit: {
+  avatarContainer: {
     alignSelf: 'center',
+    position: 'relative'
+  },
+  avatarEdit: {
     position: 'relative'
   },
   camera: {
@@ -156,8 +211,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.dark[950]
   },
-  coverButton: {
+  photoButton: {
     alignSelf: 'center'
+  },
+  photoSheet: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm
   },
   label: {
     color: colors.text.tertiary,
