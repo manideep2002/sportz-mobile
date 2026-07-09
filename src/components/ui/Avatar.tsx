@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
 import { colors, typography } from '@/design/tokens';
+import { mediaVariants } from '@/utils/mediaOptimization';
 
 type AvatarTone = 'orange' | 'green' | 'blue' | 'pink' | 'yellow' | 'dark';
 
@@ -26,8 +27,16 @@ const gradients: Record<AvatarTone, [string, string]> = {
 
 export function Avatar({ initials, size = 42, tone = 'orange', online = false, uri }: AvatarProps) {
   const [imageError, setImageError] = useState(false);
+  const [useOriginalUri, setUseOriginalUri] = useState(false);
+  const optimizedUri = mediaVariants.avatar(uri, size);
+  const imageUri = useOriginalUri ? uri : optimizedUri;
 
-  const showFallback = !uri || imageError;
+  useEffect(() => {
+    setImageError(false);
+    setUseOriginalUri(false);
+  }, [uri]);
+
+  const showFallback = !imageUri || imageError;
 
   return (
     <View style={{ width: size, height: size }}>
@@ -37,9 +46,15 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
         </LinearGradient>
       ) : (
         <Image
-          source={{ uri }}
+          source={{ uri: imageUri }}
           style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
-          onError={() => setImageError(true)}
+          onError={() => {
+            if (!useOriginalUri && uri && optimizedUri !== uri) {
+              setUseOriginalUri(true);
+              return;
+            }
+            setImageError(true);
+          }}
         />
       )}
       {online ? <View style={[styles.online, { width: size * 0.24, height: size * 0.24, borderRadius: size * 0.12 }]} /> : null}

@@ -3,6 +3,7 @@
 - Use native lists (`FlatList`) for high-volume feeds, search results, comments, and messages.
 - Keep heavy media outside React render trees and cache using CDN URLs from Supabase Storage.
 - Use image thumbnails for feed cards and full media only on detail screens.
+- Never render raw Supabase image uploads directly in hot paths; use `mediaVariants` to request transformed CDN URLs for avatars, feed images, stories, event covers, messages, and full-screen viewers.
 - Service reads use cache-aside through `hotCacheService`: memory first, persisted TTL cache second, then Supabase, with write-back before returning.
 - Keep cache TTLs short for mutable objects: session lookups are memory-only, profiles are cached for minutes, and post details are cached briefly per viewer.
 - Keep realtime subscriptions scoped to the active conversation/event.

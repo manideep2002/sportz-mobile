@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
@@ -7,6 +7,7 @@ import { CourtArt } from './CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
+import { mediaVariants } from '@/utils/mediaOptimization';
 
 interface PostCardProps {
   post: Post;
@@ -36,6 +37,15 @@ function PostCardComponent({
   const [mediaLoading, setMediaLoading] = useState(Boolean(post.mediaUrl));
   const [mediaError, setMediaError] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [useRawMedia, setUseRawMedia] = useState(false);
+  const feedImageUrl = mediaVariants.feedImage(post.mediaUrl);
+  const mediaImageUrl = (useRawMedia ? post.mediaUrl : feedImageUrl) ?? post.mediaUrl ?? '';
+
+  useEffect(() => {
+    setMediaLoading(Boolean(post.mediaUrl));
+    setMediaError(false);
+    setUseRawMedia(false);
+  }, [post.mediaUrl]);
   const runAction = (event: GestureResponderEvent, action?: () => void) => {
     event.stopPropagation();
     action?.();
@@ -85,10 +95,15 @@ function PostCardComponent({
                 </View>
               ) : (
                 <Image
-                  source={{ uri: post.mediaUrl }}
+                  source={{ uri: mediaImageUrl }}
                   style={styles.mediaImage}
                   onLoadEnd={() => setMediaLoading(false)}
                   onError={() => {
+                    if (!useRawMedia && post.mediaUrl && feedImageUrl !== post.mediaUrl) {
+                      setUseRawMedia(true);
+                      setMediaLoading(true);
+                      return;
+                    }
                     setMediaLoading(false);
                     setMediaError(true);
                   }}

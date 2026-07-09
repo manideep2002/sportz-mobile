@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, CheckCheck, Clock } from 'lucide-react-native';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
@@ -6,6 +6,7 @@ import { AppText, Avatar, MediaViewerModal } from '@/components/ui';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { Message, UserProfile } from '@/types/domain';
 import { formatTime } from '@/utils/format';
+import { mediaVariants } from '@/utils/mediaOptimization';
 import { getMessageReadStatus, type MessageReadStatus } from '@/utils/messages';
 
 interface MessageBubbleProps {
@@ -47,10 +48,17 @@ function ReadReceipt({ status }: { status: MessageReadStatus }) {
 
 export function MessageBubble({ message, currentUserId, recipientId, sender, onLongPress }: MessageBubbleProps) {
   const [mediaViewerOpen, setMediaViewerOpen] = useState(false);
+  const [useRawMedia, setUseRawMedia] = useState(false);
   const mine = message.senderId === currentUserId;
   const readStatus = mine ? getMessageReadStatus(message, currentUserId, recipientId) : null;
   const mediaUrl = message.body.match(/^\[media:(.+)\]$/)?.[1];
+  const optimizedMediaUrl = mediaVariants.messageImage(mediaUrl);
+  const imageUri = useRawMedia ? mediaUrl : optimizedMediaUrl ?? mediaUrl;
   const location = message.body.match(/^\[location:([-\d.]+),([-\d.]+)\]$/);
+
+  useEffect(() => {
+    setUseRawMedia(false);
+  }, [mediaUrl]);
 
   return (
     <>
@@ -60,7 +68,15 @@ export function MessageBubble({ message, currentUserId, recipientId, sender, onL
           <Pressable style={[styles.bubble, mine ? styles.mine : styles.them]} onLongPress={onLongPress}>
             {mediaUrl ? (
               <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open image" onPress={() => setMediaViewerOpen(true)}>
-                <Image source={{ uri: mediaUrl }} style={styles.media} />
+                <Image
+                  source={{ uri: imageUri }}
+                  style={styles.media}
+                  onError={() => {
+                    if (!useRawMedia && optimizedMediaUrl !== mediaUrl) {
+                      setUseRawMedia(true);
+                    }
+                  }}
+                />
               </Pressable>
             ) : location ? (
               <Pressable onPress={() => void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${location[1]},${location[2]}`)}>

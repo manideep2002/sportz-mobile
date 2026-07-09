@@ -1,7 +1,9 @@
 import { X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors, spacing } from '@/design/tokens';
+import { mediaVariants } from '@/utils/mediaOptimization';
 import { IconButton } from './IconButton';
 
 interface MediaViewerModalProps {
@@ -11,15 +13,32 @@ interface MediaViewerModalProps {
 }
 
 export function MediaViewerModal({ visible, uri, onClose }: MediaViewerModalProps) {
+  const [useRawUri, setUseRawUri] = useState(false);
+  const optimizedUri = mediaVariants.fullImage(uri);
+  const imageUri = useRawUri ? uri : optimizedUri;
+
+  useEffect(() => {
+    setUseRawUri(false);
+  }, [uri, visible]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable accessibilityRole="button" accessibilityLabel="Close image viewer" style={styles.scrim} onPress={onClose}>
         <View style={styles.header}>
           <IconButton icon={X} accessibilityLabel="Close image viewer" onPress={onClose} />
         </View>
-        {uri ? (
+        {imageUri ? (
           <Pressable style={styles.imageFrame} onPress={(event) => event.stopPropagation()}>
-            <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.image}
+              resizeMode="contain"
+              onError={() => {
+                if (!useRawUri && uri && optimizedUri !== uri) {
+                  setUseRawUri(true);
+                }
+              }}
+            />
           </Pressable>
         ) : null}
       </Pressable>

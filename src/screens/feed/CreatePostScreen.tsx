@@ -14,6 +14,7 @@ import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
 import type { Post, Sport, UserProfile } from '@/types/domain';
+import { mediaVariants } from '@/utils/mediaOptimization';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CreatePost'>;
@@ -45,6 +46,7 @@ export function CreatePostScreen() {
   const { data: editPost } = usePost(editPostId ?? '');
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
+  const previewImageUri = mediaVariants.feedImage(thumbnailUri ?? mediaUri) ?? thumbnailUri ?? mediaUri;
   const canPublish = isEditing
     ? Boolean(body.trim() || (kind === 'stats' && statsLine.trim()))
     : Boolean(
@@ -198,7 +200,7 @@ export function CreatePostScreen() {
         {mediaUri ? (
           <View style={styles.mediaPreview}>
             {mediaKind === 'image' || thumbnailUri ? (
-              <Image source={{ uri: thumbnailUri ?? mediaUri }} style={styles.previewImage} />
+              <Image source={{ uri: previewImageUri ?? mediaUri }} style={styles.previewImage} />
             ) : (
               <View style={styles.videoPreview}>
                 <View style={styles.videoIcon}>

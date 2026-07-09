@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
@@ -13,6 +13,7 @@ import { colors, spacing, typography } from '@/design/tokens';
 import { useEvent, useJoinEvent, useLeaveEvent, useCheckAttendance } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventDate, formatTime } from '@/utils/format';
+import { mediaVariants } from '@/utils/mediaOptimization';
 import { shareEvent } from '@/utils/share';
 import { useAuthStore } from '@/store/authStore';
 
@@ -32,6 +33,11 @@ export function EventDetailScreen() {
   const leaveEvent = useLeaveEvent();
   const profile = useAuthStore((state) => state.profile);
   const [isJoining, setIsJoining] = useState(false);
+  const [useRawCover, setUseRawCover] = useState(false);
+
+  useEffect(() => {
+    setUseRawCover(false);
+  }, [event?.coverUrl]);
 
   const handleJoin = async () => {
     if (!event) return;
@@ -125,6 +131,8 @@ export function EventDetailScreen() {
   const hasJoined = attendanceStatus === 'going';
   const isFull = event.playerCount >= event.maxPlayers;
   const canJoin = !hasJoined && (event.status === 'open' || event.status === 'full');
+  const optimizedCoverUrl = mediaVariants.eventCover(event.coverUrl);
+  const coverImageUrl = useRawCover ? event.coverUrl : optimizedCoverUrl ?? event.coverUrl;
 
   return (
     <Screen
@@ -143,7 +151,16 @@ export function EventDetailScreen() {
       </View>
       <View style={styles.hero}>
         {event.coverUrl ? (
-          <Image source={{ uri: event.coverUrl }} style={styles.coverImage} resizeMode="cover" />
+          <Image
+            source={{ uri: coverImageUrl ?? event.coverUrl }}
+            style={styles.coverImage}
+            resizeMode="cover"
+            onError={() => {
+              if (!useRawCover && optimizedCoverUrl !== event.coverUrl) {
+                setUseRawCover(true);
+              }
+            }}
+          />
         ) : (
           <CourtArt />
         )}

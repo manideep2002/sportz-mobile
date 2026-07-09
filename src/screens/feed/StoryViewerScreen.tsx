@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { messageService } from '@/services/messageService';
 import { storyService } from '@/services/storyService';
 import { timeAgo } from '@/utils/format';
+import { mediaVariants } from '@/utils/mediaOptimization';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'StoryViewer'>;
@@ -39,12 +40,15 @@ export function StoryViewerScreen() {
   const [displayMediaUrl, setDisplayMediaUrl] = useState<string | null | undefined>(
     route.params.mediaUrl ?? null
   );
+  const [useRawMediaUrl, setUseRawMediaUrl] = useState(false);
 
   const currentIndex = stories.findIndex((item) => item.id === currentStoryId);
   const story = stories[currentIndex];
   const previousStory = stories[currentIndex - 1];
   const nextStory = stories[currentIndex + 1];
   const remainingSeconds = Math.max(1, Math.ceil((STORY_DURATION_MS - elapsed) / 1000));
+  const optimizedDisplayMediaUrl = mediaVariants.storyImage(displayMediaUrl);
+  const storyImageUrl = useRawMediaUrl ? displayMediaUrl : optimizedDisplayMediaUrl ?? displayMediaUrl;
 
   // Sync displayMediaUrl from the cache once the story is available.
   // This handles navigating to a story from the feed rail (where no
@@ -54,6 +58,10 @@ export function StoryViewerScreen() {
       setDisplayMediaUrl(story.mediaUrl);
     }
   }, [story?.mediaUrl]);
+
+  useEffect(() => {
+    setUseRawMediaUrl(false);
+  }, [displayMediaUrl]);
 
   // When navigating between stories, immediately switch the displayed image.
   const goToStory = useCallback(
@@ -142,9 +150,14 @@ export function StoryViewerScreen() {
       {/* Full-screen image - rendered immediately from state, no cache wait */}
       {displayMediaUrl ? (
         <Image
-          source={{ uri: displayMediaUrl }}
+          source={{ uri: storyImageUrl ?? displayMediaUrl }}
           resizeMode="cover"
           style={StyleSheet.absoluteFill}
+          onError={() => {
+            if (!useRawMediaUrl && optimizedDisplayMediaUrl !== displayMediaUrl) {
+              setUseRawMediaUrl(true);
+            }
+          }}
         />
       ) : null}
 
