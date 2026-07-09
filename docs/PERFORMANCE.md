@@ -6,6 +6,7 @@
 - Never render raw Supabase image uploads directly in hot paths; use `mediaVariants` to request transformed CDN URLs for avatars, feed images, stories, event covers, messages, and full-screen viewers.
 - Service reads use cache-aside through `hotCacheService`: memory first, persisted TTL cache second, then Supabase, with write-back before returning.
 - Keep cache TTLs short for mutable objects: session lookups are memory-only, profiles are cached for minutes, and post details are cached briefly per viewer.
+- Username availability checks call the public `username-availability` Edge Function, which keeps a warm in-memory Bloom filter per Deno worker and only queries Postgres when the filter returns a possible match or the app forces an exact submit-time check.
 - New rows in append-heavy app tables use `public.uuid_generate_v7()` IDs, giving posts, comments, messages, stories, notifications, follows, bookings, and feed jobs time-sortable primary keys with better B-tree locality than random UUIDv4.
 - Keep realtime subscriptions scoped to the active conversation/event.
 - Persist TanStack Query cache with AsyncStorage for offline reads.

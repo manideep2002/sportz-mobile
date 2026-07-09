@@ -1,8 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
-import { BloomFilter, type SerializedBloomFilter } from '@/utils/bloomFilter';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 
 type UsernameAvailabilityStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken' | 'unknown';
@@ -15,26 +12,27 @@ export interface UsernameAvailabilityResult {
   message: string;
 }
 
-interface UsernameFilterCache {
-  version: 1;
-  storedAt: string;
-  itemCount: number;
-  filter: SerializedBloomFilter;
-}
-
 interface VerifyOptions {
   forceExact?: boolean;
 }
 
-const USERNAME_FILTER_CACHE_KEY = 'SPORTZ_USERNAME_BLOOM_FILTER_V1';
-const USERNAME_FILTER_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 6;
-const USERNAME_BATCH_SIZE = 1000;
-const USERNAME_FILTER_FALSE_POSITIVE_RATE = 0.001;
-const USERNAME_FILTER_MIN_EXPECTED_ITEMS = 1000;
+interface EdgeUsernameAvailabilityResult extends UsernameAvailabilityResult {
+  exact?: boolean;
+  filterAgeMs?: number | null;
+  itemCount?: number;
+}
 
-let usernameFilter: BloomFilter | null = null;
-let usernameFilterItemCount = 0;
-let hydratePromise: Promise<void> | null = null;
+interface CachedAvailability {
+  result: UsernameAvailabilityResult;
+  storedAt: number;
+}
+
+const USERNAME_FUNCTION_NAME = 'username-availability';
+const USERNAME_AVAILABILITY_CACHE_MAX_AGE_MS = 1000 * 30;
+
+const availabilityCache = new Map<string, CachedAvailability>();
+const pendingChecks = new Map<string, Promise<UsernameAvailabilityResult>>();
+let warmPromise: Promise<void> | null = null;
 
 const availableResult = (username: string, source: UsernameAvailabilitySource, message = 'Username is available.'): UsernameAvailabilityResult => ({
   status: 'available',
@@ -88,98 +86,28 @@ const normalizeCurrentUsername = (currentUsername?: string | null) =>
 const isCurrentUsername = (username: string, currentUsername?: string | null) =>
   Boolean(username && normalizeCurrentUsername(currentUsername) === username);
 
-const readCachedFilter = async () => {
-  if (usernameFilter) return true;
+const cacheKeyFor = (username: string, currentUsername?: string | null) =>
+  `${username}:${normalizeCurrentUsername(currentUsername) || 'new'}`;
 
-  try {
-    const cached = await AsyncStorage.getItem(USERNAME_FILTER_CACHE_KEY);
-    if (!cached) return false;
+const readCachedAvailability = (username: string, currentUsername?: string | null) => {
+  const cached = availabilityCache.get(cacheKeyFor(username, currentUsername));
+  if (!cached) return null;
 
-    const parsed = JSON.parse(cached) as UsernameFilterCache;
-    if (parsed.version !== 1) return false;
-
-    const storedAt = Date.parse(parsed.storedAt);
-    if (!Number.isFinite(storedAt) || Date.now() - storedAt > USERNAME_FILTER_CACHE_MAX_AGE_MS) {
-      return false;
-    }
-
-    usernameFilter = BloomFilter.deserialize(parsed.filter);
-    usernameFilterItemCount = parsed.itemCount;
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const writeCachedFilter = async () => {
-  if (!usernameFilter) return;
-
-  const cache: UsernameFilterCache = {
-    version: 1,
-    storedAt: new Date().toISOString(),
-    itemCount: usernameFilterItemCount,
-    filter: usernameFilter.serialize()
-  };
-
-  try {
-    await AsyncStorage.setItem(USERNAME_FILTER_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // A missing cache should never block signup or profile editing.
-  }
-};
-
-const fetchAllUsernames = async () => {
-  const usernames: string[] = [];
-  let page = 0;
-
-  while (true) {
-    const from = page * USERNAME_BATCH_SIZE;
-    const to = from + USERNAME_BATCH_SIZE - 1;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .order('username', { ascending: true })
-      .range(from, to);
-
-    if (error) throw error;
-
-    const rows = (data ?? []) as { username: string | null }[];
-    usernames.push(...rows.map((row) => row.username).filter((username): username is string => Boolean(username)));
-
-    if (rows.length < USERNAME_BATCH_SIZE) break;
-    page += 1;
+  if (Date.now() - cached.storedAt > USERNAME_AVAILABILITY_CACHE_MAX_AGE_MS) {
+    availabilityCache.delete(cacheKeyFor(username, currentUsername));
+    return null;
   }
 
-  return usernames;
+  return cached.result;
 };
 
-const rebuildUsernameFilter = async () => {
-  assertSupabaseConfigured();
+const writeCachedAvailability = (result: UsernameAvailabilityResult, currentUsername?: string | null) => {
+  if (!result.username || result.status === 'checking' || result.status === 'unknown') return;
 
-  const usernames = await fetchAllUsernames();
-  const expectedItems = Math.max(usernames.length || 1, USERNAME_FILTER_MIN_EXPECTED_ITEMS);
-  usernameFilter = BloomFilter.fromItems(usernames, {
-    expectedItems,
-    falsePositiveRate: USERNAME_FILTER_FALSE_POSITIVE_RATE
+  availabilityCache.set(cacheKeyFor(result.username, currentUsername), {
+    result,
+    storedAt: Date.now()
   });
-  usernameFilterItemCount = usernames.length;
-  await writeCachedFilter();
-};
-
-const ensureUsernameFilter = async () => {
-  if (usernameFilter) return;
-  if (hydratePromise) return hydratePromise;
-
-  hydratePromise = (async () => {
-    const hasCachedFilter = await readCachedFilter();
-    if (!hasCachedFilter) {
-      await rebuildUsernameFilter();
-    }
-  })().finally(() => {
-    hydratePromise = null;
-  });
-
-  return hydratePromise;
 };
 
 const checkDatabaseAvailability = async (
@@ -199,32 +127,85 @@ const checkDatabaseAvailability = async (
     .maybeSingle();
 
   if (error) throw error;
-  if (data) {
-    usernameFilter?.add(username);
-    void writeCachedFilter();
-    return takenResult(username);
-  }
+  if (data) return takenResult(username);
 
   return availableResult(username, 'database', 'Username is available.');
 };
 
-export const usernameAvailabilityService = {
-  warmUsernameFilter: async () => {
-    if (usernameFilter) return;
-    if (hydratePromise) return hydratePromise;
+const parseEdgeResult = (data: unknown, fallbackUsername: string): UsernameAvailabilityResult => {
+  const result = data as Partial<EdgeUsernameAvailabilityResult> | null;
+  if (!result || typeof result.status !== 'string') {
+    throw new Error('Username availability service returned an invalid response.');
+  }
 
-    hydratePromise = (async () => {
-      await readCachedFilter();
-      try {
-        await rebuildUsernameFilter();
-      } catch {
-        // A cached filter or exact database check can still handle the UI path.
-      }
-    })().finally(() => {
-      hydratePromise = null;
+  return {
+    status: result.status as UsernameAvailabilityStatus,
+    source: (result.source ?? 'database') as UsernameAvailabilitySource,
+    username: typeof result.username === 'string' ? result.username : fallbackUsername,
+    message: typeof result.message === 'string' ? result.message : 'Could not verify username right now.'
+  };
+};
+
+const invokeUsernameAvailability = async (
+  username: string,
+  currentUsername?: string | null,
+  options: VerifyOptions & { remember?: boolean } = {}
+) => {
+  assertSupabaseConfigured();
+
+  const { data, error } = await supabase.functions.invoke(USERNAME_FUNCTION_NAME, {
+    body: {
+      username,
+      currentUsername: normalizeCurrentUsername(currentUsername) || null,
+      forceExact: options.forceExact === true,
+      remember: options.remember === true
+    }
+  });
+
+  if (error) throw error;
+  return parseEdgeResult(data, username);
+};
+
+const checkEdgeAvailability = async (
+  username: string,
+  currentUsername?: string | null,
+  options: VerifyOptions = {}
+): Promise<UsernameAvailabilityResult> => {
+  const key = `${cacheKeyFor(username, currentUsername)}:${options.forceExact ? 'exact' : 'fast'}`;
+  const existing = pendingChecks.get(key);
+  if (existing) return existing;
+
+  const promise = invokeUsernameAvailability(username, currentUsername, options)
+    .catch(() => checkDatabaseAvailability(username, currentUsername))
+    .then((result) => {
+      writeCachedAvailability(result, currentUsername);
+      return result;
+    })
+    .finally(() => {
+      pendingChecks.delete(key);
     });
 
-    return hydratePromise;
+  pendingChecks.set(key, promise);
+  return promise;
+};
+
+export const usernameAvailabilityService = {
+  warmUsernameFilter: async () => {
+    if (warmPromise) return warmPromise;
+
+    warmPromise = (async () => {
+      assertSupabaseConfigured();
+      const { error } = await supabase.functions.invoke(USERNAME_FUNCTION_NAME, {
+        body: { warm: true }
+      });
+      if (error) throw error;
+    })().catch(() => {
+      // Exact verification can still fall back to Postgres if the warm path is unavailable.
+    }).finally(() => {
+      warmPromise = null;
+    });
+
+    return warmPromise;
   },
 
   getInstantAvailability(rawUsername: string, currentUsername?: string | null): UsernameAvailabilityResult {
@@ -236,13 +217,10 @@ export const usernameAvailabilityService = {
       return availableResult(username, 'bloom', 'This is your current username.');
     }
 
-    if (!usernameFilter) {
-      return checkingResult(username, 'cache', 'Preparing instant username checks...');
-    }
+    const cached = readCachedAvailability(username, currentUsername);
+    if (cached) return cached;
 
-    return usernameFilter.mightContain(username)
-      ? checkingResult(username, 'bloom', 'Verifying username...')
-      : availableResult(username, 'bloom', 'Username is available.');
+    return checkingResult(username, 'cache', 'Checking edge username cache...');
   },
 
   async verifyUsernameAvailability(
@@ -259,35 +237,30 @@ export const usernameAvailabilityService = {
     }
 
     if (!options.forceExact) {
-      try {
-        await ensureUsernameFilter();
-      } catch {
-        return checkDatabaseAvailability(username, currentUsername);
-      }
-
-      if (usernameFilter && !usernameFilter.mightContain(username)) {
-        return availableResult(username, 'bloom', 'Username is available.');
-      }
+      const cached = readCachedAvailability(username, currentUsername);
+      if (cached) return cached;
     }
 
-    return checkDatabaseAvailability(username, currentUsername);
+    return checkEdgeAvailability(username, currentUsername, options);
   },
 
   async rememberUsername(rawUsername: string) {
     const username = normalizeUsername(rawUsername);
-    if (!usernameFilter || !username) return;
+    if (!username) return;
 
-    const probablyKnown = usernameFilter.mightContain(username);
-    usernameFilter.add(username);
-    if (!probablyKnown) {
-      usernameFilterItemCount += 1;
+    const result = takenResult(username);
+    writeCachedAvailability(result);
+
+    try {
+      await invokeUsernameAvailability(username, undefined, { forceExact: true, remember: true });
+    } catch {
+      // The next warm Edge Function worker rebuild will pick this username up.
     }
-    await writeCachedFilter();
   },
 
   clearMemoryCache() {
-    usernameFilter = null;
-    usernameFilterItemCount = 0;
-    hydratePromise = null;
+    availabilityCache.clear();
+    pendingChecks.clear();
+    warmPromise = null;
   }
 };

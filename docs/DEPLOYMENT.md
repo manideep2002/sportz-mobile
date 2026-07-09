@@ -64,6 +64,16 @@ eas update --branch production --message "SPORTZ production update"
 
 Only ship OTA updates for JavaScript/assets. Native dependency changes require a new binary build.
 
+## Supabase functions
+
+```bash
+npx supabase functions deploy username-availability --no-verify-jwt
+npx supabase functions deploy feed-fanout
+npx supabase functions deploy push-fanout
+```
+
+`username-availability` is public so signup screens can check handles before login. Keep `SUPABASE_SERVICE_ROLE_KEY` set in Supabase function secrets; the function only returns availability and does not mutate profile data.
+
 ## App icons and splash
 
 Before production, add:
