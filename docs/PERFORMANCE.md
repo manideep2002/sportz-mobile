@@ -9,4 +9,6 @@
 - Avoid re-rendering tab roots by keeping service state in React Query and local toggles in Zustand.
 - Use pagination (`range`) for feed, messages, events, comments, and notifications before production traffic.
 - Add server-side indexes for sort/filter columns; current schema includes feed, message, event, notification, and geospatial indexes.
+- Home feeds use a hybrid fan-out cache: standard accounts enqueue `feed_fanout_jobs` on post creation and the `feed-fanout` Edge Function writes `feed_items`; high-follower accounts are merged on read via `list_home_feed`.
+- Run `supabase/functions/feed-fanout` on a frequent scheduler or queue trigger in production so cached home feeds stay hot.
 - Use EAS production builds for Hermes and release-mode performance.

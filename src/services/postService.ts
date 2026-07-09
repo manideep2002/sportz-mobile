@@ -75,6 +75,10 @@ interface PostRow {
   shares_count?: number | null;
 }
 
+type HomeFeedRow = Omit<PostRow, 'profiles'> & {
+  profiles?: null;
+};
+
 /** Shape of a row returned from the `comments` table with joined profile. */
 interface CommentRow {
   id: string;
@@ -258,6 +262,65 @@ const updateProfileStatsFromPosts = async (userId: string) => {
     .eq('id', userId);
 };
 
+const isHomeFeedCacheUnavailableError = (error: { code?: string } | null) =>
+  error?.code === 'PGRST202' || error?.code === '42P01' || error?.code === '42883';
+
+const mapFeedRows = async (rows: PostRow[]): Promise<FeedPage> => {
+  const uniqueRows = feedDedupeService.keepUnseen(rows, (row) => row.id);
+  const engagement = await loadPostEngagement(uniqueRows.map((row) => row.id));
+  const items = uniqueRows.map((row) => mapPostRow(row, engagement));
+
+  return {
+    items,
+    nextCursor: rows.length ? rows[rows.length - 1].created_at : undefined
+  };
+};
+
+const listCachedHomeFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage | null> => {
+  const { data, error } = await supabase.rpc('list_home_feed', {
+    page_cursor: cursor ?? null,
+    page_limit: limit
+  });
+
+  if (error) {
+    if (isHomeFeedCacheUnavailableError(error)) return null;
+    throw error;
+  }
+
+  const rows = ((data ?? []) as HomeFeedRow[]).map((row) => ({
+    ...row,
+    profiles: null
+  })) as PostRow[];
+
+  const page = await mapFeedRows(rows);
+  return {
+    ...page,
+    nextCursor: rows.length === limit ? page.nextCursor : undefined
+  };
+};
+
+const listDirectFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage> => {
+  let request = supabase
+    .from('posts')
+    .select('*, profiles:author_id(*)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (cursor) {
+    request = request.lt('created_at', cursor);
+  }
+
+  const { data, error } = await request;
+  if (error) throw error;
+
+  const rows = (data ?? []) as PostRow[];
+  const page = await mapFeedRows(rows);
+  return {
+    ...page,
+    nextCursor: rows.length === limit ? page.nextCursor : undefined
+  };
+};
+
 export const postService = {
   async listUserPosts(userId: string): Promise<Post[]> {
     assertSupabaseConfigured();
@@ -297,28 +360,12 @@ export const postService = {
       feedDedupeService.reset();
     }
 
-    let request = supabase
-      .from('posts')
-      .select('*, profiles:author_id(*)')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (cursor) {
-      request = request.lt('created_at', cursor);
+    const cachedPage = await listCachedHomeFeedPage(cursor, limit);
+    if (cachedPage && (cursor || cachedPage.items.length > 0)) {
+      return cachedPage;
     }
 
-    const { data, error } = await request;
-    if (error) throw error;
-
-    const rows = (data ?? []) as PostRow[];
-    const uniqueRows = feedDedupeService.keepUnseen(rows, (row) => row.id);
-    const engagement = await loadPostEngagement(uniqueRows.map((row) => row.id));
-    const items = uniqueRows.map((row) => mapPostRow(row, engagement));
-
-    return {
-      items,
-      nextCursor: rows.length === limit ? rows[rows.length - 1].created_at : undefined
-    };
+    return listDirectFeedPage(cursor, limit);
   },
 
   async getPost(postId: string): Promise<Post> {
