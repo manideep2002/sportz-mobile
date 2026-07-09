@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { hotCacheService } from '@/services/hotCacheService';
 import { profileService } from '@/services/profileService';
 import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
@@ -27,6 +28,9 @@ export interface RegisterInput {
   secondarySports: Sport[];
 }
 
+const SESSION_CACHE_KEY = 'auth:session:v1';
+const SESSION_CACHE_TTL_MS = 1000 * 30;
+
 export const normalizeIndianPhoneNumber = (value: string) => {
   const stripped = value.replace(/[\s\-().]/g, '');
   if (!stripped) return '';
@@ -39,12 +43,18 @@ export const authService = {
   async getSession(): Promise<AuthResult> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return {
-      session: data.session,
-      user: data.session?.user ?? null
-    };
+    return hotCacheService.getOrSet(
+      SESSION_CACHE_KEY,
+      async () => {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        return {
+          session: data.session,
+          user: data.session?.user ?? null
+        };
+      },
+      { ttlMs: SESSION_CACHE_TTL_MS, persist: false }
+    );
   },
 
   async signInWithPassword(email: string, password: string): Promise<AuthResult> {
@@ -52,7 +62,9 @@ export const authService = {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    return { session: data.session, user: data.user };
+    const result = { session: data.session, user: data.user };
+    await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
+    return result;
   },
 
   async signUp(input: RegisterInput): Promise<AuthResult> {
@@ -84,7 +96,9 @@ export const authService = {
       }
     });
     if (error) throw error;
-    return { session: data.session, user: data.user };
+    const result = { session: data.session, user: data.user };
+    await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
+    return result;
   },
 
   async generateMobileOtp(mobileNumber: string): Promise<void> {
@@ -107,7 +121,9 @@ export const authService = {
       token: idToken
     });
     if (error) throw error;
-    return { session: data.session, user: data.user };
+    const result = { session: data.session, user: data.user };
+    await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
+    return result;
   },
 
   async resetPassword(email: string) {
@@ -124,6 +140,7 @@ export const authService = {
 
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    await hotCacheService.clearAll();
   },
 
   async deleteAccount() {
@@ -133,6 +150,7 @@ export const authService = {
       method: 'POST'
     });
     if (error) throw error;
+    await hotCacheService.clearAll();
   },
 
   async getCurrentProfile(): Promise<UserProfile> {

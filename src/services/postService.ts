@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { feedDedupeService } from '@/services/feedDedupeService';
+import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { Comment, Post } from '@/types/domain';
@@ -79,6 +80,11 @@ type HomeFeedRow = Omit<PostRow, 'profiles'> & {
   profiles?: null;
 };
 
+const POST_CACHE_TTL_MS = 1000 * 45;
+const profileCacheKey = (profileId: string) => `profile:v1:${profileId}`;
+const postCachePrefix = (postId: string) => `post:v1:${postId}:`;
+const postCacheKey = (postId: string, viewerId: string) => `${postCachePrefix(postId)}${viewerId}`;
+
 /** Shape of a row returned from the `comments` table with joined profile. */
 interface CommentRow {
   id: string;
@@ -145,6 +151,11 @@ const emptyEngagement = (): PostEngagement => ({
   likedByMe: new Set(),
   savedByMe: new Set()
 });
+
+const getViewerCacheId = async () => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? 'anon';
+};
 
 const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> => {
   const engagement = emptyEngagement();
@@ -321,6 +332,20 @@ const listDirectFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage
   };
 };
 
+const loadPost = async (postId: string): Promise<Post> => {
+  const { data, error } = await supabase
+    .from('posts')
+    .select('*, profiles:author_id(*)')
+    .eq('id', postId)
+    .single();
+  if (error) throw error;
+
+  const engagement = await loadPostEngagement([data.id]);
+  return mapPostRow(data as unknown as PostRow, engagement);
+};
+
+const invalidatePostCache = (postId: string) => hotCacheService.invalidateByPrefix(postCachePrefix(postId));
+
 export const postService = {
   async listUserPosts(userId: string): Promise<Post[]> {
     assertSupabaseConfigured();
@@ -371,15 +396,10 @@ export const postService = {
   async getPost(postId: string): Promise<Post> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles:author_id(*)')
-      .eq('id', postId)
-      .single();
-    if (error) throw error;
-
-    const engagement = await loadPostEngagement([data.id]);
-    return mapPostRow(data as unknown as PostRow, engagement);
+    const viewerId = await getViewerCacheId();
+    return hotCacheService.getOrSet(postCacheKey(postId, viewerId), () => loadPost(postId), {
+      ttlMs: POST_CACHE_TTL_MS
+    });
   },
 
   async createPost(input: CreatePostInput): Promise<Post> {
@@ -428,7 +448,10 @@ export const postService = {
       if (mentionError && mentionError.code !== '42P01') throw mentionError;
     }
 
-    return mapPostRow(data as unknown as PostRow, emptyEngagement());
+    const post = mapPostRow(data as unknown as PostRow, emptyEngagement());
+    await hotCacheService.set(postCacheKey(post.id, authData.user.id), post, { ttlMs: POST_CACHE_TTL_MS });
+    await hotCacheService.invalidate(profileCacheKey(authData.user.id));
+    return post;
   },
 
   async updatePost(postId: string, input: UpdatePostInput): Promise<Post> {
@@ -468,7 +491,11 @@ export const postService = {
     }
 
     const engagement = await loadPostEngagement([postId]);
-    return mapPostRow(data as unknown as PostRow, engagement);
+    const post = mapPostRow(data as unknown as PostRow, engagement);
+    await invalidatePostCache(postId);
+    await hotCacheService.set(postCacheKey(postId, authData.user.id), post, { ttlMs: POST_CACHE_TTL_MS });
+    await hotCacheService.invalidate(profileCacheKey(authData.user.id));
+    return post;
   },
 
   async listSavedPosts(): Promise<Post[]> {
@@ -537,7 +564,7 @@ export const postService = {
 
     if (error) throw error;
 
-    return {
+    const comment = {
       id: data.id,
       postId: (data as unknown as CommentRow).post_id,
       parentCommentId: (data as unknown as CommentRow).parent_comment_id,
@@ -546,6 +573,9 @@ export const postService = {
       likes: 0,
       createdAt: data.created_at
     };
+
+    await invalidatePostCache(postId);
+    return comment;
   },
 
   async togglePostLike(postId: string, liked: boolean): Promise<void> {
@@ -587,6 +617,7 @@ export const postService = {
       });
       // Ignore "relation does not exist" — migration not yet applied
       if (error && error.code !== '42P01') throw error;
+      await invalidatePostCache(postId);
       return;
     }
 
@@ -596,6 +627,7 @@ export const postService = {
     });
     // Ignore duplicate (23505) and missing table (42P01)
     if (error && error.code !== '23505' && error.code !== '42P01') throw error;
+    await invalidatePostCache(postId);
   },
 
   async recordPostShare(postId: string): Promise<void> {
@@ -610,6 +642,7 @@ export const postService = {
       user_id: authData.user.id
     });
     if (error && error.code !== '23505' && error.code !== '42P01') throw error;
+    await invalidatePostCache(postId);
   },
 
   async toggleCommentLike(commentId: string, liked: boolean): Promise<void> {
@@ -644,12 +677,21 @@ export const postService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to delete comments.');
 
+    const { data: comment, error: fetchError } = await supabase
+      .from('comments')
+      .select('post_id')
+      .eq('id', commentId)
+      .eq('author_id', authData.user.id)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+
     const { error } = await supabase
       .from('comments')
       .delete()
       .eq('id', commentId)
       .eq('author_id', authData.user.id);
     if (error) throw error;
+    if (comment?.post_id) await invalidatePostCache(comment.post_id as string);
   },
 
   async deletePost(postId: string): Promise<void> {
@@ -672,5 +714,7 @@ export const postService = {
 
     const { error } = await supabase.from('posts').delete().eq('id', postId);
     if (error) throw error;
+    await invalidatePostCache(postId);
+    await hotCacheService.invalidate(profileCacheKey(authData.user.id));
   }
 };

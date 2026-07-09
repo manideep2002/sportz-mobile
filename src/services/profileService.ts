@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { UserProfile } from '@/types/domain';
 
@@ -14,6 +15,9 @@ export interface FollowRequest {
 export type ProfileUpdateInput = Partial<
   Pick<UserProfile, 'username' | 'displayName' | 'avatarUrl' | 'coverUrl' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable' | 'isPrivate'>
 >;
+
+const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
+const profileCacheKey = (id: string) => `profile:v1:${id}`;
 
 async function loadProfileCounts(
   userId: string
@@ -40,19 +44,25 @@ async function loadProfileCounts(
   };
 }
 
+const loadProfile = async (id: string): Promise<UserProfile> => {
+  const [profileResult, counts] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', id).single(),
+    loadProfileCounts(id)
+  ]);
+
+  if (profileResult.error) throw profileResult.error;
+  if (!profileResult.data) throw new Error('Profile not found.');
+
+  return mapProfileRow(profileResult.data, counts);
+};
+
 export const profileService = {
   async getProfile(id: string): Promise<UserProfile> {
     assertSupabaseConfigured();
 
-    const [profileResult, counts] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', id).single(),
-      loadProfileCounts(id)
-    ]);
-
-    if (profileResult.error) throw profileResult.error;
-    if (!profileResult.data) throw new Error('Profile not found.');
-
-    return mapProfileRow(profileResult.data, counts);
+    return hotCacheService.getOrSet(profileCacheKey(id), () => loadProfile(id), {
+      ttlMs: PROFILE_CACHE_TTL_MS
+    });
   },
 
   async listPlayers(query?: string, sport?: string, page = 0, pageSize = 30): Promise<UserProfile[]> {
@@ -138,6 +148,7 @@ export const profileService = {
       .eq('id', id);
 
     if (error) throw error;
+    await hotCacheService.invalidate(profileCacheKey(id));
   },
 
   async listFollowers(userId: string): Promise<UserProfile[]> {
@@ -195,6 +206,10 @@ export const profileService = {
       target_user_id: profileId
     });
     if (error) throw error;
+    await Promise.all([
+      hotCacheService.invalidate(profileCacheKey(profileId)),
+      hotCacheService.invalidate(profileCacheKey(authData.user.id))
+    ]);
     return data === 'requested' ? 'requested' : 'following';
   },
 
@@ -248,6 +263,7 @@ export const profileService = {
       approve
     });
     if (error) throw error;
+    await hotCacheService.invalidateByPrefix('profile:v1:');
   },
 
   async unfollowProfile(profileId: string): Promise<void> {
@@ -264,5 +280,9 @@ export const profileService = {
       .eq('following_id', profileId);
 
     if (error) throw error;
+    await Promise.all([
+      hotCacheService.invalidate(profileCacheKey(profileId)),
+      hotCacheService.invalidate(profileCacheKey(authData.user.id))
+    ]);
   }
 };
