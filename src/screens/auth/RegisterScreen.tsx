@@ -8,9 +8,11 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-nat
 import { AppText, Avatar, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 import { allSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
+import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AuthStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
+import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 import { useAuthStore } from '@/store/authStore';
 import type { Gender, SkillLevel, Sport } from '@/types/domain';
@@ -144,6 +146,7 @@ export function RegisterScreen({ navigation }: Props) {
   const [secondarySports, setSecondarySports] = useState<Sport[]>([]);
   const [confirmationVisible, setConfirmationVisible] = useState(false);
   const [avatarAsset, setAvatarAsset] = useState<ImagePickerAsset | null>(null);
+  const usernameAvailability = useUsernameAvailability(username);
 
   const passwordStatus = passwordRules.map((rule) => ({ ...rule, valid: rule.test(password) }));
   const passwordIsValid = passwordStatus.every((rule) => rule.valid);
@@ -171,6 +174,12 @@ export function RegisterScreen({ navigation }: Props) {
     secondarySports.length === 0
       ? 'Select secondary sports'
       : `${secondarySports.slice(0, 2).join(', ')}${secondarySports.length > 2 ? ` +${secondarySports.length - 2}` : ''}`;
+  const usernameStatusStyle =
+    usernameAvailability.status === 'available'
+      ? styles.successText
+      : usernameAvailability.status === 'taken' || usernameAvailability.status === 'invalid'
+        ? styles.passwordHintError
+        : styles.helperText;
 
   const handlePrimarySportSelect = (sport: Sport) => {
     setPrimarySport(sport);
@@ -259,6 +268,14 @@ export function RegisterScreen({ navigation }: Props) {
     }
 
     try {
+      const availability = await usernameAvailabilityService.verifyUsernameAvailability(normalizedUsername, undefined, {
+        forceExact: true
+      });
+      if (availability.status !== 'available') {
+        Alert.alert('Username unavailable', availability.message);
+        return;
+      }
+
       await signUp({
         email: email.trim(),
         password,
@@ -273,6 +290,7 @@ export function RegisterScreen({ navigation }: Props) {
         primarySportExperienceLevel,
         secondarySports
       });
+      await usernameAvailabilityService.rememberUsername(normalizedUsername);
       const createdProfile = useAuthStore.getState().profile;
       if (createdProfile && avatarAsset) {
         const avatarUrl = await storageService.uploadMedia(avatarAsset, 'avatars', createdProfile.id);
@@ -305,6 +323,9 @@ export function RegisterScreen({ navigation }: Props) {
             <Input label="Last Name" value={lastName} onChangeText={setLastName} style={styles.flexInput} />
           </View>
           <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
+          <AppText variant="small" style={[styles.usernameHint, usernameStatusStyle]}>
+            {usernameAvailability.message}
+          </AppText>
           <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
           <Input label="Password" value={password} onChangeText={setPassword} secureTextEntry />
           <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
@@ -397,7 +418,13 @@ export function RegisterScreen({ navigation }: Props) {
               Auto Detect Location
             </Button>
           </View>
-          <Button full size="lg" loading={loading} disabled={!passwordIsValid || !passwordMatches} onPress={handleCreate}>
+          <Button
+            full
+            size="lg"
+            loading={loading}
+            disabled={!passwordIsValid || !passwordMatches || usernameAvailability.status !== 'available'}
+            onPress={handleCreate}
+          >
             Create Profile
           </Button>
           <Pressable style={styles.switch} onPress={() => navigation.navigate('Login')}>
@@ -747,6 +774,9 @@ const styles = StyleSheet.create({
   },
   helperText: {
     color: colors.text.tertiary
+  },
+  usernameHint: {
+    marginTop: -10
   },
   group: {
     gap: 6

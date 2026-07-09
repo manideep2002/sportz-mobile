@@ -7,9 +7,11 @@ import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'rea
 import { AppText, Avatar, BottomSheet, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
+import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
+import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
 import { useAuthStore } from '@/store/authStore';
 import type { SkillLevel, Sport } from '@/types/domain';
 import { normalizeUsername } from '@/utils/authValidation';
@@ -36,6 +38,13 @@ export function EditProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [profilePhotoSheetOpen, setProfilePhotoSheetOpen] = useState(false);
   const hasProfilePhoto = Boolean(avatarUrl || profile?.avatarUrl);
+  const usernameAvailability = useUsernameAvailability(username, profile?.username);
+  const usernameStatusStyle =
+    usernameAvailability.status === 'available'
+      ? styles.success
+      : usernameAvailability.status === 'taken' || usernameAvailability.status === 'invalid'
+        ? styles.errorText
+        : styles.helperText;
 
   const uploadProfileMedia = async (kind: 'avatar' | 'cover') => {
     if (!profile) return;
@@ -95,6 +104,16 @@ export function EditProfileScreen() {
     setError(null);
     try {
       const normalizedUsername = normalizeUsername(username);
+      const availability = await usernameAvailabilityService.verifyUsernameAvailability(
+        normalizedUsername,
+        profile.username,
+        { forceExact: true }
+      );
+      if (availability.status !== 'available') {
+        setError(availability.message);
+        return;
+      }
+
       await profileService.updateProfile(profile.id, {
         displayName,
         username: normalizedUsername,
@@ -107,6 +126,7 @@ export function EditProfileScreen() {
         avatarUrl,
         coverUrl
       });
+      await usernameAvailabilityService.rememberUsername(normalizedUsername);
       setProfile({ ...profile, displayName, username: normalizedUsername, bio, city, primarySport: sport, sports: [sport], position, skillLevel, avatarUrl, coverUrl });
       navigation.goBack();
     } catch (error) {
@@ -121,7 +141,7 @@ export function EditProfileScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Edit Profile</AppText>
-        <Button size="sm" loading={saving} onPress={handleSave}>Save</Button>
+        <Button size="sm" loading={saving} disabled={usernameAvailability.status !== 'available'} onPress={handleSave}>Save</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.avatarContainer}>
@@ -136,6 +156,9 @@ export function EditProfileScreen() {
         {error ? <AppText style={styles.error}>{error}</AppText> : null}
         <Input label="Display Name" value={displayName} onChangeText={setDisplayName} />
         <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <AppText variant="small" style={[styles.usernameHint, usernameStatusStyle]}>
+          {usernameAvailability.message}
+        </AppText>
         <Input label="Bio" value={bio} onChangeText={setBio} multiline numberOfLines={3} />
         <Input label="Location" value={city} onChangeText={setCity} />
         <AppText style={styles.label}>Primary Sport</AppText>
@@ -228,5 +251,17 @@ const styles = StyleSheet.create({
     color: colors.semantic.danger,
     textAlign: 'center',
     fontSize: 12
+  },
+  errorText: {
+    color: colors.semantic.danger
+  },
+  helperText: {
+    color: colors.text.tertiary
+  },
+  success: {
+    color: colors.semantic.success
+  },
+  usernameHint: {
+    marginTop: -10
   }
 });

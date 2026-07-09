@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { feedDedupeService } from '@/services/feedDedupeService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { Comment, Post } from '@/types/domain';
@@ -292,6 +293,10 @@ export const postService = {
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
     assertSupabaseConfigured();
 
+    if (!cursor) {
+      feedDedupeService.reset();
+    }
+
     let request = supabase
       .from('posts')
       .select('*, profiles:author_id(*)')
@@ -305,12 +310,14 @@ export const postService = {
     const { data, error } = await request;
     if (error) throw error;
 
-    const engagement = await loadPostEngagement((data ?? []).map((row: PostRow) => row.id));
-    const items = (data ?? []).map((row: PostRow) => mapPostRow(row, engagement));
+    const rows = (data ?? []) as PostRow[];
+    const uniqueRows = feedDedupeService.keepUnseen(rows, (row) => row.id);
+    const engagement = await loadPostEngagement(uniqueRows.map((row) => row.id));
+    const items = uniqueRows.map((row) => mapPostRow(row, engagement));
 
     return {
       items,
-      nextCursor: items.length === limit ? items[items.length - 1].createdAt : undefined
+      nextCursor: rows.length === limit ? rows[rows.length - 1].created_at : undefined
     };
   },
 
