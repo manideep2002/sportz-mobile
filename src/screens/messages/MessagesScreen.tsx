@@ -1,5 +1,5 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useCallback, useMemo, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw, Search } from 'lucide-react-native';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -20,11 +20,6 @@ export function MessagesScreen() {
   const [query, setQuery] = useState('');
   const { data: conversations = [], isLoading, isError, isRefetching, refetch } = useConversations();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
-  useFocusEffect(
-    useCallback(() => {
-      void refetch();
-    }, [refetch])
-  );
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return conversations;

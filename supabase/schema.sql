@@ -1,5 +1,6 @@
--- SPORTZ production schema for Supabase/Postgres.
--- Apply in Supabase SQL editor or with `supabase db push`.
+-- SPORTZ historical Supabase/Postgres schema snapshot.
+-- The migration files in `supabase/migrations` are the source of truth.
+-- Regenerate this file from the remote database before using it as a current reference.
 
 create extension if not exists "pgcrypto";
 create extension if not exists "postgis";

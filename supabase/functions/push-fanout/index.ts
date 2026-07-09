@@ -80,9 +80,10 @@ Deno.serve(async () => {
     supabase.from('push_tokens').select('user_id, token').in('user_id', userIds),
     supabase.from('notification_preferences').select('*').in('user_id', userIds),
     supabase
-      .from('conversation_mutes')
-      .select('user_id, conversation_id, muted_until')
+      .from('chat_participants')
+      .select('user_id, room_id, muted_until')
       .in('user_id', userIds)
+      .not('muted_until', 'is', null)
   ]);
 
   const tokensByUser = new Map<string, string[]>();
@@ -97,10 +98,10 @@ Deno.serve(async () => {
     preferencesByUser.set(row.user_id, row);
   }
 
-  const mutedConversationKeys = new Set<string>();
-  for (const row of (muteRows ?? []) as Array<{ user_id: string; conversation_id: string; muted_until: string | null }>) {
+  const mutedRoomKeys = new Set<string>();
+  for (const row of (muteRows ?? []) as Array<{ user_id: string; room_id: string; muted_until: string | null }>) {
     if (!row.muted_until || new Date(row.muted_until).getTime() > Date.now()) {
-      mutedConversationKeys.add(`${row.user_id}:${row.conversation_id}`);
+      mutedRoomKeys.add(`${row.user_id}:${row.room_id}`);
     }
   }
 
@@ -115,9 +116,9 @@ Deno.serve(async () => {
     const preferenceAllows = !prefKey || preferences?.[prefKey] !== false;
     const muted =
       notification.kind === 'message' &&
-      notification.entity_type === 'conversation' &&
+      (notification.entity_type === 'conversation' || notification.entity_type === 'chat_room') &&
       notification.entity_id &&
-      mutedConversationKeys.has(`${notification.user_id}:${notification.entity_id}`);
+      mutedRoomKeys.has(`${notification.user_id}:${notification.entity_id}`);
     const tokens = tokensByUser.get(notification.user_id) ?? [];
 
     if (!pushEnabled || !preferenceAllows || muted || !tokens.length) {

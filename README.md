@@ -55,17 +55,19 @@ SPORTZ uses Supabase because the product needs a relational social graph: follow
 
 ## Phase 6 - Messaging and Notifications
 
-- Conversation list, realtime chat subscription, optimistic sends, notification list, mark-all-read.
+- Thread-first room list, Supabase Realtime broadcast chat, optimistic sends, media sharing, read receipts, notification list, mark-all-read.
 - Files:
   - `src/screens/messages/*`
   - `src/screens/notifications/NotificationsScreen.tsx`
   - `src/hooks/useMessages.ts`
-  - `src/hooks/useRealtimeMessages.ts`
+  - `src/services/threadFirstChatService.ts`
+  - `supabase/functions/chat-message-notifier`
   - `src/hooks/useNotifications.ts`
 
 ## Phase 7 - Backend Integration
 
-- Schema: `supabase/schema.sql`
+- Database migrations: `supabase/migrations`
+- Historical schema snapshot: `supabase/schema.sql` (regenerate from the remote database before using as reference)
 - Storage buckets/policies: `supabase/storage.sql`
 - Seed courts: `supabase/seed.sql`
 - API services live in `src/services`.

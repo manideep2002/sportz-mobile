@@ -388,6 +388,9 @@ deno_version = 2
 [functions.username-availability]
 verify_jwt = false
 
+[functions.chat-message-notifier]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

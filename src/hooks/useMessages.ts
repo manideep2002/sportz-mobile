@@ -44,9 +44,8 @@ export const useConversations = () => {
   return useQuery({
     queryKey: messageKeys.conversations,
     queryFn: () => messageService.listConversations(readConversationIds),
-    refetchInterval: 5000,
-    refetchOnMount: 'always',
-    staleTime: 0
+    staleTime: 30_000,
+    refetchOnReconnect: true
   });
 };
 
