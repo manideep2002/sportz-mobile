@@ -17,6 +17,7 @@ const getNotificationIcon = (kind: SportzNotification['kind']) => {
     case 'like':
       return <Heart size={20} color={colors.orange[500]} />;
     case 'comment':
+    case 'mention':
       return <Reply size={20} color={colors.orange[500]} />;
     case 'follow':
     case 'follow_request':

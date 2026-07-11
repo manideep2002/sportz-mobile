@@ -167,6 +167,7 @@ export interface EventMessage {
 export type NotificationKind =
   | 'like'
   | 'comment'
+  | 'mention'
   | 'follow'
   | 'follow_request'
   | 'event'
@@ -180,11 +181,15 @@ export interface SportzNotification {
   title: string;
   body: string;
   actor?: UserProfile;
+  actorIds?: ID[];
+  actorCount?: number;
   read: boolean;
   createdAt: string;
+  lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
   entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page';
+  data?: Record<string, unknown>;
 }
 
 export interface Community {

@@ -14,7 +14,7 @@ type NotificationRow = {
 
 type PushTokenRow = {
   user_id: string;
-  token: string;
+  expo_push_token: string;
 };
 
 type NotificationPreferenceRow = {
@@ -22,6 +22,7 @@ type NotificationPreferenceRow = {
   push_enabled: boolean;
   likes: boolean;
   comments: boolean;
+  mentions: boolean;
   follows: boolean;
   messages: boolean;
   events: boolean;
@@ -42,6 +43,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 const preferenceKeyForKind = (kind: string): keyof Omit<NotificationPreferenceRow, 'user_id'> | null => {
   if (kind === 'like') return 'likes';
   if (kind === 'comment') return 'comments';
+  if (kind === 'mention') return 'mentions';
   if (kind === 'follow' || kind === 'follow_request') return 'follows';
   if (kind === 'message') return 'messages';
   if (kind === 'event') return 'events';
@@ -77,7 +79,11 @@ Deno.serve(async () => {
 
   const userIds = Array.from(new Set(pending.map((notification) => notification.user_id)));
   const [{ data: tokenRows }, { data: preferenceRows }, { data: muteRows }] = await Promise.all([
-    supabase.from('push_tokens').select('user_id, token').in('user_id', userIds),
+    supabase
+      .from('user_push_tokens')
+      .select('user_id, expo_push_token')
+      .in('user_id', userIds)
+      .eq('is_active', true),
     supabase.from('notification_preferences').select('*').in('user_id', userIds),
     supabase
       .from('chat_participants')
@@ -89,7 +95,7 @@ Deno.serve(async () => {
   const tokensByUser = new Map<string, string[]>();
   for (const row of (tokenRows ?? []) as PushTokenRow[]) {
     const tokens = tokensByUser.get(row.user_id) ?? [];
-    tokens.push(row.token);
+    tokens.push(row.expo_push_token);
     tokensByUser.set(row.user_id, tokens);
   }
 
@@ -133,9 +139,27 @@ Deno.serve(async () => {
         body: notification.body,
         data: {
           notificationId: notification.id,
+          type: notification.kind,
           kind: notification.kind,
+          screen:
+            notification.entity_type === 'post'
+              ? '/post/[id]'
+              : notification.entity_type === 'event'
+                ? '/event/[id]'
+                : notification.entity_type === 'profile'
+                  ? '/profile/[id]'
+                  : notification.entity_type === 'conversation' || notification.entity_type === 'chat_room'
+                    ? '/messages/[id]'
+                    : '/notifications',
           entityType: notification.entity_type ?? '',
-          entityId: notification.entity_id ?? ''
+          entityId: notification.entity_id ?? '',
+          postId: notification.entity_type === 'post' ? notification.entity_id ?? '' : '',
+          eventId: notification.entity_type === 'event' ? notification.entity_id ?? '' : '',
+          profileId: notification.entity_type === 'profile' ? notification.entity_id ?? '' : '',
+          conversationId:
+            notification.entity_type === 'conversation' || notification.entity_type === 'chat_room'
+              ? notification.entity_id ?? ''
+              : ''
         }
       });
     }

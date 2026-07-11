@@ -11,10 +11,13 @@ interface UiState {
   accentColor: AccentColor;
   language: string;
   createSheetOpen: boolean;
+  notificationUnreadCount: number;
   onlineUserIds: Set<string>;
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: AccentColor) => void;
   setLanguage: (language: string) => void;
+  setNotificationUnreadCount: (count: number) => void;
+  incrementNotificationUnreadCount: (delta?: number) => void;
   setOnlineUserIds: (userIds: string[]) => void;
   openCreateSheet: () => void;
   closeCreateSheet: () => void;
@@ -27,10 +30,17 @@ export const useUiStore = create<UiState>()(
       accentColor: 'orange',
       language: 'English',
       createSheetOpen: false,
+      notificationUnreadCount: 0,
       onlineUserIds: new Set(),
       setThemeMode: (themeMode) => set({ themeMode }),
       setAccentColor: (accentColor) => set({ accentColor }),
       setLanguage: (language) => set({ language }),
+      setNotificationUnreadCount: (notificationUnreadCount) =>
+        set({ notificationUnreadCount: Math.max(0, notificationUnreadCount) }),
+      incrementNotificationUnreadCount: (delta = 1) =>
+        set((state) => ({
+          notificationUnreadCount: Math.max(0, state.notificationUnreadCount + delta)
+        })),
       setOnlineUserIds: (userIds) => set({ onlineUserIds: new Set(userIds) }),
       openCreateSheet: () => set({ createSheetOpen: true }),
       closeCreateSheet: () => set({ createSheetOpen: false })

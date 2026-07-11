@@ -8,12 +8,21 @@ import { supabase } from '@/lib/supabase';
 
 export const pushNotificationsEnabledKey = 'sportz.push.enabled';
 export const notificationPreferencesKey = 'sportz.notification.preferences';
+const pushInstallationIdKey = 'sportz.push.installationId';
 
-export type NotificationPreferenceKey = 'likes' | 'comments' | 'follows' | 'messages' | 'events' | 'invites';
+export type NotificationPreferenceKey =
+  | 'likes'
+  | 'comments'
+  | 'mentions'
+  | 'follows'
+  | 'messages'
+  | 'events'
+  | 'invites';
 
 export const defaultNotificationPreferences: Record<NotificationPreferenceKey, boolean> = {
   likes: true,
   comments: true,
+  mentions: true,
   follows: true,
   messages: true,
   events: true,
@@ -23,6 +32,7 @@ export const defaultNotificationPreferences: Record<NotificationPreferenceKey, b
 const preferenceForKind = (kind?: string): NotificationPreferenceKey | null => {
   if (kind === 'like') return 'likes';
   if (kind === 'comment') return 'comments';
+  if (kind === 'mention') return 'mentions';
   if (kind === 'follow' || kind === 'follow_request') return 'follows';
   if (kind === 'message') return 'messages';
   if (kind === 'event') return 'events';
@@ -67,6 +77,7 @@ export async function saveNotificationPreferences(
       push_enabled: enabled,
       likes: preferences.likes,
       comments: preferences.comments,
+      mentions: preferences.mentions,
       follows: preferences.follows,
       messages: preferences.messages,
       events: preferences.events,
@@ -92,12 +103,30 @@ Notifications.setNotificationHandler({
   }
 });
 
+async function getOrCreateInstallationId() {
+  const existing = await AsyncStorage.getItem(pushInstallationIdKey);
+  if (existing) return existing;
+
+  const installationId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  await AsyncStorage.setItem(pushInstallationIdKey, installationId);
+  return installationId;
+}
+
 export async function registerForPushNotificationsAsync() {
   const enabled = await AsyncStorage.getItem(pushNotificationsEnabledKey);
   if (enabled === 'false') return null;
 
   if (!Device.isDevice) {
     return null;
+  }
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF5A1F'
+    });
   }
 
   const existingPermission = await Notifications.getPermissionsAsync();
@@ -112,28 +141,29 @@ export async function registerForPushNotificationsAsync() {
     return null;
   }
 
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const runtimeProjectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const projectId =
+    Constants.easConfig?.projectId ??
+    (typeof runtimeProjectId === 'string' && runtimeProjectId.trim() ? runtimeProjectId : undefined);
   const token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF5A1F'
-    });
-  }
 
   const { data: authData } = await supabase.auth.getUser();
   if (authData.user) {
-    await supabase.from('push_tokens').upsert(
+    const now = new Date().toISOString();
+    await supabase.from('user_push_tokens').upsert(
       {
         user_id: authData.user.id,
-        token: token.data,
+        expo_push_token: token.data,
         platform: Platform.OS,
-        updated_at: new Date().toISOString()
+        device_id: await getOrCreateInstallationId(),
+        device_name: Device.deviceName ?? Device.modelName ?? null,
+        app_version: Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? null,
+        is_active: true,
+        last_seen_at: now,
+        revoked_at: null,
+        updated_at: now
       },
-      { onConflict: 'token' }
+      { onConflict: 'user_id,expo_push_token' }
     );
   }
 

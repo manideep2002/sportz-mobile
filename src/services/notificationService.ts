@@ -25,10 +25,15 @@ interface NotificationRow {
   title: string;
   body: string;
   actor: NotificationActor | null;
+  actor_ids?: string[] | null;
+  actor_count?: number | null;
+  is_read?: boolean | null;
   read_at: string | null;
   created_at: string;
+  last_event_at?: string | null;
   entity_id: string | null;
   entity_type: SportzNotification['entityType'] | null;
+  data?: Record<string, unknown> | null;
 }
 
 const mapNotificationRow = (row: NotificationRow): SportzNotification => ({
@@ -37,10 +42,14 @@ const mapNotificationRow = (row: NotificationRow): SportzNotification => ({
   title: row.title,
   body: row.body,
   actor: row.actor ? mapProfileRow(row.actor) : undefined,
-  read: Boolean(row.read_at),
-  createdAt: row.created_at,
+  actorIds: row.actor_ids ?? undefined,
+  actorCount: row.actor_count ?? undefined,
+  read: row.is_read ?? Boolean(row.read_at),
+  createdAt: row.last_event_at ?? row.created_at,
+  lastEventAt: row.last_event_at ?? undefined,
   entityId: row.entity_id ?? undefined,
-  entityType: row.entity_type ?? undefined
+  entityType: row.entity_type ?? undefined,
+  data: row.data ?? undefined
 });
 
 export const notificationService = {
@@ -55,11 +64,29 @@ export const notificationService = {
       .from('notifications')
       .select('*, actor:actor_id(*)')
       .eq('user_id', authData.user.id)
+      .order('last_event_at', { ascending: false })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
     return (data ?? []).map((row) => mapNotificationRow(row as unknown as NotificationRow));
+  },
+
+  async countUnread(): Promise<number> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return 0;
+
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', authData.user.id)
+      .eq('is_read', false);
+
+    if (error) throw error;
+    return count ?? 0;
   },
 
   async markAllRead(): Promise<void> {
@@ -71,9 +98,9 @@ export const notificationService = {
 
     const { error } = await supabase
       .from('notifications')
-      .update({ read_at: new Date().toISOString() })
+      .update({ is_read: true })
       .eq('user_id', authData.user.id)
-      .is('read_at', null);
+      .eq('is_read', false);
 
     if (error) throw error;
   },
@@ -87,15 +114,20 @@ export const notificationService = {
 
     const { error } = await supabase
       .from('notifications')
-      .update({ read_at: new Date().toISOString() })
+      .update({ is_read: true })
       .eq('id', notificationId)
       .eq('user_id', authData.user.id)
-      .is('read_at', null);
+      .eq('is_read', false);
 
     if (error) throw error;
   },
 
-  subscribeToNotifications(callback: (notification: SportzNotification) => void) {
+  subscribeToNotifications(
+    callback: (
+      notification: SportzNotification,
+      event: { type: 'INSERT' | 'UPDATE'; previousRead?: boolean }
+    ) => void
+  ) {
     assertSupabaseConfigured();
 
     const getUserAndSubscribe = async () => {
@@ -107,12 +139,21 @@ export const notificationService = {
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'notifications',
             filter: `user_id=eq.${authData.user.id}`
           },
           async (payload) => {
+            if (payload.eventType !== 'INSERT' && payload.eventType !== 'UPDATE') return;
+            const oldRow = payload.old as { is_read?: boolean | null; read_at?: string | null } | null;
+            const event = {
+              type: payload.eventType,
+              previousRead:
+                payload.eventType === 'UPDATE' && oldRow
+                  ? oldRow.is_read ?? Boolean(oldRow.read_at)
+                  : undefined
+            } as const;
             const row = payload.new as { id?: string };
             if (row.id) {
               const { data } = await supabase
@@ -121,11 +162,11 @@ export const notificationService = {
                 .eq('id', row.id)
                 .single();
               if (data) {
-                callback(mapNotificationRow(data as unknown as NotificationRow));
+                callback(mapNotificationRow(data as unknown as NotificationRow), event);
                 return;
               }
             }
-            callback(mapNotificationRow(payload.new as unknown as NotificationRow));
+            callback(mapNotificationRow(payload.new as unknown as NotificationRow), event);
           }
         )
         .subscribe();

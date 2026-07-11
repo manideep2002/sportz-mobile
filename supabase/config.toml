@@ -391,6 +391,9 @@ verify_jwt = false
 [functions.chat-message-notifier]
 verify_jwt = false
 
+[functions.notification-dispatcher]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

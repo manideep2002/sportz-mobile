@@ -6,7 +6,6 @@ import { BlurView } from 'expo-blur';
 import { Avatar } from '@/components/ui';
 import { colors, layout, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
-import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import type { MainTabParamList } from './routes';
@@ -20,10 +19,11 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabs() {
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
+  const notificationUnreadCount = useUiStore((state) => state.notificationUnreadCount);
   const { data: conversations = [] } = useConversations();
-  const { data: notifications = [] } = useNotifications();
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
-  const unreadNotifications = notifications.some((notification) => !notification.read);
+  const notificationBadge =
+    notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
 
   return (
     <>
@@ -84,8 +84,8 @@ export function MainTabs() {
            options={{
              title: 'Profile',
              tabBarIcon: ProfileTabIcon,
-             tabBarBadge: unreadNotifications ? '' : undefined,
-             tabBarBadgeStyle: styles.dotBadge
+             tabBarBadge: notificationBadge,
+             tabBarBadgeStyle: styles.badge
            }}
          />
       </Tab.Navigator>
@@ -231,14 +231,4 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.dark[950]
   },
-  dotBadge: {
-    backgroundColor: colors.semantic.danger,
-    minWidth: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    color: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.dark[950]
-  }
 });

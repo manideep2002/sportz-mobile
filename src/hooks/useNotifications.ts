@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { notificationService } from '@/services/notificationService';
+import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 import type { SportzNotification } from '@/types/domain';
 
 const NOTIFICATIONS_PAGE_SIZE = 40;
@@ -34,9 +36,11 @@ export const useInfiniteNotifications = () =>
 
 export const useMarkNotificationsRead = () => {
   const queryClient = useQueryClient();
+  const setNotificationUnreadCount = useUiStore((state) => state.setNotificationUnreadCount);
   return useMutation({
     mutationFn: notificationService.markAllRead,
     onSuccess: () => {
+      setNotificationUnreadCount(0);
       void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
       void queryClient.invalidateQueries({ queryKey: notificationKeys.infinite });
     }
@@ -56,18 +60,23 @@ export const useMarkNotificationRead = () => {
 
 export const useRealtimeNotifications = (onNewNotification: (notification: SportzNotification) => void) => {
   const queryClient = useQueryClient();
+  const userId = useAuthStore((state) => state.user?.id);
+  const incrementNotificationUnreadCount = useUiStore((state) => state.incrementNotificationUnreadCount);
 
   useEffect(() => {
+    if (!userId) return;
+
     let mounted = true;
     let subscription: { unsubscribe: () => void } | null = null;
 
     const setupSubscription = async () => {
-      const sub = await notificationService.subscribeToNotifications((notification) => {
+      const sub = await notificationService.subscribeToNotifications((notification, event) => {
         if (!mounted) return;
-        queryClient.setQueryData<SportzNotification[]>(notificationKeys.all, (old = []) => [
-          notification,
-          ...old.filter((item) => item.id !== notification.id)
-        ]);
+        queryClient.setQueryData<SportzNotification[]>(notificationKeys.all, (old = []) =>
+          [notification, ...old.filter((item) => item.id !== notification.id)].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+        );
         queryClient.setQueryData<{
           pages: SportzNotification[][];
           pageParams: unknown[];
@@ -76,13 +85,20 @@ export const useRealtimeNotifications = (onNewNotification: (notification: Sport
             ? {
                 ...old,
                 pages: [
-                  [notification, ...(old.pages[0] ?? []).filter((item) => item.id !== notification.id)],
-                  ...old.pages.slice(1)
+                  [notification, ...(old.pages[0] ?? []).filter((item) => item.id !== notification.id)].sort(
+                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                  ),
+                  ...old.pages.slice(1).map((page) => page.filter((item) => item.id !== notification.id))
                 ]
               }
             : { pages: [[notification]], pageParams: [0] }
         );
-        onNewNotification(notification);
+        if (event.type === 'INSERT' && !notification.read) {
+          incrementNotificationUnreadCount(1);
+          onNewNotification(notification);
+        } else if (event.type === 'UPDATE' && event.previousRead === false && notification.read) {
+          incrementNotificationUnreadCount(-1);
+        }
       });
       subscription = sub;
     };
@@ -95,5 +111,5 @@ export const useRealtimeNotifications = (onNewNotification: (notification: Sport
         subscription.unsubscribe();
       }
     };
-  }, [onNewNotification, queryClient]);
+  }, [incrementNotificationUnreadCount, onNewNotification, queryClient, userId]);
 };

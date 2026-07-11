@@ -22,6 +22,7 @@ describe('notification preferences', () => {
   it('covers message and invite notification categories', () => {
     expect(defaultNotificationPreferences.messages).toBe(true);
     expect(defaultNotificationPreferences.invites).toBe(true);
+    expect(defaultNotificationPreferences.mentions).toBe(true);
   });
 
   it('suppresses disabled message notifications', async () => {
@@ -40,6 +41,15 @@ describe('notification preferences', () => {
     );
 
     await expect(shouldHandleNotification({ kind: 'follow_request' })).resolves.toBe(false);
+  });
+
+  it('suppresses disabled mention notifications', async () => {
+    await AsyncStorage.setItem(
+      notificationPreferencesKey,
+      JSON.stringify({ ...defaultNotificationPreferences, mentions: false })
+    );
+
+    await expect(shouldHandleNotification({ kind: 'mention' })).resolves.toBe(false);
   });
 
   it('suppresses all notifications when push is disabled locally', async () => {

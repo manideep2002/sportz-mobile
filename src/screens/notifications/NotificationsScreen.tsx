@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Filter } from 'lucide-react-native';
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
 
@@ -12,9 +13,10 @@ import { colors, spacing } from '@/design/tokens';
 import {
   useInfiniteNotifications,
   useMarkNotificationRead,
-  useMarkNotificationsRead,
-  useRealtimeNotifications
+  useMarkNotificationsRead
 } from '@/hooks/useNotifications';
+import { navigateFromNotificationData, notificationToRouteData } from '@/navigation/notificationRouting';
+import { navigationRef } from '@/navigation/navigationRef';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { SportzNotification } from '@/types/domain';
 
@@ -29,7 +31,7 @@ const filterNotifications = (notifications: SportzNotification[], filter: Filter
     case 'Events':
       return notifications.filter((n) => n.kind === 'event' || n.kind === 'invite');
     case 'Mentions':
-      return notifications.filter((n) => n.kind === 'comment' || n.kind === 'like');
+      return notifications.filter((n) => n.kind === 'comment' || n.kind === 'like' || n.kind === 'mention');
     case 'Social':
       return notifications.filter((n) => n.kind === 'follow' || n.kind === 'follow_request' || n.kind === 'achievement');
     case 'All':
@@ -42,6 +44,10 @@ const navigateForNotification = (
   navigation: Navigation,
   notification: SportzNotification
 ) => {
+  if (navigateFromNotificationData(navigationRef, notificationToRouteData(notification))) {
+    return;
+  }
+
   const { kind, entityId, entityType, actor } = notification;
 
   switch (kind) {
@@ -55,6 +61,7 @@ const navigateForNotification = (
       break;
     case 'like':
     case 'comment':
+    case 'mention':
       if (entityId && entityType === 'post') {
         navigation.navigate('PostDetail', { postId: entityId });
       }
@@ -82,7 +89,7 @@ export function NotificationsScreen() {
   const navigation = useNavigation<Navigation>();
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
-  const flatListRef = useRef<FlatList<SportzNotification>>(null);
+  const flashListRef = useRef<FlashListRef<SportzNotification>>(null);
 
   const { data: infiniteData, isLoading, isRefetching, refetch } = useInfiniteNotifications();
   // Flatten paginated results into a single array
@@ -97,8 +104,6 @@ export function NotificationsScreen() {
     await refetch();
     setRefreshing(false);
   }, [refetch]);
-
-  useRealtimeNotifications(() => {});
 
   const handleNotificationPress = (notification: SportzNotification) => {
     if (!notification.read) {
@@ -144,8 +149,8 @@ export function NotificationsScreen() {
 
       <SegmentedControl value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
 
-      <FlatList
-        ref={flatListRef}
+      <FlashList
+        ref={flashListRef}
         data={filteredNotifications}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}

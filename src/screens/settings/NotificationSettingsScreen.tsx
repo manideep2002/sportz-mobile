@@ -17,7 +17,15 @@ import {
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
-const notificationTypes: NotificationPreferenceKey[] = ['likes', 'comments', 'follows', 'messages', 'events', 'invites'];
+const notificationTypes: NotificationPreferenceKey[] = [
+  'likes',
+  'comments',
+  'mentions',
+  'follows',
+  'messages',
+  'events',
+  'invites'
+];
 
 export function NotificationSettingsScreen() {
   const navigation = useNavigation<Navigation>();

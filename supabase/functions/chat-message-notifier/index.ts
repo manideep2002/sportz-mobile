@@ -27,7 +27,7 @@ type ChatParticipantRow = {
 
 type PushTokenRow = {
   user_id: string;
-  token: string;
+  expo_push_token: string;
 };
 
 type ProfileRow = {
@@ -112,7 +112,11 @@ Deno.serve(async (request) => {
     await Promise.all([
       supabase.from('profiles').select('id, display_name, username, is_online').in('id', candidateUserIds),
       supabase.from('profiles').select('id, display_name, username').eq('id', message.sender_id).limit(1),
-      supabase.from('push_tokens').select('user_id, token').in('user_id', candidateUserIds)
+      supabase
+        .from('user_push_tokens')
+        .select('user_id, expo_push_token')
+        .in('user_id', candidateUserIds)
+        .eq('is_active', true)
     ]);
 
   if (tokenError) {
@@ -133,12 +137,17 @@ Deno.serve(async (request) => {
   for (const tokenRow of (tokenRows ?? []) as PushTokenRow[]) {
     if (!offlineUserSet.has(tokenRow.user_id)) continue;
     expoMessages.push({
-      to: tokenRow.token,
+      to: tokenRow.expo_push_token,
       sound: 'default',
       title: senderName,
       body: notificationBody(message),
       data: {
         kind: 'chat_message',
+        type: 'message',
+        screen: '/messages/[id]',
+        entityType: 'conversation',
+        entityId: message.room_id,
+        conversationId: message.room_id,
         roomId: message.room_id,
         messageId: message.id,
         senderId: message.sender_id
