@@ -1,9 +1,16 @@
 import { useEffect } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type QueryKey
+} from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
 import { mapProfileRow } from '@/services/profileMapper';
-import { postService, type CreatePostInput, type UpdatePostInput } from '@/services/postService';
+import { postService, type CreatePostInput, type FeedPage, type UpdatePostInput } from '@/services/postService';
 import { useAuthStore } from '@/store/authStore';
 import type { Comment, Post } from '@/types/domain';
 
@@ -76,30 +83,103 @@ export const useUpdatePost = () => {
     mutationFn: ({ postId, input }: { postId: string; input: UpdatePostInput }) =>
       postService.updatePost(postId, input),
     onSuccess: (post) => {
-      queryClient.setQueryData(feedKeys.post(post.id), post);
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(post.id, () => post));
-      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
-      if (post.author.id) {
-        void queryClient.invalidateQueries({ queryKey: feedKeys.userPosts(post.author.id) });
-      }
-      void queryClient.invalidateQueries({ queryKey: ['feed', 'community'] });
+      patchPostEverywhere(queryClient, post.id, () => post);
     }
   });
 };
 
-const patchFeedPost = (postId: string, patch: (post: Post) => Post) => (old: {
-  pages: { items: Post[]; nextCursor?: string }[];
+type InfiniteFeedData = {
+  pages: FeedPage[];
   pageParams: unknown[];
-} | undefined) =>
-  old
-    ? {
-        ...old,
-        pages: old.pages.map((page) => ({
-          ...page,
-          items: page.items.map((post) => (post.id === postId ? patch(post) : post))
-        }))
-      }
-    : old;
+};
+
+type CachedQuerySnapshot = [QueryKey, unknown][];
+
+const isPost = (value: unknown): value is Post =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Post).id === 'string' &&
+  typeof (value as Post).body === 'string';
+
+const isInfiniteFeedData = (value: unknown): value is InfiniteFeedData =>
+  typeof value === 'object' &&
+  value !== null &&
+  Array.isArray((value as InfiniteFeedData).pages) &&
+  Array.isArray((value as InfiniteFeedData).pageParams);
+
+const patchPostInQueryData = <T,>(old: T | undefined, postId: string, patch: (post: Post) => Post): T | undefined => {
+  if (!old) return old;
+
+  if (isInfiniteFeedData(old)) {
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        items: page.items.map((post) => (post.id === postId ? patch(post) : post))
+      }))
+    } as T;
+  }
+
+  if (Array.isArray(old) && old.every(isPost)) {
+    return old.map((post) => (post.id === postId ? patch(post) : post)) as T;
+  }
+
+  if (isPost(old)) {
+    return old.id === postId ? (patch(old) as T) : old;
+  }
+
+  return old;
+};
+
+const removePostFromQueryData = <T,>(old: T | undefined, postId: string): T | undefined => {
+  if (!old) return old;
+
+  if (isInfiniteFeedData(old)) {
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        items: page.items.filter((post) => post.id !== postId)
+      }))
+    } as T;
+  }
+
+  if (Array.isArray(old) && old.every(isPost)) {
+    return old.filter((post) => post.id !== postId) as T;
+  }
+
+  return old;
+};
+
+const snapshotFeedQueries = (queryClient: QueryClient): CachedQuerySnapshot =>
+  queryClient.getQueriesData<unknown>({ queryKey: ['feed'] });
+
+const restoreQueries = (queryClient: QueryClient, snapshots?: CachedQuerySnapshot) => {
+  snapshots?.forEach(([queryKey, data]) => queryClient.setQueryData(queryKey, data));
+};
+
+const patchPostEverywhere = (queryClient: QueryClient, postId: string, patch: (post: Post) => Post) => {
+  queryClient.setQueriesData<unknown>({ queryKey: ['feed'] }, (old: unknown) => patchPostInQueryData(old, postId, patch));
+  queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => patchPostInQueryData(old, postId, patch));
+};
+
+const getCachedPost = (queryClient: QueryClient, postId: string) => {
+  const detailPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+  if (detailPost) return detailPost;
+
+  for (const [, data] of queryClient.getQueriesData<unknown>({ queryKey: ['feed'] })) {
+    if (isInfiniteFeedData(data)) {
+      const post = data.pages.flatMap((page) => page.items).find((item) => item.id === postId);
+      if (post) return post;
+    }
+    if (Array.isArray(data) && data.every(isPost)) {
+      const post = data.find((item) => item.id === postId);
+      if (post) return post;
+    }
+  }
+
+  return undefined;
+};
 
 export const useCreateComment = (postId: string) => {
   const queryClient = useQueryClient();
@@ -112,15 +192,12 @@ export const useCreateComment = (postId: string) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: feedKeys.comments(postId) }),
         queryClient.cancelQueries({ queryKey: feedKeys.post(postId) }),
-        queryClient.cancelQueries({ queryKey: feedKeys.infinite })
+        queryClient.cancelQueries({ queryKey: ['feed'] })
       ]);
 
       const previousComments = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
-      const previousFeed = queryClient.getQueryData<{
-        pages: { items: Post[]; nextCursor?: string }[];
-        pageParams: unknown[];
-      }>(feedKeys.infinite);
+      const previousFeedQueries = snapshotFeedQueries(queryClient);
       const optimisticId = `optimistic-comment-${Date.now()}`;
       const optimisticComment: Comment = {
         id: optimisticId,
@@ -134,12 +211,9 @@ export const useCreateComment = (postId: string) => {
       };
 
       queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, optimisticComment]);
-      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) =>
-        old ? { ...old, comments: old.comments + 1 } : old
-      );
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, (post) => ({ ...post, comments: post.comments + 1 })));
+      patchPostEverywhere(queryClient, postId, (post) => ({ ...post, comments: post.comments + 1 }));
 
-      return { previousComments, previousPost, previousFeed, optimisticId };
+      return { previousComments, previousPost, previousFeedQueries, optimisticId };
     },
     onSuccess: (comment, _variables, context) => {
       queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
@@ -153,12 +227,7 @@ export const useCreateComment = (postId: string) => {
       if (context?.previousPost) {
         queryClient.setQueryData(feedKeys.post(postId), context.previousPost);
       }
-      if (context?.previousFeed) {
-        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
-      }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
+      restoreQueries(queryClient, context?.previousFeedQueries);
     }
   });
 };
@@ -170,25 +239,19 @@ export const useRecordPostShare = () => {
     mutationFn: (postId: string) => postService.recordPostShare(postId),
     onMutate: async (postId) => {
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: ['feed'] }),
         queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
       ]);
-      const previousFeed = queryClient.getQueryData<{
-        pages: { items: Post[]; nextCursor?: string }[];
-        pageParams: unknown[];
-      }>(feedKeys.infinite);
+      const previousFeedQueries = snapshotFeedQueries(queryClient);
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
       const patch = (post: Post): Post => ({ ...post, shares: post.shares + 1 });
 
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
-      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
+      patchPostEverywhere(queryClient, postId, patch);
 
-      return { previousFeed, previousPost, postId };
+      return { previousFeedQueries, previousPost, postId };
     },
     onError: (_error, _postId, context) => {
-      if (context?.previousFeed) {
-        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
-      }
+      restoreQueries(queryClient, context?.previousFeedQueries);
       if (context?.previousPost) {
         queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
       }
@@ -233,13 +296,10 @@ export const useDeleteComment = (postId: string) => {
       queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
         old.filter((comment) => comment.id !== commentId)
       );
-      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) =>
-        old ? { ...old, comments: Math.max(0, old.comments - 1) } : old
-      );
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, (post) => ({
+      patchPostEverywhere(queryClient, postId, (post) => ({
         ...post,
         comments: Math.max(0, post.comments - 1)
-      })));
+      }));
     }
   });
 };
@@ -251,13 +311,10 @@ export const useOptimisticPostLike = () => {
     mutationFn: ({ postId, liked }: { postId: string; liked: boolean }) => postService.togglePostLike(postId, liked),
     onMutate: async ({ postId, liked }) => {
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: ['feed'] }),
         queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
       ]);
-      const previousFeed = queryClient.getQueryData<{
-        pages: { items: Post[]; nextCursor?: string }[];
-        pageParams: unknown[];
-      }>(feedKeys.infinite);
+      const previousFeedQueries = snapshotFeedQueries(queryClient);
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
       const patch = (post: Post): Post => ({
         ...post,
@@ -265,15 +322,12 @@ export const useOptimisticPostLike = () => {
         likes: liked ? Math.max(0, post.likes - 1) : post.likes + 1
       });
 
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
-      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
+      patchPostEverywhere(queryClient, postId, patch);
 
-      return { previousFeed, previousPost, postId };
+      return { previousFeedQueries, previousPost, postId };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previousFeed) {
-        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
-      }
+      restoreQueries(queryClient, context?.previousFeedQueries);
       if (context?.previousPost) {
         queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
       }
@@ -287,23 +341,7 @@ export const useDeletePost = () => {
   return useMutation({
     mutationFn: (postId: string) => postService.deletePost(postId),
     onSuccess: (_data, postId) => {
-      // Remove post from infinite feed
-      queryClient.setQueryData(feedKeys.infinite, (old: {
-        pages: { items: Post[]; nextCursor?: string }[];
-        pageParams: unknown[];
-      } | undefined) =>
-        old
-          ? {
-              ...old,
-              pages: old.pages.map((page) => ({
-                ...page,
-                items: page.items.filter((post) => post.id !== postId)
-              }))
-            }
-          : old
-      );
-      // Invalidate related queries
-      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+      queryClient.setQueriesData<unknown>({ queryKey: ['feed'] }, (old: unknown) => removePostFromQueryData(old, postId));
       void queryClient.removeQueries({ queryKey: feedKeys.post(postId) });
       void queryClient.removeQueries({ queryKey: feedKeys.comments(postId) });
     }
@@ -317,34 +355,32 @@ export const useOptimisticPostSave = () => {
     mutationFn: ({ postId, saved }: { postId: string; saved: boolean }) => postService.togglePostSave(postId, saved),
     onMutate: async ({ postId, saved }) => {
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: feedKeys.infinite }),
+        queryClient.cancelQueries({ queryKey: ['feed'] }),
         queryClient.cancelQueries({ queryKey: feedKeys.post(postId) })
       ]);
-      const previousFeed = queryClient.getQueryData<{
-        pages: { items: Post[]; nextCursor?: string }[];
-        pageParams: unknown[];
-      }>(feedKeys.infinite);
+      const previousFeedQueries = snapshotFeedQueries(queryClient);
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const cachedPost = getCachedPost(queryClient, postId);
       const patch = (post: Post): Post => ({
         ...post,
         savedByMe: !saved
       });
 
-      queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, patch));
-      queryClient.setQueryData<Post>(feedKeys.post(postId), (old) => (old ? patch(old) : old));
+      patchPostEverywhere(queryClient, postId, patch);
+      queryClient.setQueryData<Post[]>(feedKeys.savedPosts, (old) => {
+        if (!old) return old;
+        if (saved) return old.filter((post) => post.id !== postId);
+        if (!cachedPost || old.some((post) => post.id === postId)) return old;
+        return [patch(cachedPost), ...old];
+      });
 
-      return { previousFeed, previousPost, postId };
+      return { previousFeedQueries, previousPost, postId };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previousFeed) {
-        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
-      }
+      restoreQueries(queryClient, context?.previousFeedQueries);
       if (context?.previousPost) {
         queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
       }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: feedKeys.savedPosts });
     }
   });
 };

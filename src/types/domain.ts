@@ -58,6 +58,10 @@ export interface Post {
   body: string;
   mediaUrl?: string | null;
   mediaKind?: 'image' | 'video' | 'court-card' | 'none';
+  mediaPlaceholder?: string | null;
+  mediaStoragePath?: string | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
   eventTeaser?: EventTeaser;

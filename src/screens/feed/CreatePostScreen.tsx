@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
+import type * as ImagePicker from 'expo-image-picker';
 import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
@@ -31,6 +32,7 @@ export function CreatePostScreen() {
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaAsset, setMediaAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<Post['mediaKind']>('none');
   const [kind, setKind] = useState<Post['kind']>(route.params?.initialKind ?? 'post');
@@ -64,6 +66,7 @@ export function CreatePostScreen() {
     setKind(editPost.kind);
     setStatsLine(editPost.statsLine ?? '');
     setMediaUri(editPost.mediaUrl ?? null);
+    setMediaAsset(null);
     setMediaKind(editPost.mediaKind ?? 'none');
     setVisibility(editPost.visibility === 'followers' ? 'Followers' : 'Public');
     setHydratedEditPost(true);
@@ -73,6 +76,7 @@ export function CreatePostScreen() {
     try {
       const media = await storageService.pickMedia();
       setMediaUri(media?.uri ?? null);
+      setMediaAsset(media ?? null);
       setThumbnailUri((media as { thumbnail?: string; thumbnailUri?: string } | null)?.thumbnail ?? (media as { thumbnailUri?: string } | null)?.thumbnailUri ?? null);
       setMediaKind(media?.type === 'video' ? 'video' : media ? 'image' : 'none');
     } catch (error) {
@@ -141,6 +145,7 @@ export function CreatePostScreen() {
         sport,
         kind,
         mediaUrl: mediaUri,
+        mediaAsset,
         mediaKind,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
         visibility: visibility.toLowerCase() as 'public' | 'followers',
@@ -218,6 +223,7 @@ export function CreatePostScreen() {
                 style={styles.removeMedia}
                 onPress={() => {
                   setMediaUri(null);
+                  setMediaAsset(null);
                   setThumbnailUri(null);
                   setMediaKind('none');
                 }}

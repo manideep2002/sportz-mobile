@@ -4,65 +4,15 @@ import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
+import {
+  buildStorageObjectName,
+  resolveAssetExtAndMime,
+  resumableUploadService,
+  type ResumableUploadResult
+} from '@/services/resumableUploadService';
 
-/** Supported video extensions */
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'm4v', 'webm']);
 
-/** Map file extension → MIME type. Falls back to image/jpeg. */
-const mimeFromExt = (ext: string): string => {
-  const map: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    gif: 'image/gif',
-    mp4: 'video/mp4',
-    mov: 'video/mp4',
-    m4v: 'video/mp4',
-    webm: 'video/webm'
-  };
-  return map[ext] ?? 'image/jpeg';
-};
-
-/**
- * Derive a clean extension + MIME type from an ImagePicker asset.
- *
- * Prefers the picker's mimeType field (most reliable), then falls back
- * to the extension in the URI, then defaults to jpeg.
- */
-function resolveExtAndMime(asset: ImagePicker.ImagePickerAsset): { ext: string; mime: string } {
-  // 1. mimeType field from the picker (most reliable)
-  if (asset.mimeType) {
-    const mime = asset.mimeType;
-    const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-    return { ext, mime };
-  }
-
-  // 2. Extension from the URI (only when it looks like a real extension ≤ 5 chars)
-  const lastSegment = asset.uri.split('/').pop() ?? '';
-  const dotIndex = lastSegment.lastIndexOf('.');
-  if (dotIndex !== -1) {
-    const rawExt = lastSegment.slice(dotIndex + 1).toLowerCase();
-    if (rawExt.length > 0 && rawExt.length <= 5 && /^[a-z0-9]+$/.test(rawExt)) {
-      const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-      return { ext, mime: mimeFromExt(ext) };
-    }
-  }
-
-  // 3. Default
-  return { ext: 'jpg', mime: 'image/jpeg' };
-}
-
-/**
- * Read a local file URI into an ArrayBuffer for upload.
- *
- * On Android, React Native's fetch() does not reliably produce a non-empty
- * Blob from file:// URIs (the blob body can be 0 bytes). We keep the
- * expo-file-system base64 path there. iOS handles file:// fetches reliably
- * and avoids the large base64 memory spike that can make video uploads hang.
- *
- * On web, fetch() + arrayBuffer() is the standard approach.
- */
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'android') {
     const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -76,7 +26,6 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
     return bytes.buffer;
   }
 
-  // iOS + web: fetch handles local file/blob/data URIs without base64 inflation.
   const response = await fetch(uri);
   return response.arrayBuffer();
 }
@@ -89,7 +38,6 @@ export const storageService = {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      // Array form — MediaTypeOptions.All is deprecated in SDK 54+
       mediaTypes: ['images', 'videos'],
       quality: 0.86,
       allowsEditing: false
@@ -150,12 +98,6 @@ export const storageService = {
     return result.assets[0];
   },
 
-  /**
-   * Upload a media asset to Supabase Storage and return its public URL.
-   *
-   * Uses expo-file-system on native to avoid the Android fetch()+blob() bug
-   * where the blob body comes back as 0 bytes from file:// URIs.
-   */
   async uploadMedia(
     asset: ImagePicker.ImagePickerAsset | string,
     bucket: 'post-media' | 'story-media' | 'avatars' | 'event-covers',
@@ -168,7 +110,7 @@ export const storageService = {
 
     if (!env.isSupabaseConfigured) return pickerAsset.uri;
 
-    const { ext, mime } = resolveExtAndMime(pickerAsset);
+    const { ext, mime } = resolveAssetExtAndMime(pickerAsset);
     const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const contentType = VIDEO_EXTS.has(ext) ? 'video/mp4' : mime;
 
@@ -182,5 +124,31 @@ export const storageService = {
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
+  },
+
+  async uploadPostMediaResumable(
+    asset: ImagePicker.ImagePickerAsset,
+    ownerId: string,
+    postId: string,
+    onProgress?: (progress: { bytesUploaded: number; bytesTotal: number; percentage: number }) => void
+  ): Promise<ResumableUploadResult> {
+    const { ext } = resolveAssetExtAndMime(asset);
+    const objectName = buildStorageObjectName(ownerId, ext, postId);
+
+    return resumableUploadService.uploadAsset(asset, {
+      bucket: 'post-media',
+      ownerId,
+      objectName,
+      cacheControl: '31536000',
+      metadata: {
+        postId,
+        ownerId,
+        mediaKind: asset.type === 'video' ? 'video' : 'image',
+        width: asset.width,
+        height: asset.height,
+        uploadIntent: 'post-media'
+      },
+      onProgress
+    });
   }
 };

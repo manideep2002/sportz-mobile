@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
@@ -9,6 +10,7 @@ import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
+import { clampedMediaAspectRatio, mediaPlaceholderSource } from '@/utils/mediaPlaceholder';
 
 interface PostCardProps {
   post: Post;
@@ -39,6 +41,8 @@ function PostCardComponent({
   const [useRawMedia, setUseRawMedia] = useState(false);
   const feedImageUrl = mediaVariants.feedImage(post.mediaUrl);
   const mediaImageUrl = (useRawMedia ? post.mediaUrl : feedImageUrl) ?? post.mediaUrl ?? '';
+  const mediaPlaceholder = mediaPlaceholderSource(post.mediaPlaceholder);
+  const mediaAspectRatio = clampedMediaAspectRatio(post.mediaWidth, post.mediaHeight);
 
   useEffect(() => {
     setMediaLoading(Boolean(post.mediaUrl));
@@ -84,17 +88,27 @@ function PostCardComponent({
               accessibilityRole="button"
               accessibilityLabel="Open image"
               disabled={mediaError}
-              style={styles.media}
+              style={[styles.media, styles.imageMediaFrame, { aspectRatio: mediaAspectRatio }]}
               onPress={(event) => runAction(event, () => setImageViewerOpen(true))}
             >
-              {mediaLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.mediaLoader} /> : null}
+              {mediaLoading ? (
+                <View pointerEvents="none" style={styles.mediaLoader}>
+                  <ActivityIndicator color={colors.orange[500]} />
+                </View>
+              ) : null}
               {mediaError ? (
                 <View style={styles.mediaFallback}>
                   <AppText variant="small">Media unavailable</AppText>
                 </View>
               ) : (
-                <Image
+                <ExpoImage
                   source={{ uri: mediaImageUrl }}
+                  placeholder={mediaPlaceholder ?? undefined}
+                  placeholderContentFit="cover"
+                  contentFit="cover"
+                  transition={180}
+                  cachePolicy="disk"
+                  recyclingKey={post.id}
                   style={styles.mediaImage}
                   onLoadEnd={() => setMediaLoading(false)}
                   onError={() => {
@@ -232,19 +246,27 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     marginTop: 10
   },
+  imageMediaFrame: {
+    borderRadius: 10,
+    backgroundColor: colors.dark[800],
+    overflow: 'hidden'
+  },
   mediaImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 10
+    height: '100%'
   },
   mediaLoader: {
     position: 'absolute',
     zIndex: 1,
-    alignSelf: 'center',
-    top: 88
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   mediaFallback: {
-    height: 200,
+    flex: 1,
     borderRadius: 10,
     backgroundColor: colors.dark[700],
     alignItems: 'center',

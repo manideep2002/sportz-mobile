@@ -5,12 +5,15 @@ import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { Comment, Post } from '@/types/domain';
+import { createUuid } from '@/utils/uuid';
+import type * as ImagePicker from 'expo-image-picker';
 
 export interface CreatePostInput {
   body: string;
   sport: string;
   kind?: Post['kind'];
   mediaUrl?: string | null;
+  mediaAsset?: ImagePicker.ImagePickerAsset | null;
   mediaKind?: Post['mediaKind'];
   statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
@@ -62,6 +65,11 @@ interface PostRow {
   body: string;
   media_url: string | null;
   media_kind: Post['mediaKind'] | null;
+  media_placeholder?: string | null;
+  media_storage_path?: string | null;
+  media_width?: number | null;
+  media_height?: number | null;
+  media_processing_status?: 'processing' | 'ready' | 'failed' | null;
   stats_line: string | null;
   visibility: Post['visibility'] | null;
   created_at: string;
@@ -81,6 +89,7 @@ type HomeFeedRow = Omit<PostRow, 'profiles'> & {
 };
 
 const POST_CACHE_TTL_MS = 1000 * 45;
+const ACTIVE_TIMELINE_RETENTION_MS = 1000 * 60 * 60 * 24 * 30;
 const profileCacheKey = (profileId: string) => `profile:v1:${profileId}`;
 const postCachePrefix = (postId: string) => `post:v1:${postId}:`;
 const postCacheKey = (postId: string, viewerId: string) => `${postCachePrefix(postId)}${viewerId}`;
@@ -134,6 +143,10 @@ const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   body: row.body,
   mediaUrl: row.media_url,
   mediaKind: row.media_kind ?? 'none',
+  mediaPlaceholder: row.media_placeholder ?? null,
+  mediaStoragePath: row.media_storage_path ?? null,
+  mediaWidth: row.media_width ?? null,
+  mediaHeight: row.media_height ?? null,
   statsLine: row.stats_line ?? undefined,
   visibility: row.visibility ?? 'public',
   likedByMe: engagement.likedByMe.has(row.id),
@@ -304,9 +317,11 @@ const listCachedHomeFeedPage = async (cursor?: string, limit = 10): Promise<Feed
 };
 
 const listDirectFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage> => {
+  const activeCutoff = new Date(Date.now() - ACTIVE_TIMELINE_RETENTION_MS).toISOString();
   let request = supabase
     .from('posts')
     .select('*, profiles:author_id(*)')
+    .gte('created_at', activeCutoff)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -402,19 +417,32 @@ export const postService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to post.');
 
-    const mediaUrl = input.mediaUrl
+    const postId = input.mediaAsset ? createUuid() : undefined;
+    const mediaUpload = input.mediaAsset
+      ? await storageService.uploadPostMediaResumable(input.mediaAsset, authData.user.id, postId as string)
+      : null;
+    const fallbackMediaUrl = !mediaUpload && input.mediaUrl
       ? await storageService.uploadMedia(input.mediaUrl, 'post-media', authData.user.id)
       : null;
+    const mediaUrl = mediaUpload?.publicUrl ?? fallbackMediaUrl;
+    const mediaStoragePath = mediaUpload?.objectName ?? null;
+    const mediaWidth = input.mediaAsset?.width ?? null;
+    const mediaHeight = input.mediaAsset?.height ?? null;
 
     const { data, error } = await supabase
       .from('posts')
       .insert({
+        ...(postId ? { id: postId } : {}),
         author_id: authData.user.id,
         kind: input.kind ?? 'post',
         sport: input.sport,
         body: input.body,
         media_url: mediaUrl,
         media_kind: input.mediaKind ?? (mediaUrl ? 'image' : 'none'),
+        media_storage_path: mediaStoragePath,
+        media_width: mediaWidth,
+        media_height: mediaHeight,
+        media_processing_status: mediaUpload ? 'processing' : 'ready',
         stats_line: input.statsLine ?? null,
         visibility: input.visibility ?? 'public',
         community_id: input.communityId ?? null
@@ -584,6 +612,7 @@ export const postService = {
         post_id: postId
       });
       if (error) throw error;
+      await invalidatePostCache(postId);
       return;
     }
 
@@ -592,6 +621,7 @@ export const postService = {
       post_id: postId
     });
     if (error && error.code !== '23505') throw error;
+    await invalidatePostCache(postId);
   },
 
   async togglePostSave(postId: string, saved: boolean): Promise<void> {
