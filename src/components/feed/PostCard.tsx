@@ -1,8 +1,9 @@
 import { memo, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
+import { MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
+import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
@@ -13,7 +14,6 @@ interface PostCardProps {
   post: Post;
   onPress?: () => void;
   onAuthorPress?: () => void;
-  onLike?: () => void;
   onComment?: () => void;
   onShare?: () => void;
   onSave?: () => void;
@@ -26,7 +26,6 @@ function PostCardComponent({
   post,
   onPress,
   onAuthorPress,
-  onLike,
   onComment,
   onShare,
   onSave,
@@ -150,14 +149,7 @@ function PostCardComponent({
             </View>
           ) : null}
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'} style={styles.action} onPress={(event) => runAction(event, onLike)}>
-              <Heart
-                size={22}
-                color={post.likedByMe ? colors.orange[400] : colors.text.tertiary}
-                fill={post.likedByMe ? colors.orange[400] : 'transparent'}
-              />
-              <AppText style={[styles.actionText, post.likedByMe ? styles.actionActive : null]}>{post.likes}</AppText>
-            </Pressable>
+            <LikeButton postId={post.id} liked={post.likedByMe} count={post.likes} />
             <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
               <MessageCircle size={22} color={colors.text.tertiary} />
               <AppText style={styles.actionText}>{post.comments}</AppText>

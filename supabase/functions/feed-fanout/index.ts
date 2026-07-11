@@ -36,7 +36,7 @@ const loadFollowers = async (authorId: string, offset: number) => {
   const from = offset;
   const to = offset + followerBatchSize - 1;
   const { data, error } = await supabase
-    .from('follows')
+    .from('user_follows')
     .select('follower_id')
     .eq('following_id', authorId)
     .order('follower_id', { ascending: true })

@@ -13,6 +13,10 @@ export type PushNotificationRouteData = {
   entity_id?: unknown;
   postId?: unknown;
   post_id?: unknown;
+  commentId?: unknown;
+  comment_id?: unknown;
+  parentCommentId?: unknown;
+  parent_comment_id?: unknown;
   eventId?: unknown;
   event_id?: unknown;
   profileId?: unknown;
@@ -34,6 +38,8 @@ export const notificationToRouteData = (notification: SportzNotification): PushN
   entityType: notification.entityType,
   entityId: notification.entityId,
   postId: notification.entityType === 'post' ? notification.entityId : undefined,
+  commentId: notification.data?.commentId,
+  parentCommentId: notification.data?.parentCommentId,
   eventId: notification.entityType === 'event' ? notification.entityId : undefined,
   profileId: notification.entityType === 'profile' ? notification.entityId : notification.actor?.id,
   conversationId: notification.entityType === 'conversation' ? notification.entityId : undefined,
@@ -57,8 +63,12 @@ export function navigateFromNotificationData(
     stringValue(data.postId) ??
     stringValue(data.post_id) ??
     (entityType === 'post' ? entityId : undefined);
+  const commentId = stringValue(data.commentId) ?? stringValue(data.comment_id);
   if (postId || (screen === '/post/[id]' && entityId)) {
-    navigationRef.navigate('App', { screen: 'PostDetail', params: { postId: postId ?? entityId ?? '' } });
+    navigationRef.navigate('App', {
+      screen: 'PostDetail',
+      params: { postId: postId ?? entityId ?? '', commentId }
+    });
     return true;
   }
 

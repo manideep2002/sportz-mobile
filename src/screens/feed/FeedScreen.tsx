@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
+import { FlashList } from '@shopify/flash-list';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
@@ -14,7 +15,7 @@ import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } f
 
 import { sportsFilters } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
-import { useDeletePost, useInfiniteFeed, useOptimisticPostLike, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
+import { useDeletePost, useInfiniteFeed, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
@@ -44,7 +45,6 @@ export function FeedScreen() {
   const blockedIdSet = toBlockedIdSet(blockedIds);
   const feed = (data?.pages.flatMap((page) => page.items) ?? []).filter((post) => !blockedIdSet.has(post.author.id));
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
-  const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
@@ -86,9 +86,10 @@ export function FeedScreen() {
 
   return (
     <View style={styles.root}>
-      <FlatList
+      <FlashList
         data={filteredFeed}
         keyExtractor={(item) => item.id}
+        extraData={selectedSport}
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical
         bounces
@@ -177,7 +178,6 @@ export function FeedScreen() {
           post={post}
           onPress={() => openPost(post.id)}
           onAuthorPress={() => openAuthor(post)}
-          onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => openPost(post.id)}
           onShare={() => {
             void sharePost(post).then(() => shareMutation.mutate(post.id));

@@ -34,7 +34,7 @@ export type AppStackParamList = {
   Chat: { conversationId: string; targetUserId?: string };
   FindPlayers: undefined;
   CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight'; communityId?: string; editPostId?: string } | undefined;
-  PostDetail: { postId: string };
+  PostDetail: { postId: string; commentId?: string };
   GroupDetail: { communityId: string };
   PageDetail: { communityId: string };
   SavedPosts: undefined;

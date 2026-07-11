@@ -1,6 +1,10 @@
+import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { supabase } from '@/lib/supabase';
+import { mapProfileRow } from '@/services/profileMapper';
 import { postService, type CreatePostInput, type UpdatePostInput } from '@/services/postService';
+import { useAuthStore } from '@/store/authStore';
 import type { Comment, Post } from '@/types/domain';
 
 export const feedKeys = {
@@ -99,16 +103,62 @@ const patchFeedPost = (postId: string, patch: (post: Post) => Post) => (old: {
 
 export const useCreateComment = (postId: string) => {
   const queryClient = useQueryClient();
+  const profile = useAuthStore((state) => state.profile);
 
   return useMutation({
     mutationFn: ({ body, parentCommentId }: { body: string; parentCommentId?: string | null }) =>
       postService.createComment(postId, body, parentCommentId),
-    onSuccess: (comment) => {
-      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, comment]);
+    onMutate: async ({ body, parentCommentId }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: feedKeys.comments(postId) }),
+        queryClient.cancelQueries({ queryKey: feedKeys.post(postId) }),
+        queryClient.cancelQueries({ queryKey: feedKeys.infinite })
+      ]);
+
+      const previousComments = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
+      const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const previousFeed = queryClient.getQueryData<{
+        pages: { items: Post[]; nextCursor?: string }[];
+        pageParams: unknown[];
+      }>(feedKeys.infinite);
+      const optimisticId = `optimistic-comment-${Date.now()}`;
+      const optimisticComment: Comment = {
+        id: optimisticId,
+        postId,
+        parentCommentId: parentCommentId ?? null,
+        author: profile ?? mapProfileRow({ id: '' }),
+        body,
+        likes: 0,
+        likedByMe: false,
+        createdAt: new Date().toISOString()
+      };
+
+      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, optimisticComment]);
       queryClient.setQueryData<Post>(feedKeys.post(postId), (old) =>
         old ? { ...old, comments: old.comments + 1 } : old
       );
       queryClient.setQueryData(feedKeys.infinite, patchFeedPost(postId, (post) => ({ ...post, comments: post.comments + 1 })));
+
+      return { previousComments, previousPost, previousFeed, optimisticId };
+    },
+    onSuccess: (comment, _variables, context) => {
+      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
+        old.map((item) => (item.id === context?.optimisticId ? comment : item))
+      );
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(feedKeys.comments(postId), context.previousComments);
+      }
+      if (context?.previousPost) {
+        queryClient.setQueryData(feedKeys.post(postId), context.previousPost);
+      }
+      if (context?.previousFeed) {
+        queryClient.setQueryData(feedKeys.infinite, context.previousFeed);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
     }
   });
 };
@@ -297,4 +347,45 @@ export const useOptimisticPostSave = () => {
       void queryClient.invalidateQueries({ queryKey: feedKeys.savedPosts });
     }
   });
+};
+
+export const usePostRealtimeUpdates = (postId: string) => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!postId) return undefined;
+
+    let invalidateTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleInvalidation = (includeComments: boolean) => {
+      if (invalidateTimer) return;
+
+      invalidateTimer = setTimeout(() => {
+        invalidateTimer = null;
+        void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
+        void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+        if (includeComments) {
+          void queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) });
+        }
+      }, 350);
+    };
+
+    const channel = supabase
+      .channel(`post-social:${postId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'post_likes', filter: `post_id=eq.${postId}` },
+        () => scheduleInvalidation(false)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'post_comments', filter: `post_id=eq.${postId}` },
+        () => scheduleInvalidation(true)
+      )
+      .subscribe();
+
+    return () => {
+      if (invalidateTimer) clearTimeout(invalidateTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [postId, queryClient]);
 };

@@ -1,16 +1,17 @@
 import { useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Heart, Send } from 'lucide-react-native';
+import { ChevronLeft, Heart } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
+import { CommentInput } from '@/components/social/CommentInput';
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
-import { useComments, useCreateComment, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostLike, useOptimisticPostSave, usePost, useRecordPostShare } from '@/hooks/useFeed';
+import { useComments, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostSave, usePost, usePostRealtimeUpdates, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { reportReasons, reportService } from '@/services/reportService';
@@ -39,18 +40,17 @@ export function PostDetailScreen() {
     error: commentsError,
     refetch: refetchComments
   } = useComments(route.params.postId);
+  usePostRealtimeUpdates(route.params.postId);
   const profile = useAuthStore((state) => state.profile);
-  const [commentBody, setCommentBody] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [optionsSheetOpen, setOptionsSheetOpen] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
-  const createComment = useCreateComment(route.params.postId);
-  const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
   const likeCommentMutation = useOptimisticCommentLike(route.params.postId);
   const deleteCommentMutation = useDeleteComment(route.params.postId);
+  const highlightedCommentId = route.params.commentId;
   const openAuthor = () => {
     if (!post) return;
     if (post.author.id.startsWith('page-')) {
@@ -72,20 +72,6 @@ export function PostDetailScreen() {
       { text: 'Cancel', style: 'cancel' as const }
     ], { cancelable: true });
   };
-  const submitComment = async () => {
-    const body = commentBody.trim();
-    if (!body || !post) return;
-
-    try {
-      setCommentBody('');
-      await createComment.mutateAsync({ body, parentCommentId: replyingTo?.id });
-      setReplyingTo(null);
-    } catch (error) {
-      setCommentBody(body);
-      Alert.alert('Could not comment', error instanceof Error ? error.message : 'Please try again.');
-    }
-  };
-
   return (
     <Screen
       keyboard
@@ -123,7 +109,6 @@ export function PostDetailScreen() {
         <PostCard
           post={post}
           onAuthorPress={openAuthor}
-          onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => commentInputRef.current?.focus()}
           onShare={() => {
             void sharePost(post).then(() => shareMutation.mutate(post.id));
@@ -159,10 +144,13 @@ export function PostDetailScreen() {
         <Pressable
           key={comment.id}
           accessibilityRole="button"
-          style={[styles.commentRow, comment.parentCommentId ? styles.commentReplyRow : null]}
+          style={[
+            styles.commentRow,
+            comment.parentCommentId ? styles.commentReplyRow : null,
+            highlightedCommentId === comment.id ? styles.commentHighlighted : null
+          ]}
           onPress={() => {
             setReplyingTo(comment);
-            setCommentBody(`@${comment.author.username} `);
             commentInputRef.current?.focus();
           }}
           onLongPress={() => {
@@ -193,48 +181,15 @@ export function PostDetailScreen() {
           </View>
         </Pressable>
       ))}
-      <View style={styles.commentInput}>
-        <Avatar initials={profile?.initials ?? 'MK'} uri={profile?.avatarUrl} size={36} />
-        <View style={styles.inputWrap}>
-          {replyingTo ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setReplyingTo(null);
-                setCommentBody('');
-              }}
-            >
-              <View style={styles.replyingToRow}>
-                <AppText variant="small" style={styles.replyingTo}>Replying to</AppText>
-                <VerifiedName
-                  profile={replyingTo.author}
-                  variant="small"
-                  style={styles.replyingTo}
-                  badgeSize={12}
-                  numberOfLines={1}
-                />
-              </View>
-            </Pressable>
-          ) : null}
-          <Input
-            ref={commentInputRef}
-            value={commentBody}
-            onChangeText={setCommentBody}
-            placeholder="Add a comment..."
-            returnKeyType="send"
-            onSubmitEditing={() => void submitComment()}
-          />
-        </View>
-        <IconButton
-          icon={Send}
-          accessibilityLabel="Send comment"
-          filled
-          size={40}
-          disabled={!commentBody.trim() || createComment.isPending || !post}
-          accessibilityState={{ disabled: !commentBody.trim() || createComment.isPending || !post }}
-          onPress={() => void submitComment()}
-        />
-      </View>
+      <CommentInput
+        postId={route.params.postId}
+        profile={profile}
+        replyingTo={replyingTo}
+        inputRef={commentInputRef}
+        disabled={!post}
+        onCancelReply={() => setReplyingTo(null)}
+        onSubmitted={() => setReplyingTo(null)}
+      />
       <PostOptionsSheet
         open={optionsSheetOpen}
         post={post}
@@ -301,6 +256,10 @@ const styles = StyleSheet.create({
   commentReplyRow: {
     paddingLeft: spacing.screen + 32
   },
+  commentHighlighted: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.orange[400]
+  },
   commentBody: {
     flex: 1,
     backgroundColor: colors.dark[800],
@@ -321,24 +280,4 @@ const styles = StyleSheet.create({
     gap: 5,
     marginTop: 8
   },
-  commentInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.screen,
-    marginTop: 16
-  },
-  inputWrap: {
-    flex: 1
-  },
-  replyingTo: {
-    color: colors.orange[300],
-    marginBottom: 4
-  },
-  replyingToRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xxs,
-    marginBottom: 4
-  }
 });

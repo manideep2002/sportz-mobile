@@ -44,6 +44,9 @@ export function mapProfileRow(
     badges: [],
     stats: {
       ...emptyStats,
+      followers: Number(row?.followers_count ?? counts.followers ?? 0),
+      following: Number(row?.following_count ?? counts.following ?? 0),
+      posts: Number(row?.posts_count ?? counts.posts ?? 0),
       games: Number(row?.games_played ?? 0),
       winRate: Number(row?.win_rate ?? 0),
       bestPoints: row?.best_points ?? undefined,

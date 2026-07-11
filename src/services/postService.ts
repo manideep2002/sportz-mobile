@@ -90,7 +90,7 @@ interface CommentRow {
   id: string;
   post_id: string;
   author_id: string;
-  parent_comment_id: string | null;
+  parent_id: string | null;
   body: string;
   created_at: string;
   profiles: EmbeddedProfile | null;
@@ -107,8 +107,8 @@ interface LikeRow {
   user_id: string;
 }
 
-/** Shape of a row returned from `comments` when only `post_id` is selected. */
-interface CommentCountRow {
+/** Shape of a row returned from `post_likes`. */
+interface PostLikeRow {
   post_id: string;
 }
 
@@ -165,16 +165,14 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   const { data: authData } = await supabase.auth.getUser();
   const currentUserId = authData.user?.id;
 
-  const [likesResult, commentsResult, sharesResult, savesResult] = await Promise.all([
-    supabase
-      .from('likes')
-      .select('entity_id, user_id')
-      .eq('entity_type', 'post')
-      .in('entity_id', postIds),
-    supabase
-      .from('comments')
-      .select('post_id')
-      .in('post_id', postIds),
+  const [likesResult, sharesResult, savesResult] = await Promise.all([
+    currentUserId
+      ? supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', currentUserId)
+          .in('post_id', postIds)
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from('post_shares')
       .select('post_id')
@@ -190,18 +188,13 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   ]);
 
   if (likesResult.error) throw likesResult.error;
-  if (commentsResult.error) throw commentsResult.error;
   if (sharesResult.error && sharesResult.error.code !== '42P01') throw sharesResult.error;
   // Gracefully ignore "relation does not exist" (42P01) on saved_posts so the
   // feed still loads before the migration has been applied to Supabase.
   if (savesResult.error && savesResult.error.code !== '42P01') throw savesResult.error;
 
-  for (const like of (likesResult.data ?? []) as LikeRow[]) {
-    engagement.likes.set(like.entity_id, (engagement.likes.get(like.entity_id) ?? 0) + 1);
-    if (currentUserId === like.user_id) engagement.likedByMe.add(like.entity_id);
-  }
-  for (const comment of (commentsResult.data ?? []) as CommentCountRow[]) {
-    engagement.comments.set(comment.post_id, (engagement.comments.get(comment.post_id) ?? 0) + 1);
+  for (const like of (likesResult.data ?? []) as PostLikeRow[]) {
+    engagement.likedByMe.add(like.post_id);
   }
   for (const share of (sharesResult.data ?? []) as PostShareRow[]) {
     engagement.shares.set(share.post_id, (engagement.shares.get(share.post_id) ?? 0) + 1);
@@ -523,7 +516,7 @@ export const postService = {
     assertSupabaseConfigured();
 
     const { data, error } = await supabase
-      .from('comments')
+      .from('post_comments')
       .select('*, profiles:author_id(*)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
@@ -535,7 +528,7 @@ export const postService = {
     return (data ?? []).map((row: CommentRow) => ({
       id: row.id,
       postId: row.post_id,
-      parentCommentId: row.parent_comment_id,
+      parentCommentId: row.parent_id,
       author: mapProfileRow(row.profiles ?? { id: row.author_id }),
       body: row.body,
       likes: engagement.likes.get(row.id) ?? 0,
@@ -552,11 +545,11 @@ export const postService = {
     if (!authData.user) throw new Error('You must be signed in to comment.');
 
     const { data, error } = await supabase
-      .from('comments')
+      .from('post_comments')
       .insert({
         post_id: postId,
         author_id: authData.user.id,
-        parent_comment_id: parentCommentId ?? null,
+        parent_id: parentCommentId ?? null,
         body
       })
       .select('*, profiles:author_id(*)')
@@ -567,7 +560,7 @@ export const postService = {
     const comment = {
       id: data.id,
       postId: (data as unknown as CommentRow).post_id,
-      parentCommentId: (data as unknown as CommentRow).parent_comment_id,
+      parentCommentId: (data as unknown as CommentRow).parent_id,
       author: mapProfileRow((data as unknown as CommentRow).profiles ?? { id: (data as unknown as CommentRow).author_id }),
       body: data.body,
       likes: 0,
@@ -586,19 +579,17 @@ export const postService = {
     if (!authData.user) throw new Error('You must be signed in to like posts.');
 
     if (liked) {
-      const { error } = await supabase.from('likes').delete().match({
+      const { error } = await supabase.from('post_likes').delete().match({
         user_id: authData.user.id,
-        entity_type: 'post',
-        entity_id: postId
+        post_id: postId
       });
       if (error) throw error;
       return;
     }
 
-    const { error } = await supabase.from('likes').insert({
+    const { error } = await supabase.from('post_likes').insert({
       user_id: authData.user.id,
-      entity_type: 'post',
-      entity_id: postId
+      post_id: postId
     });
     if (error && error.code !== '23505') throw error;
   },
@@ -678,7 +669,7 @@ export const postService = {
     if (!authData.user) throw new Error('You must be signed in to delete comments.');
 
     const { data: comment, error: fetchError } = await supabase
-      .from('comments')
+      .from('post_comments')
       .select('post_id')
       .eq('id', commentId)
       .eq('author_id', authData.user.id)
@@ -686,7 +677,7 @@ export const postService = {
     if (fetchError) throw fetchError;
 
     const { error } = await supabase
-      .from('comments')
+      .from('post_comments')
       .delete()
       .eq('id', commentId)
       .eq('author_id', authData.user.id);

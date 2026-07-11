@@ -8,7 +8,7 @@ import { PostCard } from '@/components/feed/PostCard';
 import { AppRefreshControl, AppText, Button, IconButton, Screen } from '@/components/ui';
 
 import { colors, spacing } from '@/design/tokens';
-import { useOptimisticPostLike, useOptimisticPostSave, useSavedPosts } from '@/hooks/useFeed';
+import { useOptimisticPostSave, useSavedPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { openPostMedia, sharePost } from '@/utils/share';
 
@@ -17,7 +17,6 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 export function SavedPostsScreen() {
   const navigation = useNavigation<Navigation>();
   const { data: posts = [], isLoading, isError, isRefetching, refetch } = useSavedPosts();
-  const likeMutation = useOptimisticPostLike();
   const saveMutation = useOptimisticPostSave();
 
   return (
@@ -55,7 +54,6 @@ export function SavedPostsScreen() {
           post={post}
           onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
           onAuthorPress={() => navigation.navigate('UserProfile', { userId: post.author.id })}
-          onLike={() => likeMutation.mutate({ postId: post.id, liked: post.likedByMe })}
           onComment={() => navigation.navigate('PostDetail', { postId: post.id })}
           onShare={() => void sharePost(post)}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}

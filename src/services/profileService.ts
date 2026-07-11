@@ -19,41 +19,13 @@ export type ProfileUpdateInput = Partial<
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
 const profileCacheKey = (id: string) => `profile:v1:${id}`;
 
-async function loadProfileCounts(
-  userId: string
-): Promise<{ followers: number; following: number; posts: number }> {
-  const [followersResult, followingResult, postsResult] = await Promise.all([
-    supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('following_id', userId),
-    supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', userId),
-    supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('author_id', userId)
-  ]);
-
-  return {
-    followers: followersResult.count ?? 0,
-    following: followingResult.count ?? 0,
-    posts: postsResult.count ?? 0
-  };
-}
-
 const loadProfile = async (id: string): Promise<UserProfile> => {
-  const [profileResult, counts] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', id).single(),
-    loadProfileCounts(id)
-  ]);
+  const profileResult = await supabase.from('profiles').select('*').eq('id', id).single();
 
   if (profileResult.error) throw profileResult.error;
   if (!profileResult.data) throw new Error('Profile not found.');
 
-  return mapProfileRow(profileResult.data, counts);
+  return mapProfileRow(profileResult.data);
 };
 
 export const profileService = {
@@ -116,7 +88,7 @@ export const profileService = {
     if (!authData.user) return new Set();
 
     const { data, error } = await supabase
-      .from('follows')
+      .from('user_follows')
       .select('following_id')
       .eq('follower_id', authData.user.id)
       .in('following_id', profileIds);
@@ -155,7 +127,7 @@ export const profileService = {
     assertSupabaseConfigured();
 
     const { data, error } = await supabase
-      .from('follows')
+      .from('user_follows')
       .select('profiles:follower_id(*)')
       .eq('following_id', userId)
       .order('created_at', { ascending: false });
@@ -168,7 +140,7 @@ export const profileService = {
     assertSupabaseConfigured();
 
     const { data, error } = await supabase
-      .from('follows')
+      .from('user_follows')
       .select('profiles:following_id(*)')
       .eq('follower_id', userId)
       .order('created_at', { ascending: false });
@@ -185,7 +157,7 @@ export const profileService = {
     if (!authData.user) return false;
 
     const { count, error } = await supabase
-      .from('follows')
+      .from('user_follows')
       .select('*', { count: 'exact', head: true })
       .eq('follower_id', authData.user.id)
       .eq('following_id', targetId);
@@ -274,7 +246,7 @@ export const profileService = {
     if (!authData.user) throw new Error('You must be signed in to unfollow players.');
 
     const { error } = await supabase
-      .from('follows')
+      .from('user_follows')
       .delete()
       .eq('follower_id', authData.user.id)
       .eq('following_id', profileId);
