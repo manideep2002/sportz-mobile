@@ -126,6 +126,13 @@ export const authService = {
     return result;
   },
 
+  async updatePassword(newPassword: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
   async resetPassword(email: string) {
     assertSupabaseConfigured();
 

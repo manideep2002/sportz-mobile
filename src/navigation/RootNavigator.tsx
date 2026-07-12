@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { sportzDarkTheme, sportzLightTheme } from '@/design/theme';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { MainTabs } from './MainTabs';
@@ -11,6 +13,7 @@ import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { RegisterScreen } from '@/screens/auth/RegisterScreen';
 import { ForgotPasswordScreen } from '@/screens/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '@/screens/auth/ResetPasswordScreen';
 import { SearchScreen } from '@/screens/feed/SearchScreen';
 import { CourtsScreen } from '@/screens/courts/CourtsScreen';
 import { CommunityScreen } from '@/screens/community/CommunityScreen';
@@ -56,7 +59,9 @@ const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Auth: {
         screens: {
-          ForgotPassword: 'reset-password'
+          // The Supabase reset-password email link opens this route.
+          // The SDK automatically exchanges the token and emits PASSWORD_RECOVERY.
+          ResetPassword: 'reset-password'
         }
       },
       App: {
@@ -77,6 +82,7 @@ function AuthNavigator() {
       <Auth.Screen name="Login" component={LoginScreen} />
       <Auth.Screen name="Register" component={RegisterScreen} />
       <Auth.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Auth.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Auth.Navigator>
   );
 }
@@ -127,6 +133,18 @@ export function RootNavigator() {
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
   const theme = themeMode === 'light' ? sportzLightTheme : sportzDarkTheme;
+
+  // Handle PASSWORD_RECOVERY event when the app is already open.
+  // Supabase emits this after exchanging the recovery token from the deep-link.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // Navigate to ResetPassword regardless of current screen.
+        navigationRef.current?.navigate('Auth', { screen: 'ResetPassword' });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <NavigationContainer ref={navigationRef} theme={theme} linking={linking}>

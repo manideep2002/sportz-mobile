@@ -16,6 +16,7 @@ interface AuthState {
   signUp: (input: RegisterInput) => Promise<void>;
   signInWithIdToken: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   setProfile: (profile: UserProfile) => void;
@@ -90,6 +91,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: false });
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : 'Reset failed.' });
+      throw error;
+    }
+  },
+
+  updatePassword: async (newPassword) => {
+    set({ loading: true, error: null });
+    try {
+      await authService.updatePassword(newPassword);
+      set({ loading: false });
+    } catch (error) {
+      set({ loading: false, error: error instanceof Error ? error.message : 'Password update failed.' });
       throw error;
     }
   },
