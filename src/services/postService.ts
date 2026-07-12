@@ -22,7 +22,7 @@ export interface CreatePostInput {
 }
 
 export type UpdatePostInput = Partial<Pick<CreatePostInput, 'body' | 'sport' | 'kind' | 'statsLine'>> & {
-  visibility?: 'public' | 'followers';
+  visibility?: 'public' | 'followers' | 'group';
 };
 
 export interface FeedPage {
@@ -322,6 +322,9 @@ const listDirectFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage
     .from('posts')
     .select('*, profiles:author_id(*)')
     .gte('created_at', activeCutoff)
+    // Group/community posts must never appear in the global home feed —
+    // they are only visible inside their community screen.
+    .neq('visibility', 'group')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -444,7 +447,12 @@ export const postService = {
         media_height: mediaHeight,
         media_processing_status: mediaUpload ? 'processing' : 'ready',
         stats_line: input.statsLine ?? null,
-        visibility: input.visibility ?? 'public',
+        // When a communityId is provided, default visibility to 'group'
+        // so posts are community-scoped by default. The caller (UI) may
+        // override with an explicit 'public' value if desired.
+        visibility: input.communityId
+          ? (input.visibility ?? 'group')
+          : (input.visibility ?? 'public'),
         community_id: input.communityId ?? null
       })
       .select('*, profiles:author_id(*)')
@@ -487,7 +495,7 @@ export const postService = {
       sport: string;
       kind: Post['kind'];
       stats_line: string | null;
-      visibility: 'public' | 'followers';
+      visibility: 'public' | 'followers' | 'group';
       updated_at: string;
     }> = {
       updated_at: new Date().toISOString()

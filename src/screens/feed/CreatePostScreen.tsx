@@ -21,7 +21,15 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CreatePost'>;
 
 const sports: Sport[] = postSports;
-const visibilityOptions = ['Public', 'Followers'] as const;
+
+/** Label used for community/group scoped posts in the visibility selector. */
+const COMMUNITY_LABEL = 'Community' as const;
+
+/** Visibility options when creating a post inside a community context. */
+const COMMUNITY_VISIBILITY_OPTIONS = [COMMUNITY_LABEL, 'Public'] as const;
+
+/** Visibility options when creating a standalone post. */
+const DEFAULT_VISIBILITY_OPTIONS = ['Public', 'Followers'] as const;
 
 export function CreatePostScreen() {
   const navigation = useNavigation<Navigation>();
@@ -29,6 +37,13 @@ export function CreatePostScreen() {
   const editPostId = route.params?.editPostId;
   const isEditing = Boolean(editPostId);
   const profile = useAuthStore((state) => state.profile);
+
+  // Detect community context from route params.
+  const isCommunityPost = Boolean(route.params?.communityId);
+  const visibilityOptions = isCommunityPost
+    ? COMMUNITY_VISIBILITY_OPTIONS
+    : DEFAULT_VISIBILITY_OPTIONS;
+
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
@@ -37,7 +52,10 @@ export function CreatePostScreen() {
   const [mediaKind, setMediaKind] = useState<Post['mediaKind']>('none');
   const [kind, setKind] = useState<Post['kind']>(route.params?.initialKind ?? 'post');
   const [statsLine, setStatsLine] = useState('');
-  const [visibility, setVisibility] = useState<(typeof visibilityOptions)[number]>('Public');
+  // Default to 'Community' when in a group/page context so posts are group-scoped.
+  const [visibility, setVisibility] = useState<string>(
+    isCommunityPost ? COMMUNITY_LABEL : 'Public'
+  );
   const [locationLabel, setLocationLabel] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
@@ -68,7 +86,12 @@ export function CreatePostScreen() {
     setMediaUri(editPost.mediaUrl ?? null);
     setMediaAsset(null);
     setMediaKind(editPost.mediaKind ?? 'none');
-    setVisibility(editPost.visibility === 'followers' ? 'Followers' : 'Public');
+    // Hydrate the visibility label from the stored value.
+    setVisibility(
+      editPost.visibility === 'followers' ? 'Followers'
+        : editPost.visibility === 'group' ? COMMUNITY_LABEL
+        : 'Public'
+    );
     setHydratedEditPost(true);
   }, [editPost, hydratedEditPost]);
 
@@ -133,7 +156,9 @@ export function CreatePostScreen() {
             sport,
             kind,
             statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
-            visibility: visibility.toLowerCase() as 'public' | 'followers'
+            visibility: visibility === COMMUNITY_LABEL
+              ? 'group'
+              : visibility.toLowerCase() as 'public' | 'followers'
           }
         });
         navigation.goBack();
@@ -148,7 +173,9 @@ export function CreatePostScreen() {
         mediaAsset,
         mediaKind,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
-        visibility: visibility.toLowerCase() as 'public' | 'followers',
+        visibility: visibility === COMMUNITY_LABEL
+          ? 'group'
+          : visibility.toLowerCase() as 'public' | 'followers',
         communityId: route.params?.communityId,
         mentionedUserIds: taggedUsers.map((user) => user.id)
       });
@@ -183,6 +210,13 @@ export function CreatePostScreen() {
                 </Chip>
               ))}
             </ScrollView>
+            {isCommunityPost ? (
+              <View style={styles.communityBanner}>
+                <AppText style={styles.communityBannerText}>
+                  Posting to community · visible to members only by default
+                </AppText>
+              </View>
+            ) : null}
           </View>
         </View>
         <TextInput
@@ -479,5 +513,21 @@ const styles = StyleSheet.create({
   },
   tagOptionMeta: {
     flex: 1
+  },
+  communityBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.overlays.orangeSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.overlays.orangeBorder,
+    borderRadius: radii.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    alignSelf: 'flex-start'
+  },
+  communityBannerText: {
+    color: colors.orange[400],
+    fontSize: 11,
+    fontFamily: typography.bodyMedium
   }
 });
