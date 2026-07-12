@@ -85,6 +85,8 @@ export interface Comment {
 }
 
 export type EventStatus = 'open' | 'full' | 'live' | 'cancelled' | 'completed';
+export type EventType = 'Pickup Game' | 'Tournament' | 'Training' | 'Friendly';
+export type EventVisibility = 'public' | 'followers' | 'group' | 'invite';
 
 export interface EventTeaser {
   dateLabel: string;
@@ -95,8 +97,10 @@ export interface EventTeaser {
 export interface SportEvent {
   id: ID;
   title: string;
+  eventType: EventType;
   sport: Sport;
   status: EventStatus;
+  visibility: EventVisibility;
   description: string;
   coverUrl?: string | null;
   startsAt: string;
@@ -107,6 +111,8 @@ export interface SportEvent {
   longitude: number;
   maxPlayers: number;
   playerCount: number;
+  entryFeeCents: number;
+  currency: string;
   entryFeeLabel: string;
   organizer: UserProfile;
   attendees: UserProfile[];

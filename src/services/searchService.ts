@@ -17,8 +17,8 @@ export const searchService = {
         .limit(10),
       supabase
         .from('sport_events')
-        .select('id, title, sport, location_name')
-        .or(`title.ilike.${pattern},sport.ilike.${pattern},location_name.ilike.${pattern}`)
+        .select('id, title, event_type, sport, location_name')
+        .or(`title.ilike.${pattern},event_type.ilike.${pattern},sport.ilike.${pattern},location_name.ilike.${pattern}`)
         .limit(10),
       supabase
         .from('courts')
@@ -49,7 +49,7 @@ export const searchService = {
         id: event.id,
         type: 'event' as const,
         title: event.title,
-        subtitle: `${event.sport} - ${event.location_name}`
+        subtitle: `${event.event_type ?? 'Event'} - ${event.sport} - ${event.location_name}`
       })),
       ...(communities.data ?? []).map((community) => ({
         id: community.id,

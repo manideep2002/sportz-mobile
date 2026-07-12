@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
+import { eventVisibilityLabel } from '@/constants/events';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { SportEvent } from '@/types/domain';
 import { eventDate, formatTime } from '@/utils/format';
@@ -16,19 +17,21 @@ interface EventCardProps {
 
 export function EventCard({ event, joined = false, waitlisted = false, joining = false, onPress, onJoin }: EventCardProps) {
   const color = event.sport === 'Football' ? colors.semantic.success : colors.orange[500];
-  const isFull = event.playerCount >= event.maxPlayers;
-  const canJoin = !joined && !waitlisted && (event.status === 'open' || event.status === 'full' || event.status === 'live');
+  const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
+  const canJoin = !joined && !waitlisted && (event.status === 'open' || event.status === 'full');
   const actionLabel = joined
     ? 'Joined'
     : waitlisted
       ? 'Waitlisted'
-      : isFull || event.status === 'full'
+      : isFull
         ? 'Join Waitlist'
-        : event.status === 'live'
-          ? 'Join Now'
-          : event.status === 'cancelled'
-            ? 'Cancelled'
-            : 'Join Event';
+        : event.status === 'cancelled'
+          ? 'Cancelled'
+          : event.status === 'completed'
+            ? 'Completed'
+            : event.status === 'live'
+              ? 'Live'
+              : 'Join Event';
   return (
     <Pressable
       onPress={onPress}
@@ -42,7 +45,13 @@ export function EventCard({ event, joined = false, waitlisted = false, joining =
         <View style={styles.content}>
           <View style={styles.top}>
             <View style={styles.meta}>
-              <Badge tone={event.sport === 'Football' ? 'green' : 'orange'}>{event.sport}</Badge>
+              <View style={styles.badges}>
+                <Badge tone={event.sport === 'Football' ? 'green' : 'orange'}>{event.sport}</Badge>
+                <Badge tone="dark">{event.eventType}</Badge>
+                {event.visibility !== 'public' ? (
+                  <Badge tone="blue">{eventVisibilityLabel(event.visibility)}</Badge>
+                ) : null}
+              </View>
               <AppText style={styles.title}>{event.title}</AppText>
               <AppText variant="small">{event.locationName}</AppText>
               <AppText variant="small">
@@ -73,7 +82,7 @@ export function EventCard({ event, joined = false, waitlisted = false, joining =
             ) : (
               <Button
                 size="sm"
-                variant={event.status === 'live' || isFull || event.status === 'full' ? 'ghost' : 'primary'}
+                variant={isFull ? 'ghost' : 'primary'}
                 loading={joining}
                 disabled={!canJoin}
                 onPress={(event) => {
@@ -117,6 +126,11 @@ const styles = StyleSheet.create({
   meta: {
     flex: 1,
     gap: 4
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   },
   title: {
     color: colors.text.primary,

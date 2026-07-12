@@ -5,11 +5,13 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-na
 import { ChevronLeft } from 'lucide-react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Input, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 
+import { eventTypes, eventVisibilityOptions } from '@/constants/events';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCancelEvent, useEvent, useEventWaitlist, useRemoveEventAttendee, useUpdateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { EventType, EventVisibility } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'ManageEvent'>;
@@ -28,6 +30,8 @@ export function ManageEventScreen() {
   const cancelEvent = useCancelEvent();
   const removeAttendee = useRemoveEventAttendee();
   const [title, setTitle] = useState(event?.title ?? '');
+  const [eventType, setEventType] = useState<EventType>(event?.eventType ?? eventTypes[0]);
+  const [visibility, setVisibility] = useState<EventVisibility>(event?.visibility ?? 'public');
   const [description, setDescription] = useState(event?.description ?? '');
   const [startsAt, setStartsAt] = useState(event?.startsAt ?? '');
   const [endsAt, setEndsAt] = useState(event?.endsAt ?? '');
@@ -38,6 +42,8 @@ export function ManageEventScreen() {
   useEffect(() => {
     if (!event) return;
     setTitle(event.title);
+    setEventType(event.eventType);
+    setVisibility(event.visibility);
     setDescription(event.description);
     setStartsAt(event.startsAt);
     setEndsAt(event.endsAt);
@@ -48,20 +54,43 @@ export function ManageEventScreen() {
 
   const save = async () => {
     if (!event) return;
+    if (!title.trim()) {
+      Alert.alert('Missing information', 'Please enter an event title.');
+      return;
+    }
+    if (!locationName.trim() || !city.trim()) {
+      Alert.alert('Missing information', 'Please enter the location and city.');
+      return;
+    }
+    const parsedStart = new Date(startsAt);
+    const parsedEnd = new Date(endsAt);
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime()) || parsedEnd <= parsedStart) {
+      Alert.alert('Invalid time', 'Enter a valid start and end time.');
+      return;
+    }
+    const capacity = Number(maxPlayers);
+    if (!Number.isInteger(capacity) || capacity < 2) {
+      Alert.alert('Invalid capacity', 'Max players must be at least 2.');
+      return;
+    }
     try {
       await updateEvent.mutateAsync({
         eventId: event.id,
         updates: {
-          title,
+          title: title.trim(),
+          eventType,
           description,
           startsAt,
           endsAt,
-          locationName,
-          city,
-          maxPlayers: Number(maxPlayers)
+          locationName: locationName.trim(),
+          city: city.trim(),
+          maxPlayers: capacity,
+          visibility
         }
       });
-      navigation.goBack();
+      Alert.alert('Event saved', 'Your changes are live.', [
+        { text: 'Done', onPress: () => navigation.goBack() }
+      ]);
     } catch (error) {
       Alert.alert('Save failed', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -143,6 +172,30 @@ export function ManageEventScreen() {
         {event ? (
           <>
             <Input label="Title" value={title} onChangeText={setTitle} />
+            <View style={styles.group}>
+              <AppText style={styles.label}>Event Type</AppText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {eventTypes.map((item) => (
+                  <Chip key={item} selected={item === eventType} onPress={() => setEventType(item)}>
+                    {item}
+                  </Chip>
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.group}>
+              <AppText style={styles.label}>Visibility</AppText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {eventVisibilityOptions.map((option) => (
+                  <Chip
+                    key={option.value}
+                    selected={option.value === visibility}
+                    onPress={() => setVisibility(option.value)}
+                  >
+                    {option.label}
+                  </Chip>
+                ))}
+              </ScrollView>
+            </View>
             <Input label="Description" value={description} onChangeText={setDescription} multiline />
             <Input label="Starts at" value={startsAt} onChangeText={setStartsAt} />
             <Input label="Ends at" value={endsAt} onChangeText={setEndsAt} />
@@ -231,6 +284,14 @@ const styles = StyleSheet.create({
   },
   stateText: {
     textAlign: 'center'
+  },
+  group: {
+    gap: 8
+  },
+  label: {
+    color: colors.text.tertiary,
+    fontWeight: '700',
+    fontSize: 12
   },
   attendee: {
     flexDirection: 'row',

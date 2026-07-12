@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { eventService, type CreateEventInput } from '@/services/eventService';
+import { eventService, type CreateEventInput, type UpdateEventInput } from '@/services/eventService';
 import type { SportEvent } from '@/types/domain';
 
 export const eventKeys = {
@@ -56,7 +56,7 @@ export const useLeaveEvent = () => {
 export const useUpdateEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ eventId, updates }: { eventId: string; updates: Partial<CreateEventInput> }) =>
+    mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateEventInput }) =>
       eventService.updateEvent(eventId, updates),
     onSuccess: (_data, { eventId }) => {
       void queryClient.invalidateQueries({ queryKey: eventKeys.all });

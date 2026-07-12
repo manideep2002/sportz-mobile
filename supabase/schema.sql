@@ -283,6 +283,7 @@ create table public.sport_events (
   organizer_id uuid not null references public.profiles(id) on delete cascade,
   court_id uuid references public.courts(id) on delete set null,
   title text not null,
+  event_type text not null default 'Pickup Game',
   sport text not null,
   description text default '',
   starts_at timestamptz not null,
@@ -297,7 +298,13 @@ create table public.sport_events (
   visibility public.sportz_visibility not null default 'public',
   status public.sportz_event_status not null default 'open',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint sport_events_event_type_not_blank check (length(btrim(event_type)) > 0),
+  constraint sport_events_title_not_blank check (length(btrim(title)) > 0),
+  constraint sport_events_location_not_blank check (length(btrim(location_name)) > 0),
+  constraint sport_events_valid_time check (ends_at > starts_at),
+  constraint sport_events_min_players check (max_players >= 2),
+  constraint sport_events_nonnegative_entry_fee check (entry_fee_cents >= 0)
 );
 
 create trigger sport_events_set_updated_at
@@ -539,6 +546,8 @@ create index blocks_blocked_idx on public.blocks(blocked_id);
 create index reports_reporter_idx on public.reports(reporter_id);
 create index reports_status_created_idx on public.reports(status, created_at desc);
 create index sport_events_starts_idx on public.sport_events(starts_at);
+create index sport_events_visibility_starts_idx on public.sport_events(visibility, starts_at);
+create index sport_events_organizer_visibility_idx on public.sport_events(organizer_id, visibility);
 create index event_attendees_event_idx on public.event_attendees(event_id);
 create index community_invites_invitee_status_idx on public.community_invites(invitee_id, status, created_at desc);
 create index messages_conversation_created_idx on public.messages(conversation_id, created_at);
@@ -1023,6 +1032,59 @@ create trigger messages_notify_conversation_members
 after insert on public.messages
 for each row execute function public.notify_new_message();
 
+create or replace function public.can_discover_sport_event(
+  event_organizer_id uuid,
+  event_visibility public.sportz_visibility
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    event_visibility = 'public'
+    or auth.uid() = event_organizer_id
+    or public.current_user_is_admin()
+    or (
+      event_visibility = 'followers'
+      and exists (
+        select 1
+        from public.follows f
+        where f.follower_id = auth.uid()
+          and f.following_id = event_organizer_id
+      )
+    );
+$$;
+
+create or replace function public.can_view_sport_event(target_event_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((
+    select
+      public.can_discover_sport_event(e.organizer_id, e.visibility)
+      or exists (
+        select 1
+        from public.event_attendees a
+        where a.event_id = e.id
+          and a.user_id = auth.uid()
+      )
+      or exists (
+        select 1
+        from public.event_waitlist w
+        where w.event_id = e.id
+          and w.user_id = auth.uid()
+          and w.status in ('waiting', 'promoted')
+      )
+    from public.sport_events e
+    where e.id = target_event_id
+  ), false);
+$$;
+
 create or replace function public.join_sport_event(target_event_id uuid)
 returns text
 language plpgsql
@@ -1043,12 +1105,16 @@ begin
     raise exception 'Event not found.';
   end if;
 
-  if event_row.status not in ('open', 'full') then
+  if event_row.status = 'cancelled' then
+    raise exception 'This event has been cancelled.';
+  end if;
+
+  if event_row.status in ('live', 'completed') then
     raise exception 'This event is not open for joins.';
   end if;
 
-  if event_row.visibility <> 'public' and event_row.organizer_id <> current_user_id then
-    raise exception 'This event is invite-only.';
+  if event_row.status not in ('open', 'full') then
+    raise exception 'This event is not open for joins.';
   end if;
 
   if exists (
@@ -1056,6 +1122,14 @@ begin
     where event_id = target_event_id and user_id = current_user_id and status = 'going'
   ) then
     return 'joined';
+  end if;
+
+  if not public.can_discover_sport_event(event_row.organizer_id, event_row.visibility) then
+    if event_row.visibility = 'followers' then
+      raise exception 'Only the organizer''s followers can join this event.';
+    end if;
+
+    raise exception 'This private event is not open for joins.';
   end if;
 
   select count(*) into going_count
@@ -1078,7 +1152,13 @@ begin
   set status = 'cancelled'
   where event_id = target_event_id and user_id = current_user_id and status = 'waiting';
 
-  update public.sport_events set status = 'open' where id = target_event_id and status = 'full';
+  update public.sport_events
+  set status = case
+    when going_count + 1 >= event_row.max_players then 'full'::public.sportz_event_status
+    else 'open'::public.sportz_event_status
+  end
+  where id = target_event_id;
+
   return 'joined';
 end;
 $$;
@@ -1367,11 +1447,14 @@ create policy "admins read all court bookings" on public.court_bookings for sele
 create policy "admins update all court bookings" on public.court_bookings
   for update using (public.current_user_is_admin()) with check (public.current_user_is_admin());
 
-create policy "public events readable" on public.sport_events for select using (visibility = 'public' or auth.uid() = organizer_id);
+create policy "visible events readable" on public.sport_events for select using (public.can_view_sport_event(id));
 create policy "users create own events" on public.sport_events for insert with check (auth.uid() = organizer_id);
 create policy "organizers update own events" on public.sport_events for update using (auth.uid() = organizer_id) with check (auth.uid() = organizer_id);
 
-create policy "event attendees readable" on public.event_attendees for select using (true);
+create policy "visible event attendees readable" on public.event_attendees for select using (
+  auth.uid() = user_id
+  or public.can_view_sport_event(event_id)
+);
 create policy "users manage own rsvp" on public.event_attendees for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "event waitlist readable by participants and organizers" on public.event_waitlist for select using (
@@ -1468,6 +1551,8 @@ grant execute on function public.add_group_conversation_members(uuid, uuid[]) to
 grant execute on function public.remove_group_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.invite_community_member(uuid, uuid) to authenticated;
 grant execute on function public.respond_community_invite(uuid, boolean) to authenticated;
+grant execute on function public.can_discover_sport_event(uuid, public.sportz_visibility) to anon, authenticated;
+grant execute on function public.can_view_sport_event(uuid) to anon, authenticated;
 grant execute on function public.join_sport_event(uuid) to authenticated;
 grant execute on function public.leave_sport_event(uuid) to authenticated;
 grant execute on function public.remove_event_attendee(uuid, uuid) to authenticated;

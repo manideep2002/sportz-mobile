@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native'
 
 import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen, VerifiedName } from '@/components/ui';
 
+import { eventPaymentNotice, eventVisibilityLabel } from '@/constants/events';
 import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useEvent, useJoinEvent, useLeaveEvent, useCheckAttendance } from '@/hooks/useEvents';
@@ -46,7 +47,10 @@ export function EventDetailScreen() {
       const result = await joinEvent.mutateAsync(event.id);
       if (result === 'waitlisted') {
         Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
+      } else {
+        Alert.alert('Joined event', 'You are on the attendee list.');
       }
+      await Promise.all([refetch(), refetchAttendance()]);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
     } finally {
@@ -129,10 +133,13 @@ export function EventDetailScreen() {
 
   const isOrganizer = profile?.id === event.organizer.id;
   const hasJoined = attendanceStatus === 'going';
-  const isFull = event.playerCount >= event.maxPlayers;
+  const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
   const canJoin = !hasJoined && (event.status === 'open' || event.status === 'full');
   const optimizedCoverUrl = mediaVariants.eventCover(event.coverUrl);
   const coverImageUrl = useRawCover ? event.coverUrl : optimizedCoverUrl ?? event.coverUrl;
+  const feeDescription = event.entryFeeCents > 0
+    ? `${event.entryFeeLabel} listed. ${eventPaymentNotice}`
+    : 'Free event';
 
   return (
     <Screen
@@ -170,7 +177,13 @@ export function EventDetailScreen() {
         {(isFull || event.status === 'full') && event.status !== 'cancelled' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
       </View>
       <View style={styles.body}>
-        <Badge tone="orange">{event.sport}</Badge>
+        <View style={styles.badges}>
+          <Badge tone="orange">{event.sport}</Badge>
+          <Badge tone="dark">{event.eventType}</Badge>
+          <Badge tone={event.visibility === 'public' ? 'blue' : 'yellow'}>
+            {eventVisibilityLabel(event.visibility)}
+          </Badge>
+        </View>
         <AppText variant="h1" style={styles.title}>{event.title}</AppText>
         <View style={styles.metaRow}>
           <CalendarDays size={14} color={colors.orange[500]} />
@@ -182,6 +195,7 @@ export function EventDetailScreen() {
           <MapPin size={16} color={colors.orange[500]} />
           <AppText variant="bodyMuted">{event.locationName}, {event.city}</AppText>
         </View>
+        <AppText variant="bodyMuted">{feeDescription}</AppText>
         <Card style={styles.players}>
           <View style={styles.playersTop}>
             <AppText style={styles.playersLabel}>Players</AppText>
@@ -247,7 +261,7 @@ export function EventDetailScreen() {
             onPress={handleJoin}
             disabled={!canJoin}
           >
-            {isFull || event.status === 'full' ? 'Join Waitlist' : `Join Event - ${event.entryFeeLabel}`}
+            {isFull ? 'Join Waitlist' : 'Join Event'}
           </Button>
         )}
         <Button full size="lg" variant="ghost" onPress={handleShare}>
@@ -302,6 +316,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     gap: spacing.md,
     marginTop: -10
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   },
   title: {
     fontSize: 28,

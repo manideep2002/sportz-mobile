@@ -63,6 +63,7 @@ export function EventsScreen() {
         Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
       } else {
         setJoinedEventIds((prev) => new Set([...prev, eventId]));
+        Alert.alert('Joined event', 'You are on the attendee list.');
       }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
@@ -229,9 +230,10 @@ export function EventsScreen() {
                     <AppText style={styles.upcomingTitle} numberOfLines={2}>
                       {event.title}
                     </AppText>
+                    <AppText variant="small">{event.eventType}</AppText>
                     <AppText variant="small">{event.locationName}</AppText>
                     <AppText style={styles.upcomingDate}>{format(new Date(event.startsAt), 'EEE, MMM d')}</AppText>
-                    <AppText style={styles.slots}>{event.maxPlayers - event.playerCount} slots left</AppText>
+                    <AppText style={styles.slots}>{Math.max(0, event.maxPlayers - event.playerCount)} slots left</AppText>
                   </View>
                 </Card>
               </Pressable>

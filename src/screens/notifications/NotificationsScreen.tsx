@@ -217,7 +217,7 @@ export function NotificationsScreen() {
             <ActivityIndicator color={colors.orange[500]} style={styles.footer} />
           ) : !hasNextPage && notifications.length > 0 ? (
             <AppText variant="caption" style={styles.footerEnd}>
-              You're all caught up
+              {"You're all caught up"}
             </AppText>
           ) : null
         }

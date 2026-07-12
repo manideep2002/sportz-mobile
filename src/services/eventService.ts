@@ -3,10 +3,12 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
-import type { EventMessage, SportEvent } from '@/types/domain';
+import type { EventCreateVisibility } from '@/constants/events';
+import type { EventMessage, EventType, EventVisibility, SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
   title: string;
+  eventType: EventType;
   sport: string;
   description: string;
   startsAt: string;
@@ -18,16 +20,22 @@ export interface CreateEventInput {
   coverImageUri?: string | null;
   maxPlayers: number;
   entryFeeCents: number;
-  visibility: 'public' | 'group' | 'invite';
+  visibility: EventCreateVisibility;
 }
+
+export type UpdateEventInput = Partial<Omit<CreateEventInput, 'visibility'>> & {
+  visibility?: EventVisibility;
+};
 
 /** Shape of a row from `sport_events` with joined organizer profile. */
 interface SportEventRow {
   id: string;
   organizer_id: string;
   title: string;
+  event_type: string | null;
   sport: string;
   status: SportEvent['status'];
+  visibility: EventVisibility;
   description: string | null;
   cover_url?: string | null;
   starts_at: string;
@@ -98,14 +106,24 @@ interface EventMessageRow {
   profiles: SportEventRow['profiles'];
 }
 
-const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) =>
-  (cents ?? 0) > 0 ? `${currency ?? 'INR'} ${(cents ?? 0) / 100}` : 'Free';
+const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) => {
+  const feeCents = cents ?? 0;
+  if (feeCents <= 0) return 'Free';
+
+  const amount = feeCents / 100;
+  return `${currency ?? 'INR'} ${amount.toLocaleString('en-IN', {
+    maximumFractionDigits: feeCents % 100 === 0 ? 0 : 2,
+    minimumFractionDigits: feeCents % 100 === 0 ? 0 : 2
+  })}`;
+};
 
 const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent['attendees'] = []): SportEvent => ({
   id: row.id,
   title: row.title,
+  eventType: (row.event_type ?? 'Pickup Game') as EventType,
   sport: row.sport,
   status: row.status,
+  visibility: row.visibility ?? 'public',
   description: row.description ?? '',
   coverUrl: row.cover_url ?? null,
   startsAt: row.starts_at,
@@ -116,6 +134,8 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
   longitude: row.longitude ?? 0,
   maxPlayers: row.max_players,
   playerCount,
+  entryFeeCents: row.entry_fee_cents ?? 0,
+  currency: row.currency ?? 'INR',
   entryFeeLabel: entryFeeLabel(row.currency, row.entry_fee_cents),
   organizer: mapProfileRow(row.profiles ?? { id: row.organizer_id, display_name: 'Organizer' }),
   attendees
@@ -205,6 +225,7 @@ export const eventService = {
       .insert({
         organizer_id: authData.user.id,
         title: input.title,
+        event_type: input.eventType,
         sport: input.sport,
         description: input.description,
         cover_url: coverUrl,
@@ -313,7 +334,7 @@ export const eventService = {
     });
   },
 
-  async updateEvent(eventId: string, updates: Partial<CreateEventInput>): Promise<void> {
+  async updateEvent(eventId: string, updates: UpdateEventInput): Promise<void> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -322,6 +343,7 @@ export const eventService = {
 
     const updateData: Partial<{
       title: string;
+      event_type: EventType;
       sport: string;
       description: string;
       starts_at: string;
@@ -332,8 +354,10 @@ export const eventService = {
       longitude: number | null;
       max_players: number;
       entry_fee_cents: number;
+      visibility: EventVisibility;
     }> = {};
     if (updates.title) updateData.title = updates.title;
+    if (updates.eventType) updateData.event_type = updates.eventType;
     if (updates.sport) updateData.sport = updates.sport;
     if (updates.description) updateData.description = updates.description;
     if (updates.startsAt) updateData.starts_at = updates.startsAt;
@@ -344,6 +368,7 @@ export const eventService = {
     if (updates.longitude !== undefined) updateData.longitude = updates.longitude ?? null;
     if (updates.maxPlayers) updateData.max_players = updates.maxPlayers;
     if (updates.entryFeeCents !== undefined) updateData.entry_fee_cents = updates.entryFeeCents;
+    if (updates.visibility) updateData.visibility = updates.visibility;
 
     const { error } = await supabase
       .from('sport_events')
