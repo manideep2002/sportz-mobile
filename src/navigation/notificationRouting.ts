@@ -116,6 +116,13 @@ export function navigateFromNotificationData(
     return true;
   }
 
+  // Achievement notifications → own profile tab (no entity ID needed).
+  const kind = stringValue(data.kind) ?? stringValue(data.type);
+  if (kind === 'achievement') {
+    navigationRef.navigate('App', { screen: 'MainTabs', params: { screen: 'ProfileTab' } });
+    return true;
+  }
+
   navigationRef.navigate('App', { screen: 'Notifications' });
   return true;
 }

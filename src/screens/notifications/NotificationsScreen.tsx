@@ -80,7 +80,8 @@ const navigateForNotification = (
       }
       break;
     case 'achievement':
-      // Could navigate to profile or achievements screen
+      // Navigate to the current user's own profile tab, which shows stats/achievements.
+      navigation.navigate('MainTabs', { screen: 'ProfileTab' });
       break;
   }
 };
@@ -91,7 +92,17 @@ export function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const flashListRef = useRef<FlashListRef<SportzNotification>>(null);
 
-  const { data: infiniteData, isLoading, isRefetching, refetch } = useInfiniteNotifications();
+  const {
+    data: infiniteData,
+    isLoading,
+    isError,
+    error,
+    isRefetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch
+  } = useInfiniteNotifications();
   // Flatten paginated results into a single array
   const notifications: SportzNotification[] = infiniteData?.pages.flat() ?? [];
   const markAllRead = useMarkNotificationsRead();
@@ -149,6 +160,16 @@ export function NotificationsScreen() {
 
       <SegmentedControl value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
 
+      {/* Error banner — shown when the fetch fails, with a retry action */}
+      {isError ? (
+        <View style={styles.errorBanner}>
+          <AppText style={styles.errorText}>
+            {error instanceof Error ? error.message : 'Could not load notifications.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+        </View>
+      ) : null}
+
       <FlashList
         ref={flashListRef}
         data={filteredNotifications}
@@ -164,6 +185,15 @@ export function NotificationsScreen() {
             onRefresh={onRefresh}
           />
         }
+        // Trigger next page when the user scrolls within 30% of the bottom.
+        // We check hasNextPage on the *full* unfiltered list so that a narrow
+        // filter that yields 0 visible items still loads more data.
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            void fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.3}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Filter size={48} color={colors.text.tertiary} />
@@ -180,6 +210,15 @@ export function NotificationsScreen() {
         ListHeaderComponent={
           filteredNotifications.length > 0 ? (
             <AppText variant="caption" style={styles.sectionHeader}>New</AppText>
+          ) : null
+        }
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator color={colors.orange[500]} style={styles.footer} />
+          ) : !hasNextPage && notifications.length > 0 ? (
+            <AppText variant="caption" style={styles.footerEnd}>
+              You're all caught up
+            </AppText>
           ) : null
         }
         renderItem={({ item }) => (
@@ -243,5 +282,32 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.dark[700],
     marginHorizontal: spacing.screen
+  },
+  footer: {
+    paddingVertical: spacing.xl
+  },
+  footerEnd: {
+    textAlign: 'center',
+    color: colors.text.tertiary,
+    paddingVertical: spacing.xl
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: spacing.screen,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.overlays.dangerSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.semantic.danger,
+    borderRadius: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm
+  },
+  errorText: {
+    flex: 1,
+    color: colors.semantic.danger,
+    fontSize: 13
   }
 });
