@@ -66,12 +66,12 @@ SPORTZ uses Supabase because the product needs a relational social graph: follow
 
 ## Phase 7 - Backend Integration
 
-- Database migrations: `supabase/migrations`
-- Historical schema snapshot: `supabase/schema.sql` (regenerate from the remote database before using as reference)
+- Database migrations: `supabase/migrations/` — **this is the single source of truth** for the schema. Apply with `supabase db push`.
 - Storage buckets/policies: `supabase/storage.sql`
 - Seed courts: `supabase/seed.sql`
 - API services live in `src/services`.
 - Environment variables are defined in `.env.example`.
+- See `docs/SETUP.md` for a full new-environment checklist including edge function deployment and push notification configuration.
 
 ## Phase 8 - Testing and Optimization
 

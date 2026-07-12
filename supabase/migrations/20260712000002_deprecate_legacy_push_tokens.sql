@@ -1,0 +1,23 @@
+-- Drop the legacy push_tokens table that was created in the initial schema
+-- (20240101000000_initial_schema.sql).
+--
+-- History:
+--   - initial_schema.sql created public.push_tokens with columns:
+--       id, user_id, token, platform, created_at, updated_at
+--   - Migration 20260710000008_notification_infrastructure.sql created the
+--     replacement table public.user_push_tokens with a richer schema:
+--       expo_push_token, device_id, device_name, app_version, is_active,
+--       last_seen_at, revoked_at, ...
+--   - The same migration copied any existing rows from push_tokens into
+--     user_push_tokens (lines 63-86 of that file).
+--   - Nothing in the app or edge functions has written to or read from
+--     push_tokens since migration 8 landed.
+--
+-- Dropping the table:
+--   - Eliminates confusion for developers reading the schema.
+--   - Removes a misleading RLS policy ("users manage own push tokens")
+--     that applied to the old table.
+--   - Removes the stale push_tokens_set_updated_at trigger.
+--   CASCADE takes care of dependent objects (trigger, policy, indexes).
+
+drop table if exists public.push_tokens cascade;
