@@ -17,7 +17,7 @@ import { useUiStore } from '@/store/uiStore';
 import { CreateActionSheet } from './CreateActionSheet';
 import type { MainTabParamList } from './routes';
 
-const TAB_BAR_HEIGHT = 60;
+const TAB_BAR_HEIGHT = 62;
 const TAB_BAR_RADIUS = TAB_BAR_HEIGHT / 2;
 const TAB_BAR_HORIZONTAL_INSET = 12;
 const TAB_BAR_MIN_BOTTOM_GAP = 12;
@@ -40,7 +40,7 @@ export function MainTabs() {
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
   const notificationBadge =
     notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
-  const profileLabel = profile?.displayName.trim() || 'Profile';
+  const profileLabel = profile?.displayName.trim().split(/\s+/)[0] || 'Profile';
 
   return (
     <>
@@ -189,6 +189,7 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
           style={styles.blurContainer}
         />
       </View>
+      <View pointerEvents="none" style={styles.barHighlight} />
 
       {barWidth > 0 ? (
         <Animated.View
@@ -323,6 +324,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: TAB_BAR_RADIUS,
     overflow: 'hidden'
+  },
+  barHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: TAB_BAR_RADIUS,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)'
   },
   blurContainer: {
     ...StyleSheet.absoluteFillObject,
