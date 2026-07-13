@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
-import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import type { EventCreateVisibility } from '@/constants/events';
 import type { EventMessage, EventType, EventVisibility, SportEvent } from '@/types/domain';
@@ -220,44 +219,27 @@ export const eventService = {
       ? await storageService.uploadMedia(input.coverImageUri, 'event-covers', authData.user.id)
       : null;
 
-    const { data, error } = await supabase
-      .from('sport_events')
-      .insert({
-        organizer_id: authData.user.id,
-        title: input.title,
-        event_type: input.eventType,
-        sport: input.sport,
-        description: input.description,
-        cover_url: coverUrl,
-        starts_at: input.startsAt,
-        ends_at: input.endsAt,
-        location_name: input.locationName,
-        city: input.city,
-        latitude: input.latitude ?? null,
-        longitude: input.longitude ?? null,
-        max_players: input.maxPlayers,
-        entry_fee_cents: input.entryFeeCents,
-        currency: 'INR',
-        visibility: input.visibility,
-        status: 'open'
-      })
-      .select('*, profiles:organizer_id(*)')
-      .single();
-
-    if (error) throw error;
-
-    await supabase.from('event_attendees').upsert({
-      event_id: data.id,
-      user_id: authData.user.id,
-      status: 'going'
+    const { data: eventId, error } = await supabase.rpc('create_sport_event', {
+      target_title: input.title,
+      target_event_type: input.eventType,
+      target_sport: input.sport,
+      target_description: input.description,
+      target_cover_url: coverUrl,
+      target_starts_at: input.startsAt,
+      target_ends_at: input.endsAt,
+      target_location_name: input.locationName,
+      target_city: input.city,
+      target_latitude: input.latitude ?? null,
+      target_longitude: input.longitude ?? null,
+      target_max_players: input.maxPlayers,
+      target_entry_fee_cents: input.entryFeeCents,
+      target_visibility: input.visibility
     });
 
-    const organizer = await profileService.getProfile(authData.user.id);
-    return {
-      ...mapEventRow(data as unknown as SportEventRow, 1, [organizer]),
-      organizer,
-      attendees: [organizer]
-    };
+    if (error) throw error;
+    if (!eventId || typeof eventId !== 'string') throw new Error('Event was not created.');
+
+    return eventService.getEvent(eventId);
   },
 
   async joinEvent(eventId: string): Promise<'joined' | 'waitlisted'> {

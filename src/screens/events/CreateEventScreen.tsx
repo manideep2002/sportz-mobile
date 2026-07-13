@@ -10,7 +10,7 @@ import * as Location from 'expo-location';
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
 import { eventPaymentNotice, eventTypes, eventVisibilityOptions } from '@/constants/events';
 import { allSports } from '@/constants/sports';
-import { colors, radii, spacing, typography } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import { useCreateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { Sport } from '@/types/domain';
@@ -55,6 +55,15 @@ const parseManualStartDate = (dateText: string, timeText: string): ManualStartDa
   return { date: parsed };
 };
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'Please try again.';
+};
+
 export function CreateEventScreen() {
   const navigation = useNavigation<Navigation>();
   const [sport, setSport] = useState<Sport>('Basketball');
@@ -80,8 +89,6 @@ export function CreateEventScreen() {
   const visibilityDescription = eventVisibilityOptions.find((option) => option.value === visibility)?.description;
   const parsedEntryFee = Number(entryFee);
   const showPaymentNotice = Number.isFinite(parsedEntryFee) && parsedEntryFee > 0;
-  const previewStart = parseManualStartDate(dateText, timeText);
-  const displayStartDate = 'date' in previewStart ? previewStart.date : startDate;
 
   const setEventStartDate = (date: Date) => {
     setStartDate(date);
@@ -185,7 +192,7 @@ export function CreateEventScreen() {
         { text: 'View event', onPress: () => navigation.replace('EventDetail', { eventId: created.id }) }
       ]);
     } catch (error) {
-      Alert.alert('Could not create event', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Could not create event', getErrorMessage(error));
     }
   };
 
@@ -244,26 +251,11 @@ export function CreateEventScreen() {
 
         <View style={styles.group}>
           <AppText style={styles.label}>Date & Time</AppText>
-          <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeCard}>
-              <Calendar size={16} color={colors.orange[500]} />
-              <AppText style={styles.dateTimeText}>{format(displayStartDate, 'EEE, MMM d')}</AppText>
-            </View>
-            <View style={styles.dateTimeCard}>
-              <Clock size={16} color={colors.orange[500]} />
-              <AppText style={styles.dateTimeText}>{format(displayStartDate, 'h:mm a')}</AppText>
-            </View>
-          </View>
-          <View style={styles.dateAdjust}>
-            <Button size="sm" variant="dark" onPress={() => adjustDate(-1)}>-1 day</Button>
-            <Button size="sm" variant="dark" onPress={() => adjustDate(1)}>+1 day</Button>
-            <Button size="sm" variant="dark" onPress={() => adjustTime(-1)}>-1 hr</Button>
-            <Button size="sm" variant="dark" onPress={() => adjustTime(1)}>+1 hr</Button>
-          </View>
           <View style={styles.manualDateTimeRow}>
             <View style={styles.manualDateTimeField}>
               <Input
                 label="Date"
+                icon={Calendar}
                 value={dateText}
                 onChangeText={setDateText}
                 placeholder="YYYY-MM-DD"
@@ -272,6 +264,7 @@ export function CreateEventScreen() {
             <View style={styles.manualDateTimeField}>
               <Input
                 label="Time"
+                icon={Clock}
                 value={timeText}
                 onChangeText={setTimeText}
                 keyboardType="numbers-and-punctuation"
@@ -282,6 +275,12 @@ export function CreateEventScreen() {
           <AppText variant="small" style={styles.helper}>
             Use 24-hour time, e.g. 18:30.
           </AppText>
+          <View style={styles.dateAdjust}>
+            <Button size="sm" variant="dark" onPress={() => adjustDate(-1)}>-1 day</Button>
+            <Button size="sm" variant="dark" onPress={() => adjustDate(1)}>+1 day</Button>
+            <Button size="sm" variant="dark" onPress={() => adjustTime(-1)}>-1 hr</Button>
+            <Button size="sm" variant="dark" onPress={() => adjustTime(1)}>+1 hr</Button>
+          </View>
         </View>
 
         <Input
@@ -426,26 +425,6 @@ const styles = StyleSheet.create({
   helper: {
     color: colors.text.tertiary,
     marginTop: -spacing.xs
-  },
-  dateTimeRow: {
-    flexDirection: 'row',
-    gap: spacing.sm
-  },
-  dateTimeCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    padding: spacing.sm,
-    backgroundColor: colors.dark[800],
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.dark[700]
-  },
-  dateTimeText: {
-    color: colors.text.primary,
-    fontFamily: typography.bodyMedium,
-    fontSize: 13
   },
   dateAdjust: {
     flexDirection: 'row',
