@@ -1,234 +1,416 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useEffect, useRef, useState } from 'react';
+import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { CalendarDays, Grid2X2, MessageCircle, Plus, type LucideIcon } from 'lucide-react-native';
-import { Pressable, StyleSheet, View, Platform } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui';
-import { colors, layout, typography } from '@/design/tokens';
+import { colors, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
-import { useAuthStore } from '@/store/authStore';
-import { useUiStore } from '@/store/uiStore';
-import type { MainTabParamList } from './routes';
-import { FeedScreen } from '@/screens/feed/FeedScreen';
 import { EventsScreen } from '@/screens/events/EventsScreen';
+import { FeedScreen } from '@/screens/feed/FeedScreen';
 import { MessagesScreen } from '@/screens/messages/MessagesScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
+import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 import { CreateActionSheet } from './CreateActionSheet';
+import type { MainTabParamList } from './routes';
+
+const TAB_BAR_HEIGHT = 58;
+const TAB_BAR_RADIUS = TAB_BAR_HEIGHT / 2;
+const TAB_BAR_HORIZONTAL_INSET = 12;
+const TAB_BAR_MIN_BOTTOM_GAP = 12;
+const TAB_BAR_CONTENT_INSET = 4;
+const TAB_ICON_SIZE = 22;
+const INDICATOR_HORIZONTAL_PADDING = 12;
+const FALLBACK_INDICATOR_WIDTH = TAB_ICON_SIZE + INDICATOR_HORIZONTAL_PADDING * 2;
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabs() {
+  const profile = useAuthStore((state) => state.profile);
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
+  const createSheetOpen = useUiStore((state) => state.createSheetOpen);
   const notificationUnreadCount = useUiStore((state) => state.notificationUnreadCount);
   const { data: conversations = [] } = useConversations();
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
   const notificationBadge =
     notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
+  const profileLabel = profile?.displayName.trim() || 'Profile';
 
   return (
     <>
       <Tab.Navigator
+        tabBar={(props) => <NativeGlassTabBar {...props} />}
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
           tabBarActiveTintColor: colors.orange[500],
           tabBarInactiveTintColor: colors.text.tertiary,
-          tabBarStyle: styles.tabBar,
-          tabBarLabelStyle: styles.label,
-          tabBarItemStyle: styles.item,
-          tabBarBackground: () => (
-            <BlurView
-              intensity={Platform.OS === 'ios' ? 60 : 90}
-              tint={Platform.OS === 'ios' ? 'systemUltraThinMaterialDark' : 'dark'}
-              style={styles.blurContainer}
-            >
-              {/* Specular rim — the 1px bright edge that makes the bar read as glass */}
-              <View style={styles.specularRim} />
-            </BlurView>
-          )
+          tabBarLabelStyle: styles.label
         }}
       >
-<Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: 'Feed', tabBarIcon: TabIcon(Grid2X2) }} />
-         <Tab.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Events', tabBarIcon: TabIcon(CalendarDays) }} />
-         <Tab.Screen
-           name="CreateTab"
-           component={FeedScreen}
-           listeners={{
-             tabPress: (event) => {
-               event.preventDefault();
-               openCreateSheet();
-             }
-           }}
-           options={{
-             title: '',
-             tabBarButton: ({ onPress, accessibilityState }) => (
-               <Pressable accessibilityRole="button" accessibilityState={accessibilityState} onPress={onPress} style={styles.createButton}>
-                 <Plus size={25} color={colors.light[0]} strokeWidth={2.5} />
-               </Pressable>
-             )
-           }}
-         />
-         <Tab.Screen
-           name="MessagesTab"
-           component={MessagesScreen}
-           options={{
-             title: 'Messages',
-             tabBarIcon: TabIcon(MessageCircle),
-             tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
-             tabBarBadgeStyle: styles.badge
-           }}
-         />
-         <Tab.Screen
-           name="ProfileTab"
-           component={ProfileScreen}
-           options={{
-             title: 'Profile',
-             tabBarIcon: ProfileTabIcon,
-             tabBarBadge: notificationBadge,
-             tabBarBadgeStyle: styles.badge
-           }}
-         />
+        <Tab.Screen
+          name="FeedTab"
+          component={FeedScreen}
+          options={{ title: 'Feed', tabBarIcon: TabIcon(Grid2X2) }}
+        />
+        <Tab.Screen
+          name="EventsTab"
+          component={EventsScreen}
+          options={{ title: 'Events', tabBarIcon: TabIcon(CalendarDays) }}
+        />
+        <Tab.Screen
+          name="CreateTab"
+          component={FeedScreen}
+          listeners={{
+            tabPress: (event) => {
+              event.preventDefault();
+              openCreateSheet();
+            }
+          }}
+          options={{
+            title: 'Create',
+            tabBarIcon: () => <CreateTabIcon highlighted={createSheetOpen} />
+          }}
+        />
+        <Tab.Screen
+          name="MessagesTab"
+          component={MessagesScreen}
+          options={{
+            title: 'Messages',
+            tabBarIcon: TabIcon(MessageCircle),
+            tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
+            tabBarBadgeStyle: styles.badge
+          }}
+        />
+        <Tab.Screen
+          name="ProfileTab"
+          component={ProfileScreen}
+          options={{
+            title: profileLabel,
+            tabBarAccessibilityLabel: `${profile?.displayName ?? 'Profile'} profile`,
+            tabBarIcon: ({ focused }) => (
+              <ProfileTabIcon
+                focused={focused}
+                initials={profile?.initials ?? '??'}
+                avatarUrl={profile?.avatarUrl}
+              />
+            ),
+            tabBarBadge: notificationBadge,
+            tabBarBadgeStyle: styles.badge
+          }}
+        />
       </Tab.Navigator>
       <CreateActionSheet />
     </>
   );
 }
 
-const TabIcon = (Icon: LucideIcon) => {
-  const Component = ({ color, focused }: { color: string; focused: boolean }) => (
-    <View style={[styles.iconWrap, focused ? styles.iconActive : null]}>
-      <Icon size={22} color={color} strokeWidth={focused ? 2.2 : 1.8} />
-    </View>
-  );
-  Component.displayName = `TabIcon(${typeof Icon === 'function' ? Icon.name ?? 'icon' : 'icon'})`;
-  return Component;
-};
+function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const [barWidth, setBarWidth] = useState(0);
+  const [indicatorWidths, setIndicatorWidths] = useState<number[]>([]);
+  const indicatorLeft = useRef(new Animated.Value(0)).current;
+  const indicatorWidth = useRef(new Animated.Value(FALLBACK_INDICATOR_WIDTH)).current;
+  const hasPositionedIndicator = useRef(false);
+  const previousBarWidth = useRef(0);
+  const activeIndicatorWidth = indicatorWidths[state.index] ?? FALLBACK_INDICATOR_WIDTH;
 
-function ProfileTabIcon({ focused }: { color: string; focused: boolean }) {
-  const profile = useAuthStore((state) => state.profile);
+  useEffect(() => {
+    if (barWidth === 0) {
+      return;
+    }
+
+    const itemWidth = (barWidth - TAB_BAR_CONTENT_INSET * 2) / state.routes.length;
+    const targetLeft =
+      TAB_BAR_CONTENT_INSET + itemWidth * state.index + (itemWidth - activeIndicatorWidth) / 2;
+    const barWidthChanged = previousBarWidth.current !== barWidth;
+
+    indicatorLeft.stopAnimation();
+    indicatorWidth.stopAnimation();
+    if (!hasPositionedIndicator.current || barWidthChanged) {
+      indicatorLeft.setValue(targetLeft);
+      indicatorWidth.setValue(activeIndicatorWidth);
+      hasPositionedIndicator.current = true;
+    } else {
+      Animated.parallel([
+        Animated.spring(indicatorLeft, {
+          toValue: targetLeft,
+          damping: 28,
+          stiffness: 320,
+          mass: 0.85,
+          useNativeDriver: false
+        }),
+        Animated.spring(indicatorWidth, {
+          toValue: activeIndicatorWidth,
+          damping: 28,
+          stiffness: 320,
+          mass: 0.85,
+          useNativeDriver: false
+        })
+      ]).start();
+    }
+
+    previousBarWidth.current = barWidth;
+  }, [activeIndicatorWidth, barWidth, indicatorLeft, indicatorWidth, state.index, state.routes.length]);
+
+  const handleBarLayout = (event: LayoutChangeEvent) => {
+    const nextWidth = event.nativeEvent.layout.width;
+    setBarWidth((currentWidth) => (Math.abs(currentWidth - nextWidth) < 0.5 ? currentWidth : nextWidth));
+  };
+
+  const handleIconLayout = (index: number, event: LayoutChangeEvent) => {
+    const nextWidth = event.nativeEvent.layout.width;
+    setIndicatorWidths((currentWidths) => {
+      if (Math.abs((currentWidths[index] ?? 0) - nextWidth) < 0.5) {
+        return currentWidths;
+      }
+
+      const nextWidths = [...currentWidths];
+      nextWidths[index] = nextWidth;
+      return nextWidths;
+    });
+  };
 
   return (
-    <View style={[styles.iconWrap, focused ? styles.iconActive : null]}>
-      <View style={[styles.profileAvatarFrame, focused ? styles.profileAvatarFrameActive : null]}>
-        <Avatar initials={profile?.initials ?? '??'} uri={profile?.avatarUrl} size={25} />
+    <View
+      onLayout={handleBarLayout}
+      style={[styles.tabBar, { bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) }]}
+    >
+      <View pointerEvents="none" style={styles.glassClip}>
+        <BlurView
+          intensity={Platform.OS === 'ios' ? 60 : 90}
+          tint={Platform.OS === 'ios' ? 'systemUltraThinMaterialDark' : 'dark'}
+          style={styles.blurContainer}
+        />
+      </View>
+
+      {barWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.activeIndicator, { left: indicatorLeft, width: indicatorWidth }]}
+        />
+      ) : null}
+
+      <View style={styles.tabItems}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.routes[state.index].key === route.key;
+          const isCreate = route.name === 'CreateTab';
+          const color = isCreate || focused ? colors.orange[500] : colors.text.tertiary;
+          const label =
+            typeof options.tabBarLabel === 'string'
+              ? options.tabBarLabel
+              : options.title ?? route.name.replace(/Tab$/, '');
+          const badge = options.tabBarBadge;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true
+            });
+
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: 'tabLongPress',
+              target: route.key
+            });
+          };
+
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityLabel={options.tabBarAccessibilityLabel}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              onLongPress={onLongPress}
+              onPress={onPress}
+              testID={options.tabBarTestID}
+              style={({ pressed }) => [styles.tabItem, pressed ? styles.tabItemPressed : null]}
+            >
+              <View style={styles.iconFrame} onLayout={(event) => handleIconLayout(index, event)}>
+                {options.tabBarIcon?.({ focused, color, size: TAB_ICON_SIZE })}
+                {badge !== undefined ? (
+                  <Text numberOfLines={1} style={[styles.badge, options.tabBarBadgeStyle]}>
+                    {badge}
+                  </Text>
+                ) : null}
+              </View>
+              <Text
+                adjustsFontSizeToFit={route.name === 'ProfileTab'}
+                minimumFontScale={0.72}
+                numberOfLines={1}
+                style={[
+                  styles.label,
+                  { color },
+                  focused ? styles.selectedLabel : null,
+                  isCreate ? styles.createLabel : null
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
 }
 
+function CreateTabIcon({ highlighted }: { highlighted: boolean }) {
+  return (
+    <View style={[styles.createIcon, highlighted ? styles.createIconHighlighted : null]}>
+      <Plus size={18} color={colors.light[0]} strokeWidth={2.6} />
+    </View>
+  );
+}
+
+function ProfileTabIcon({
+  focused,
+  initials,
+  avatarUrl
+}: {
+  focused: boolean;
+  initials: string;
+  avatarUrl?: string | null;
+}) {
+  return (
+    <View style={[styles.profileAvatarRing, focused ? styles.profileAvatarRingFocused : null]}>
+      <Avatar initials={initials} uri={avatarUrl} size={22} />
+    </View>
+  );
+}
+
+const TabIcon = (Icon: LucideIcon) => {
+  const Component = ({ color, focused, size }: { color: string; focused: boolean; size: number }) => (
+    <Icon size={size} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+  );
+  Component.displayName = `TabIcon(${typeof Icon === 'function' ? Icon.name ?? 'icon' : 'icon'})`;
+  return Component;
+};
+
 const styles = StyleSheet.create({
   tabBar: {
-    height: layout.tabBarHeight,
-    backgroundColor: 'transparent',
-    borderTopWidth: 0,
-    paddingTop: 10,
-    paddingBottom: 18,
     position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    borderRadius: 28,
-    overflow: 'hidden',
+    left: TAB_BAR_HORIZONTAL_INSET,
+    right: TAB_BAR_HORIZONTAL_INSET,
+    height: TAB_BAR_HEIGHT,
+    borderRadius: TAB_BAR_RADIUS,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 24
+        shadowOpacity: 0.22,
+        shadowRadius: 20
       },
       android: {
         elevation: 12
       }
     })
   },
-  blurContainer: {
+  glassClip: {
     ...StyleSheet.absoluteFillObject,
-    // Lower opacity so content bleeds through — essential for the liquid glass look
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(10,9,7,0.42)' : 'rgba(10,9,7,0.92)',
-    borderRadius: 28,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: TAB_BAR_RADIUS,
     overflow: 'hidden'
   },
-  specularRim: {
+  blurContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(10,9,7,0.92)'
+  },
+  activeIndicator: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    // Bright stripe that simulates light catching the top glass edge
-    backgroundColor: 'rgba(255,255,255,0.30)',
+    top: 4,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)'
   },
-  item: {
-    paddingTop: 0
+  tabItems: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    paddingHorizontal: TAB_BAR_CONTENT_INSET
   },
-  iconWrap: {
-    // Wider than the icon so the active capsule spans the full column
-    width: 60,
-    height: 32,
-    borderRadius: 16,
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+    paddingBottom: 3
+  },
+  tabItemPressed: {
+    opacity: 0.72
+  },
+  iconFrame: {
+    height: 30,
+    paddingHorizontal: INDICATOR_HORIZONTAL_PADDING,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  iconActive: {
-    // Apple uses a neutral frosted-white capsule — NOT a brand-color tint.
-    // The icon itself carries the orange color via tabBarActiveTintColor.
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    // Subtle inner border for the capsule rim
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  profileAvatarFrame: {
-    width: 29,
-    height: 29,
-    borderRadius: 14.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.18)'
-  },
-  profileAvatarFrameActive: {
-    borderColor: colors.orange[500]
   },
   label: {
     fontFamily: typography.bodyMedium,
     fontSize: 10,
-    marginTop: 2
+    lineHeight: 12,
+    marginTop: 1
   },
-  createButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.orange[500],
+  selectedLabel: {
+    fontFamily: typography.bodyBold
+  },
+  createLabel: {
+    fontFamily: typography.bodyBold
+  },
+  createIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -20,
-    alignSelf: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(10,9,7,0.4)',
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.orange[500],
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.45,
-        shadowRadius: 20
-      },
-      android: {
-        elevation: 8
-      }
-    })
+    backgroundColor: colors.orange[500],
+    shadowColor: colors.orange[500],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.32,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  createIconHighlighted: {
+    transform: [{ scale: 1.06 }],
+    shadowOpacity: 0.55,
+    shadowRadius: 9
+  },
+  profileAvatarRing: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  profileAvatarRingFocused: {
+    shadowColor: colors.orange[500],
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.32,
+    shadowRadius: 4
   },
   badge: {
+    position: 'absolute',
+    top: -3,
+    right: -5,
     backgroundColor: colors.semantic.danger,
     color: colors.light[0],
     fontFamily: typography.bodyBold,
     fontSize: 9,
+    lineHeight: 16,
+    textAlign: 'center',
     minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.dark[950]
-  },
+    overflow: 'hidden'
+  }
 });
