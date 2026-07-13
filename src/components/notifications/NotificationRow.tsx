@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Bell, MessageSquare, UserPlus, Trophy, Heart, Reply, Calendar } from 'lucide-react-native';
+import { Bell, Check, MessageSquare, UserPlus, Trophy, Heart, Reply, Calendar, X } from 'lucide-react-native';
 
 import { AppText, Avatar, Button } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -10,6 +10,9 @@ interface NotificationRowProps {
   notification: SportzNotification;
   onPress?: () => void;
   onCtaPress?: () => void;
+  onInviteAccept?: () => void;
+  onInviteDecline?: () => void;
+  inviteActionLoading?: boolean;
 }
 
 const getNotificationIcon = (kind: SportzNotification['kind']) => {
@@ -35,7 +38,16 @@ const getNotificationIcon = (kind: SportzNotification['kind']) => {
   }
 };
 
-export function NotificationRow({ notification, onPress, onCtaPress }: NotificationRowProps) {
+export function NotificationRow({
+  notification,
+  onPress,
+  onCtaPress,
+  onInviteAccept,
+  onInviteDecline,
+  inviteActionLoading = false
+}: NotificationRowProps) {
+  const showInviteActions = Boolean(onInviteAccept && onInviteDecline);
+
   return (
     <Pressable onPress={onPress} style={[styles.row, !notification.read ? styles.unread : null]}>
       {notification.actor ? (
@@ -55,6 +67,35 @@ export function NotificationRow({ notification, onPress, onCtaPress }: Notificat
           <Button size="sm" style={styles.cta} onPress={onCtaPress}>
             {notification.ctaLabel}
           </Button>
+        ) : null}
+        {showInviteActions ? (
+          <View style={styles.inviteActions}>
+            <Button
+              size="sm"
+              icon={Check}
+              style={styles.inviteAction}
+              loading={inviteActionLoading}
+              onPress={(event) => {
+                event.stopPropagation();
+                onInviteAccept?.();
+              }}
+            >
+              Accept
+            </Button>
+            <Button
+              size="sm"
+              variant="dark"
+              icon={X}
+              style={styles.inviteAction}
+              loading={inviteActionLoading}
+              onPress={(event) => {
+                event.stopPropagation();
+                onInviteDecline?.();
+              }}
+            >
+              Decline
+            </Button>
+          </View>
         ) : null}
       </View>
       {!notification.read ? <View style={styles.dot} /> : null}
@@ -97,6 +138,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 8,
     borderRadius: 8
+  },
+  inviteActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: 8
+  },
+  inviteAction: {
+    flex: 1
   },
   dot: {
     width: 8,

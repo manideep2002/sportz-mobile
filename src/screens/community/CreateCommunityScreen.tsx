@@ -21,6 +21,7 @@ export function CreateCommunityScreen() {
   const [sport, setSport] = useState(allSports[0]);
   const [city, setCity] = useState('');
   const [description, setDescription] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const submit = async () => {
     if (!name.trim()) {
@@ -28,7 +29,7 @@ export function CreateCommunityScreen() {
       return;
     }
     try {
-      const community = await createCommunity.mutateAsync({ type, name, sport, city, description });
+      const community = await createCommunity.mutateAsync({ type, name, sport, city, description, isPrivate });
       navigation.replace(type === 'group' ? 'GroupDetail' : 'PageDetail', { communityId: community.id });
     } catch (error) {
       Alert.alert('Could not create community', error instanceof Error ? error.message : 'Please try again.');
@@ -51,6 +52,15 @@ export function CreateCommunityScreen() {
             </Chip>
           ))}
         </View>
+        {type === 'group' ? (
+          <>
+            <AppText style={styles.label}>Visibility</AppText>
+            <View style={styles.wrap}>
+              <Chip selected={!isPrivate} onPress={() => setIsPrivate(false)}>Public</Chip>
+              <Chip selected={isPrivate} onPress={() => setIsPrivate(true)}>Private</Chip>
+            </View>
+          </>
+        ) : null}
         <Input label="Name" value={name} onChangeText={setName} />
         <Input label="City" value={city} onChangeText={setCity} />
         <AppText style={styles.label}>Sport</AppText>

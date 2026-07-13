@@ -212,10 +212,44 @@ export interface Community {
   city: string;
   memberCount: number;
   followerCount?: number;
+  isPrivate?: boolean;
   isAdmin?: boolean;
   isMember?: boolean;
+  canViewContent?: boolean;
+  canManageMembers?: boolean;
+  membershipRole?: CommunityMemberRole | null;
+  membershipStatus?: CommunityMembershipStatus;
+  pendingInviteId?: ID;
+  pendingRequestId?: ID;
   isVerified?: boolean;
   latestPost?: string;
+}
+
+export type CommunityMemberRole = 'owner' | 'admin' | 'member' | 'follower';
+
+export type CommunityMembershipStatus = 'none' | 'joined' | 'admin' | 'owner' | 'invited' | 'requested';
+
+export interface CommunityMember {
+  userId: ID;
+  role: CommunityMemberRole;
+  joinedAt: string;
+  profile: UserProfile;
+}
+
+export interface CommunityInvite {
+  id: ID;
+  community: Community;
+  inviter?: UserProfile;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  createdAt: string;
+}
+
+export interface CommunityJoinRequest {
+  id: ID;
+  communityId: ID;
+  requester: UserProfile;
+  status: 'pending' | 'approved' | 'declined' | 'cancelled';
+  createdAt: string;
 }
 
 export interface SearchResult {

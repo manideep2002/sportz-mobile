@@ -37,11 +37,11 @@ export const useUserPosts = (userId: string) =>
     queryFn: () => postService.listUserPosts(userId)
   });
 
-export const useCommunityPosts = (communityId: string) =>
+export const useCommunityPosts = (communityId: string, enabled = true) =>
   useQuery({
     queryKey: feedKeys.communityPosts(communityId),
     queryFn: () => postService.listCommunityPosts(communityId),
-    enabled: !!communityId
+    enabled: Boolean(communityId) && enabled
   });
 
 export const useSavedPosts = () =>

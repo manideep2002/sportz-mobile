@@ -13,6 +13,21 @@ interface CommunityCardProps {
 }
 
 export function CommunityCard({ community, onPress, onViewPosts, onAction }: CommunityCardProps) {
+  const isGroup = community.type === 'group';
+  const actionLabel = isGroup
+    ? community.isMember
+      ? 'New Post'
+      : community.membershipStatus === 'invited'
+        ? 'Respond'
+        : community.membershipStatus === 'requested'
+          ? 'Requested'
+          : community.isPrivate
+            ? 'Request'
+            : 'Join'
+    : community.isAdmin
+      ? 'New Post'
+      : 'Open Page';
+
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.card}>
@@ -27,6 +42,12 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
             </AppText>
           </View>
           {community.isAdmin ? <Badge tone="orange">Admin</Badge> : community.isVerified ? <Badge tone="blue">Verified</Badge> : null}
+        </View>
+        <View style={styles.badges}>
+          {community.isPrivate ? <Badge tone="yellow">Private</Badge> : null}
+          {community.membershipStatus === 'invited' ? <Badge tone="blue">Invited</Badge> : null}
+          {community.membershipStatus === 'requested' ? <Badge tone="yellow">Requested</Badge> : null}
+          {community.isMember && !community.isAdmin ? <Badge tone="green">Joined</Badge> : null}
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
         {community.latestPost ? (
@@ -53,12 +74,13 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
           <Button
             size="sm"
             style={styles.actionButton}
+            disabled={community.membershipStatus === 'requested'}
             onPress={(event) => {
               event.stopPropagation();
               (onAction ?? onPress)();
             }}
           >
-            {community.type === 'group' ? 'Post Opening' : community.isAdmin ? 'New Post' : 'Open Page'}
+            {actionLabel}
           </Button>
         </View>
       </Card>
@@ -98,6 +120,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[700],
     borderRadius: 10,
     padding: spacing.sm
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   },
   liveDot: {
     width: 6,

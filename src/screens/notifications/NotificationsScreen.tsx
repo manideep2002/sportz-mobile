@@ -3,7 +3,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Filter } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
 
@@ -15,6 +15,7 @@ import {
   useMarkNotificationRead,
   useMarkNotificationsRead
 } from '@/hooks/useNotifications';
+import { useRespondCommunityInvite } from '@/hooks/useCommunities';
 import { navigateFromNotificationData, notificationToRouteData } from '@/navigation/notificationRouting';
 import { navigationRef } from '@/navigation/navigationRef';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -25,6 +26,8 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type FilterType = 'All' | 'Mentions' | 'Events' | 'Social';
 
 const FILTER_OPTIONS: FilterType[] = ['All', 'Mentions', 'Events', 'Social'];
+
+const stringValue = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
 
 const filterNotifications = (notifications: SportzNotification[], filter: FilterType) => {
   switch (filter) {
@@ -107,6 +110,7 @@ export function NotificationsScreen() {
   const notifications: SportzNotification[] = infiniteData?.pages.flat() ?? [];
   const markAllRead = useMarkNotificationsRead();
   const markAsRead = useMarkNotificationRead();
+  const respondInvite = useRespondCommunityInvite();
 
   const filteredNotifications = filterNotifications(notifications, filter);
 
@@ -128,6 +132,26 @@ export function NotificationsScreen() {
       markAsRead.mutate(notification.id);
     }
     navigateForNotification(navigation, notification);
+  };
+
+  const handleInviteResponse = (notification: SportzNotification, approve: boolean) => {
+    const inviteId = stringValue(notification.data?.inviteId);
+    if (!inviteId) {
+      navigateForNotification(navigation, notification);
+      return;
+    }
+
+    if (!notification.read) {
+      markAsRead.mutate(notification.id);
+    }
+    respondInvite.mutate(
+      { inviteId, communityId: notification.entityId, approve },
+      {
+        onError: (error) => {
+          Alert.alert(approve ? 'Accept failed' : 'Decline failed', error instanceof Error ? error.message : 'Please try again.');
+        }
+      }
+    );
   };
 
   const handleMarkAllRead = () => {
@@ -226,6 +250,9 @@ export function NotificationsScreen() {
             notification={item}
             onPress={() => handleNotificationPress(item)}
             onCtaPress={() => handleCtaPress(item)}
+            inviteActionLoading={respondInvite.isPending}
+            onInviteAccept={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, true) : undefined}
+            onInviteDecline={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, false) : undefined}
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
