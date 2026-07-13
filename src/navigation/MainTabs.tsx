@@ -17,12 +17,15 @@ import { useUiStore } from '@/store/uiStore';
 import { CreateActionSheet } from './CreateActionSheet';
 import type { MainTabParamList } from './routes';
 
-const TAB_BAR_HEIGHT = 58;
+const TAB_BAR_HEIGHT = 60;
 const TAB_BAR_RADIUS = TAB_BAR_HEIGHT / 2;
 const TAB_BAR_HORIZONTAL_INSET = 12;
 const TAB_BAR_MIN_BOTTOM_GAP = 12;
 const TAB_BAR_CONTENT_INSET = 4;
 const TAB_ICON_SIZE = 22;
+const TAB_ICON_FRAME_HEIGHT = 30;
+const TAB_LABEL_BLOCK_HEIGHT = 13;
+const TAB_CONTENT_TOP = (TAB_BAR_HEIGHT - TAB_ICON_FRAME_HEIGHT - TAB_LABEL_BLOCK_HEIGHT) / 2;
 const INDICATOR_HORIZONTAL_PADDING = 12;
 const FALLBACK_INDICATOR_WIDTH = TAB_ICON_SIZE + INDICATOR_HORIZONTAL_PADDING * 2;
 
@@ -327,8 +330,8 @@ const styles = StyleSheet.create({
   },
   activeIndicator: {
     position: 'absolute',
-    top: 4,
-    height: 30,
+    top: TAB_CONTENT_TOP,
+    height: TAB_ICON_FRAME_HEIGHT,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.14)'
   },
@@ -340,15 +343,13 @@ const styles = StyleSheet.create({
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 4,
-    paddingBottom: 3
+    justifyContent: 'center'
   },
   tabItemPressed: {
     opacity: 0.72
   },
   iconFrame: {
-    height: 30,
+    height: TAB_ICON_FRAME_HEIGHT,
     paddingHorizontal: INDICATOR_HORIZONTAL_PADDING,
     borderRadius: 999,
     alignItems: 'center',
