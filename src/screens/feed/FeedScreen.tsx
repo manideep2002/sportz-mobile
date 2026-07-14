@@ -21,6 +21,7 @@ import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { eventService } from '@/services/eventService';
 import { blockService, toBlockedIdSet } from '@/services/blockService';
+import { feedDedupeService } from '@/services/feedDedupeService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 import type { Post } from '@/types/domain';
@@ -43,7 +44,9 @@ export function FeedScreen() {
     queryFn: blockService.listBlockedIds
   });
   const blockedIdSet = toBlockedIdSet(blockedIds);
-  const feed = (data?.pages.flatMap((page) => page.items) ?? []).filter((post) => !blockedIdSet.has(post.author.id));
+  const feed = feedDedupeService
+    .keepUnique(data?.pages.flatMap((page) => page.items) ?? [], (post) => post.id)
+    .filter((post) => !blockedIdSet.has(post.author.id));
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();

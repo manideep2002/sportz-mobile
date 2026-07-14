@@ -1,11 +1,7 @@
 import { feedDedupeService } from '@/services/feedDedupeService';
 
 describe('feedDedupeService', () => {
-  beforeEach(() => {
-    feedDedupeService.reset();
-  });
-
-  it('keeps only unseen items in insertion order', () => {
+  it('keeps only unique items in insertion order', () => {
     const items = [
       { id: 'post-1' },
       { id: 'post-2' },
@@ -13,18 +9,17 @@ describe('feedDedupeService', () => {
       { id: 'post-3' }
     ];
 
-    expect(feedDedupeService.keepUnseen(items, (item) => item.id)).toEqual([
+    expect(feedDedupeService.keepUnique(items, (item) => item.id)).toEqual([
       { id: 'post-1' },
       { id: 'post-2' },
       { id: 'post-3' }
     ]);
   });
 
-  it('remembers seen items across calls until reset', () => {
-    expect(feedDedupeService.keepUnseen([{ id: 'post-1' }], (item) => item.id)).toEqual([
-      { id: 'post-1' }
-    ]);
-    expect(feedDedupeService.keepUnseen([{ id: 'post-1' }, { id: 'post-2' }], (item) => item.id)).toEqual([
+  it('returns the same result regardless of earlier feed requests', () => {
+    expect(feedDedupeService.keepUnique([{ id: 'post-1' }], (item) => item.id)).toEqual([{ id: 'post-1' }]);
+    expect(feedDedupeService.keepUnique([{ id: 'post-1' }, { id: 'post-2' }], (item) => item.id)).toEqual([
+      { id: 'post-1' },
       { id: 'post-2' }
     ]);
   });

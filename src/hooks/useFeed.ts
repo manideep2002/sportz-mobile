@@ -14,8 +14,11 @@ import { postService, type CreatePostInput, type FeedPage, type UpdatePostInput 
 import { useAuthStore } from '@/store/authStore';
 import type { Comment, Post } from '@/types/domain';
 
+const infiniteFeedRoot = ['feed', 'infinite', 'v2'] as const;
+
 export const feedKeys = {
-  infinite: ['feed', 'infinite'] as const,
+  infiniteRoot: infiniteFeedRoot,
+  infinite: (viewerId: string) => [...infiniteFeedRoot, viewerId] as const,
   post: (id: string) => ['post', id] as const,
   comments: (postId: string) => ['comments', postId] as const,
   userPosts: (userId: string) => ['feed', 'user', userId] as const,
@@ -23,13 +26,16 @@ export const feedKeys = {
   savedPosts: ['feed', 'saved'] as const
 };
 
-export const useInfiniteFeed = () =>
-  useInfiniteQuery({
-    queryKey: feedKeys.infinite,
+export const useInfiniteFeed = () => {
+  const viewerId = useAuthStore((state) => state.user?.id ?? 'anonymous');
+
+  return useInfiniteQuery({
+    queryKey: feedKeys.infinite(viewerId),
     queryFn: ({ pageParam }) => postService.listFeedPage(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor
   });
+};
 
 export const useUserPosts = (userId: string) =>
   useQuery({
@@ -63,15 +69,46 @@ export const useComments = (postId: string) =>
     queryFn: () => postService.listComments(postId)
   });
 
+const prependUniquePost = (posts: Post[], post: Post) => [
+  post,
+  ...posts.filter((item) => item.id !== post.id)
+];
+
 export const useCreatePost = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: CreatePostInput) => postService.createPost(input),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['feed'] });
-      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
-      void queryClient.invalidateQueries({ queryKey: ['feed', 'user'] });
+    onSuccess: (post, input) => {
+      if (!input.communityId && post.visibility !== 'group') {
+        queryClient.setQueryData<InfiniteFeedData>(feedKeys.infinite(post.author.id), (old) => {
+          if (!old?.pages.length) return old;
+
+          const [firstPage, ...remainingPages] = old.pages;
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, items: prependUniquePost(firstPage.items, post) },
+              ...remainingPages
+            ]
+          };
+        });
+      }
+
+      queryClient.setQueryData<Post[]>(feedKeys.userPosts(post.author.id), (old) =>
+        old ? prependUniquePost(old, post) : old
+      );
+      if (input.communityId) {
+        queryClient.setQueryData<Post[]>(feedKeys.communityPosts(input.communityId), (old) =>
+          old ? prependUniquePost(old, post) : old
+        );
+      }
+
+      void queryClient.invalidateQueries({ queryKey: feedKeys.infinite(post.author.id), exact: true });
+      void queryClient.invalidateQueries({ queryKey: feedKeys.userPosts(post.author.id), exact: true });
+      if (input.communityId) {
+        void queryClient.invalidateQueries({ queryKey: feedKeys.communityPosts(input.communityId), exact: true });
+      }
     }
   });
 };
@@ -398,7 +435,7 @@ export const usePostRealtimeUpdates = (postId: string) => {
       invalidateTimer = setTimeout(() => {
         invalidateTimer = null;
         void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
-        void queryClient.invalidateQueries({ queryKey: feedKeys.infinite });
+        void queryClient.invalidateQueries({ queryKey: feedKeys.infiniteRoot });
         if (includeComments) {
           void queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) });
         }

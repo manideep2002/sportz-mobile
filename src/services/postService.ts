@@ -283,7 +283,9 @@ const isHomeFeedCacheUnavailableError = (error: { code?: string } | null) =>
   error?.code === 'PGRST202' || error?.code === '42P01' || error?.code === '42883';
 
 const mapFeedRows = async (rows: PostRow[]): Promise<FeedPage> => {
-  const uniqueRows = feedDedupeService.keepUnseen(rows, (row) => row.id);
+  // Query functions must be deterministic. Deduplicate only within this
+  // response; a process-wide "seen" set can empty a concurrent refetch.
+  const uniqueRows = feedDedupeService.keepUnique(rows, (row) => row.id);
   const engagement = await loadPostEngagement(uniqueRows.map((row) => row.id));
   const items = uniqueRows.map((row) => mapPostRow(row, engagement));
 
@@ -294,7 +296,10 @@ const mapFeedRows = async (rows: PostRow[]): Promise<FeedPage> => {
 };
 
 const listCachedHomeFeedPage = async (cursor?: string, limit = 10): Promise<FeedPage | null> => {
-  const { data, error } = await supabase.rpc('list_home_feed', {
+  // v2 has the same discovery backfill as the direct query. Calling the
+  // versioned RPC means clients safely fall back while its migration deploys
+  // instead of switching to the older, smaller followed-only result set.
+  const { data, error } = await supabase.rpc('list_home_feed_v2', {
     page_cursor: cursor ?? null,
     page_limit: limit
   });
@@ -391,10 +396,6 @@ export const postService = {
 
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {
     assertSupabaseConfigured();
-
-    if (!cursor) {
-      feedDedupeService.reset();
-    }
 
     const cachedPage = await listCachedHomeFeedPage(cursor, limit);
     if (cachedPage && (cursor || cachedPage.items.length > 0)) {
