@@ -23,7 +23,7 @@ export function AppRefreshControl({
   colors: indicatorColors = [colors.orange[500], colors.light[0]],
   progressBackgroundColor = colors.dark[800],
   enabled = true,
-  size = Platform.OS === 'android' ? 1 : undefined,
+  size,
   ...props
 }: AppRefreshControlProps) {
   const insets = useSafeAreaInsets();
