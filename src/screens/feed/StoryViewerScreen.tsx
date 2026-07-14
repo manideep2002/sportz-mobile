@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Trash2, X } from 'lucide-react-native';
-import { Alert, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Avatar, IconButton, ProgressBar, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -13,6 +14,8 @@ import { messageService } from '@/services/messageService';
 import { storyService } from '@/services/storyService';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
+import { groupStoriesByUser } from '@/utils/storyUtils';
+import type { Story } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'StoryViewer'>;
@@ -23,6 +26,7 @@ export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const currentProfile = useAuthStore((state) => state.profile);
+  const insets = useSafeAreaInsets();
 
   const { data: stories = [] } = useStories();
   const markStorySeen = useMarkStorySeen();
@@ -32,6 +36,7 @@ export function StoryViewerScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [reply, setReply] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // Track the displayed media URL in state so it is seeded immediately from
   // route params (set by CreateStoryScreen) and updated when we navigate
@@ -42,10 +47,48 @@ export function StoryViewerScreen() {
   );
   const [useRawMediaUrl, setUseRawMediaUrl] = useState(false);
 
-  const currentIndex = stories.findIndex((item) => item.id === currentStoryId);
-  const story = stories[currentIndex];
-  const previousStory = stories[currentIndex - 1];
-  const nextStory = stories[currentIndex + 1];
+  const groups = groupStoriesByUser(stories);
+
+  let currentGroupIndex = -1;
+  let currentStoryIndexInGroup = -1;
+
+  for (let i = 0; i < groups.length; i++) {
+    const idx = groups[i].stories.findIndex((s) => s.id === currentStoryId);
+    if (idx !== -1) {
+      currentGroupIndex = i;
+      currentStoryIndexInGroup = idx;
+      break;
+    }
+  }
+
+  const currentGroup = groups[currentGroupIndex];
+  const story = currentGroup?.stories[currentStoryIndexInGroup] ?? stories.find((s) => s.id === currentStoryId);
+
+  let previousStory: Story | undefined;
+  let nextStory: Story | undefined;
+
+  if (currentGroup && currentStoryIndexInGroup !== -1) {
+    if (currentStoryIndexInGroup > 0) {
+      previousStory = currentGroup.stories[currentStoryIndexInGroup - 1];
+    } else if (currentGroupIndex > 0) {
+      const prevGroup = groups[currentGroupIndex - 1];
+      previousStory = prevGroup.stories[prevGroup.stories.length - 1];
+    }
+
+    if (currentStoryIndexInGroup < currentGroup.stories.length - 1) {
+      nextStory = currentGroup.stories[currentStoryIndexInGroup + 1];
+    } else if (currentGroupIndex < groups.length - 1) {
+      const nextGroup = groups[currentGroupIndex + 1];
+      nextStory = nextGroup.stories[0];
+    }
+  } else {
+    const flatIndex = stories.findIndex((item) => item.id === currentStoryId);
+    if (flatIndex !== -1) {
+      previousStory = stories[flatIndex - 1];
+      nextStory = stories[flatIndex + 1];
+    }
+  }
+
   const remainingSeconds = Math.max(1, Math.ceil((STORY_DURATION_MS - elapsed) / 1000));
   const optimizedDisplayMediaUrl = mediaVariants.storyImage(displayMediaUrl);
   const storyImageUrl = useRawMediaUrl ? displayMediaUrl : optimizedDisplayMediaUrl ?? displayMediaUrl;
@@ -74,32 +117,37 @@ export function StoryViewerScreen() {
     [stories]
   );
 
-  // Progress timer - advances and auto-navigates.
+  // Reset elapsed timer only when the current story ID changes
+  useEffect(() => {
+    setElapsed(0);
+  }, [currentStoryId]);
+
+  // Progress timer - advances and auto-navigates, supporting pause.
   useEffect(() => {
     // Start timer even when story metadata isn't in cache yet,
     // as long as we have a media URL to display.
     if (!displayMediaUrl && !story) return;
+    if (isInputFocused) return;
 
     markStorySeen(currentStoryId);
-    setElapsed(0);
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      const nextElapsed = Math.min(STORY_DURATION_MS, Date.now() - startedAt);
-      setElapsed(nextElapsed);
 
-      if (nextElapsed >= STORY_DURATION_MS) {
-        clearInterval(timer);
-        if (nextStory) {
-          goToStory(nextStory.id);
-        } else {
-          navigation.goBack();
+    const timer = setInterval(() => {
+      setElapsed((prev) => {
+        const next = Math.min(STORY_DURATION_MS, prev + 100);
+        if (next >= STORY_DURATION_MS) {
+          clearInterval(timer);
+          if (nextStory) {
+            goToStory(nextStory.id);
+          } else {
+            navigation.goBack();
+          }
         }
-      }
+        return next;
+      });
     }, 100);
 
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStoryId, displayMediaUrl]);
+  }, [currentStoryId, displayMediaUrl, nextStory, goToStory, story, isInputFocused]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -122,7 +170,7 @@ export function StoryViewerScreen() {
   };
 
   const sendReply = async (body: string, kind: 'reply' | 'reaction' = 'reply') => {
-    if (!story?.user.id || story.user.id === currentProfile?.id || !body.trim()) return;
+    if (!story?.user.id || !body.trim()) return;
     setSendingReply(true);
     try {
       if (kind === 'reaction') {
@@ -133,6 +181,7 @@ export function StoryViewerScreen() {
       const conversationId = await messageService.createDirectConversation(story.user.id);
       await messageService.sendMessage(conversationId, body.trim());
       setReply('');
+      Keyboard.dismiss();
     } catch (error) {
       Alert.alert('Reply failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -180,7 +229,29 @@ export function StoryViewerScreen() {
 
       {/* Top HUD */}
       <View style={styles.header}>
-        <ProgressBar value={elapsed} max={STORY_DURATION_MS} height={3} color={colors.light[0]} />
+        <View style={styles.progressRow}>
+          {(currentGroup ? currentGroup.stories : [{ id: currentStoryId }]).map((s, index) => {
+            let progressValue = 0;
+            const currentIdx = currentGroup ? currentStoryIndexInGroup : 0;
+            if (index < currentIdx) {
+              progressValue = STORY_DURATION_MS;
+            } else if (index === currentIdx) {
+              progressValue = elapsed;
+            } else {
+              progressValue = 0;
+            }
+            return (
+              <View key={s.id} style={styles.progressSegment}>
+                <ProgressBar
+                  value={progressValue}
+                  max={STORY_DURATION_MS}
+                  height={3}
+                  color={colors.light[0]}
+                />
+              </View>
+            );
+          })}
+        </View>
         <View style={styles.authorRow}>
           <Avatar initials={story?.user.initials ?? 'ME'} uri={story?.user.avatarUrl} size={38} />
           <View style={styles.authorMeta}>
@@ -236,8 +307,11 @@ export function StoryViewerScreen() {
           </AppText>
         </View>
       ) : null}
-      {!isOwnStory && story?.user.id ? (
-        <View style={styles.replyBar}>
+      {story?.user.id ? (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.replyBar, { bottom: insets.bottom > 0 ? insets.bottom + 8 : 28 }]}
+        >
           <View style={styles.reactions}>
             {['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F44F}', '\u{1F3C6}'].map((reaction) => (
               <Pressable
@@ -254,6 +328,8 @@ export function StoryViewerScreen() {
             <TextInput
               value={reply}
               onChangeText={setReply}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
               placeholder="Reply to story..."
               placeholderTextColor={colors.light[100]}
               style={styles.replyInput}
@@ -268,7 +344,7 @@ export function StoryViewerScreen() {
               <AppText style={styles.sendReplyText}>Send</AppText>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       ) : null}
     </View>
   );
@@ -290,6 +366,15 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     paddingHorizontal: spacing.screen,
     gap: spacing.sm
+  },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 4,
+    width: '100%',
+    marginBottom: spacing.xs
+  },
+  progressSegment: {
+    flex: 1
   },
   authorRow: {
     flexDirection: 'row',

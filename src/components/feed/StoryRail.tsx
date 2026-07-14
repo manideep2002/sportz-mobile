@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react-native';
 import { AppText, Avatar } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
 import type { Story } from '@/types/domain';
+import { groupStoriesByUser } from '@/utils/storyUtils';
 
 interface StoryRailProps {
   stories: Story[];
@@ -12,12 +13,14 @@ interface StoryRailProps {
 }
 
 export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProps) {
+  const groupedStories = groupStoriesByUser(stories);
+
   return (
     <FlatList
       horizontal
       showsHorizontalScrollIndicator={false}
-      data={stories}
-      keyExtractor={(item) => item.id}
+      data={groupedStories}
+      keyExtractor={(item) => item.userId}
       contentContainerStyle={styles.list}
       ListHeaderComponent={
         <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={styles.item} onPress={onCreateStory}>
@@ -27,23 +30,28 @@ export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProp
           <AppText variant="small">Your story</AppText>
         </Pressable>
       }
-      renderItem={({ item, index }) => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${item.user.displayName}'s story`}
-          style={styles.item}
-          onPress={() => onOpenStory(item.id)}
-        >
-          <View style={[styles.ring, item.seen ? styles.seen : styles.active]}>
-            <View style={styles.inner}>
-              <Avatar initials={item.user.initials} uri={item.user.avatarUrl} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
+      renderItem={({ item, index }) => {
+        const firstUnseen = item.stories.find((s) => !s.seen);
+        const targetId = (firstUnseen ?? item.stories[0]).id;
+
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.user.displayName}'s story`}
+            style={styles.item}
+            onPress={() => onOpenStory(targetId)}
+          >
+            <View style={[styles.ring, item.allSeen ? styles.seen : styles.active]}>
+              <View style={styles.inner}>
+                <Avatar initials={item.user.initials} uri={item.user.avatarUrl} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
+              </View>
             </View>
-          </View>
-          <AppText variant="small" numberOfLines={1}>
-            {item.user.displayName.split(' ')[0]}
-          </AppText>
-        </Pressable>
-      )}
+            <AppText variant="small" numberOfLines={1}>
+              {item.user.displayName.split(' ')[0]}
+            </AppText>
+          </Pressable>
+        );
+      }}
     />
   );
 }
