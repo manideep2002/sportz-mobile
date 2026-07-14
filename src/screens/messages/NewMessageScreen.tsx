@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, Search, Users } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
+import { messageKeys, useConversation } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
 import { profileService } from '@/services/profileService';
@@ -16,8 +18,10 @@ type Route = RouteProp<AppStackParamList, 'NewMessage'>;
 
 export function NewMessageScreen() {
   const navigation = useNavigation<Navigation>();
+  const queryClient = useQueryClient();
   const route = useRoute<Route>();
   const addToConversationId = route.params?.addToConversationId;
+  const { data: targetConversation } = useConversation(addToConversationId ?? '');
   const [query, setQuery] = useState('');
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [selected, setSelected] = useState<UserProfile[]>([]);
@@ -26,6 +30,10 @@ export function NewMessageScreen() {
   const [groupLoading, setGroupLoading] = useState(false);
 
   const selectedIds = useMemo(() => new Set(selected.map((player) => player.id)), [selected]);
+  const existingMemberIds = useMemo(
+    () => new Set(targetConversation?.participants.map((participant) => participant.id) ?? []),
+    [targetConversation?.participants]
+  );
   const isAddMode = Boolean(addToConversationId);
 
   useEffect(() => {
@@ -35,13 +43,14 @@ export function NewMessageScreen() {
     }
     const timer = setTimeout(async () => {
       try {
-        setPlayers(await profileService.listPlayers(query));
+        const results = await profileService.listPlayers(query);
+        setPlayers(isAddMode ? results.filter((player) => !existingMemberIds.has(player.id)) : results);
       } catch (error) {
         Alert.alert('Search failed', error instanceof Error ? error.message : 'Please try again.');
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [existingMemberIds, isAddMode, query]);
 
   const toggleSelected = (player: UserProfile) => {
     setSelected((current) =>
@@ -74,6 +83,10 @@ export function NewMessageScreen() {
     try {
       if (addToConversationId) {
         await messageService.addGroupMembers(addToConversationId, selected.map((player) => player.id));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: messageKeys.conversation(addToConversationId) }),
+          queryClient.invalidateQueries({ queryKey: messageKeys.conversations })
+        ]);
         Alert.alert('Members added', 'The selected players were added to the chat.');
         navigation.goBack();
         return;

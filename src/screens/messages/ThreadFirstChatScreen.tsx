@@ -3,7 +3,18 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { ChevronLeft, Clock, Image as ImageIcon, Plus, Send, Video } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  Clock,
+  Edit3,
+  Image as ImageIcon,
+  MoreVertical,
+  Plus,
+  Send,
+  Trash2,
+  Video,
+  X
+} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,18 +29,23 @@ import {
   type ViewToken
 } from 'react-native';
 
-import { AppText, IconButton } from '@/components/ui';
+import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
+import { AppText, BottomSheet, Button, IconButton } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { messageKeys } from '@/hooks/useMessages';
 import { supabase } from '@/lib/supabase';
+import { messageService } from '@/services/messageService';
 import {
   mergeThreadMessages,
   removeThreadMessage,
   threadFirstChatService
 } from '@/services/threadFirstChatService';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagingStore } from '@/store/messagingStore';
+import type { ChatParticipantRole, Conversation, UserProfile } from '@/types/domain';
 import type {
   ChatMessageBroadcastPayload,
+  ChatMessageDeletedBroadcastPayload,
   ChatReadBroadcastPayload,
   ChatTypingBroadcastPayload,
   ThreadChatMessage,
@@ -39,7 +55,11 @@ import type {
 interface ThreadFirstChatScreenProps {
   roomId: string;
   title?: string;
+  conversation?: Conversation;
+  initialOpenSettings?: boolean;
+  onAddMembers?: () => void;
   onBack?: () => void;
+  onLeftConversation?: () => void;
 }
 
 const newestFirst = (a: ThreadChatMessage, b: ThreadChatMessage) =>
@@ -90,14 +110,16 @@ function MessageMedia({ message }: { message: ThreadChatMessage }) {
 function MessageBubble({
   message,
   currentUserId,
-  showSeen
+  showSeen,
+  onLongPress
 }: {
   message: ThreadChatMessage;
   currentUserId: string;
   showSeen: boolean;
+  onLongPress?: () => void;
 }) {
   const mine = message.senderId === currentUserId;
-  const statusLabel =
+  const deliveryLabel =
     message.deliveryStatus === 'sending'
       ? 'Sending'
       : message.deliveryStatus === 'failed'
@@ -105,29 +127,48 @@ function MessageBubble({
         : showSeen
           ? 'Seen'
           : 'Sent';
+  const statusLabel = `${message.editedAt ? 'Edited · ' : ''}${deliveryLabel}`;
 
   return (
     <View style={[styles.messageRow, mine ? styles.myMessageRow : null]}>
-      <View style={[styles.bubble, mine ? styles.myBubble : styles.theirBubble, message.mediaUrl ? styles.mediaBubble : null]}>
-        {message.messageType === 'text' ? (
-          <AppText style={[styles.messageText, mine ? styles.myMessageText : null]}>{message.body}</AppText>
-        ) : (
-          <MessageMedia message={message} />
-        )}
-      </View>
+      <Pressable
+        accessibilityRole={onLongPress ? 'button' : undefined}
+        accessibilityLabel={onLongPress ? 'Your message. Long press for actions.' : undefined}
+        delayLongPress={320}
+        disabled={!onLongPress}
+        onLongPress={onLongPress}
+        style={({ pressed }) => (pressed && onLongPress ? styles.bubblePressed : null)}
+      >
+        <View style={[styles.bubble, mine ? styles.myBubble : styles.theirBubble, message.mediaUrl ? styles.mediaBubble : null]}>
+          {message.messageType === 'text' ? (
+            <AppText style={[styles.messageText, mine ? styles.myMessageText : null]}>{message.body}</AppText>
+          ) : (
+            <MessageMedia message={message} />
+          )}
+        </View>
+      </Pressable>
       {mine ? (
         <View style={styles.messageMeta}>
           {message.deliveryStatus === 'sending' ? <Clock size={11} color={colors.text.tertiary} /> : null}
           <AppText style={[styles.messageMetaText, showSeen ? styles.seenText : null]}>{statusLabel}</AppText>
         </View>
-      ) : null}
+      ) : message.editedAt ? <AppText style={styles.messageMetaText}>Edited</AppText> : null}
     </View>
   );
 }
 
-export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: ThreadFirstChatScreenProps) {
+export function ThreadFirstChatScreen({
+  roomId,
+  title = 'Chat',
+  conversation,
+  initialOpenSettings = false,
+  onAddMembers,
+  onBack,
+  onLeftConversation
+}: ThreadFirstChatScreenProps) {
   const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
+  const setConversationMutedLocally = useMessagingStore((state) => state.setConversationMutedLocally);
   const [messages, setMessages] = useState<ThreadChatMessage[]>([]);
   const [participants, setParticipants] = useState<ThreadChatParticipant[]>([]);
   const [body, setBody] = useState('');
@@ -136,6 +177,13 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
   const [olderLoading, setOlderLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<ThreadChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
+  const [messageActionLoading, setMessageActionLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(initialOpenSettings);
+  const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'remove' | 'leave' | null>(null);
+  const [pinned, setPinned] = useState(Boolean(conversation?.pinned));
+  const [muted, setMuted] = useState(Boolean(conversation?.muted));
   const listRef = useRef<FlashListRef<ThreadChatMessage>>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,6 +205,27 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
     [messages]
   );
   const typingLabel = typingUserIds.size > 0 ? 'User is typing...' : 'Active now';
+  const participantRoles = useMemo<Record<string, ChatParticipantRole>>(
+    () => conversation?.participantRoles ?? Object.fromEntries(
+      participants.map((participant) => [participant.userId, participant.role])
+    ),
+    [conversation?.participantRoles, participants]
+  );
+  const currentUserRole = conversation?.currentUserRole
+    ?? participants.find((participant) => participant.userId === currentUserId)?.role
+    ?? 'member';
+  const conversationMembers = conversation?.participants ?? [];
+
+  useEffect(() => {
+    if (initialOpenSettings) setSettingsOpen(true);
+  }, [initialOpenSettings]);
+
+  useEffect(() => {
+    if (!conversation) return;
+    setPinned(Boolean(conversation.pinned));
+    setMuted(Boolean(conversation.muted));
+    setConversationMutedLocally(roomId, Boolean(conversation.muted));
+  }, [conversation, roomId, setConversationMutedLocally]);
 
   const patchParticipantReadAt = useCallback((userId: string, lastReadAt: string) => {
     setParticipants((current) =>
@@ -238,6 +307,18 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
         const { messageId } = payload as { messageId?: string };
         if (!messageId) return;
         setMessages((current) => removeThreadMessage(current, messageId));
+      })
+      .on('broadcast', { event: 'message_updated' }, ({ payload }) => {
+        const { message } = payload as ChatMessageBroadcastPayload;
+        if (!message || message.roomId !== roomId) return;
+        setMessages((current) => mergeThreadMessages(current, message));
+      })
+      .on('broadcast', { event: 'message_deleted' }, ({ payload }) => {
+        const deletePayload = payload as ChatMessageDeletedBroadcastPayload;
+        if (deletePayload.roomId !== roomId || !deletePayload.messageId) return;
+        setMessages((current) => removeThreadMessage(current, deletePayload.messageId));
+        setSelectedMessage((current) => current?.id === deletePayload.messageId ? null : current);
+        setEditingMessage((current) => current?.id === deletePayload.messageId ? null : current);
       })
       .on('broadcast', { event: 'message_read' }, ({ payload }) => {
         const readPayload = payload as ChatReadBroadcastPayload;
@@ -339,6 +420,175 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
     sendTyping(value);
   };
 
+  const invalidateConversationData = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversation(roomId) }),
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations })
+    ]);
+  }, [queryClient, roomId]);
+
+  const patchConversationState = useCallback((patch: Partial<Conversation>) => {
+    queryClient.setQueryData<Conversation | null>(messageKeys.conversation(roomId), (current) =>
+      current ? { ...current, ...patch } : current
+    );
+    queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (current = []) =>
+      current.map((item) => item.id === roomId ? { ...item, ...patch } : item)
+    );
+  }, [queryClient, roomId]);
+
+  const cancelEditing = () => {
+    setEditingMessage(null);
+    setBody('');
+    sendTyping('');
+  };
+
+  const saveEdit = async () => {
+    const trimmed = body.trim();
+    if (!editingMessage || !trimmed || messageActionLoading) return;
+    if (trimmed === editingMessage.body) {
+      cancelEditing();
+      return;
+    }
+
+    setMessageActionLoading(true);
+    try {
+      const updated = await messageService.updateMessage(editingMessage.id, trimmed);
+      setMessages((current) => mergeThreadMessages(current, updated));
+      setEditingMessage(null);
+      setBody('');
+      sendTyping('');
+      await broadcast('message_updated', { message: updated } satisfies ChatMessageBroadcastPayload);
+      await invalidateConversationData();
+    } catch (error) {
+      Alert.alert('Edit failed', error instanceof Error ? error.message : 'Could not update your message.');
+    } finally {
+      setMessageActionLoading(false);
+    }
+  };
+
+  const startEditingSelectedMessage = () => {
+    if (!selectedMessage || selectedMessage.messageType !== 'text') return;
+    setEditingMessage(selectedMessage);
+    setBody(selectedMessage.body ?? '');
+    setSelectedMessage(null);
+  };
+
+  const confirmDeleteSelectedMessage = () => {
+    const message = selectedMessage;
+    if (!message) return;
+    setSelectedMessage(null);
+    Alert.alert('Delete message?', 'This removes the message for everyone in the conversation.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setMessageActionLoading(true);
+            try {
+              await messageService.deleteMessage(message.id);
+              setMessages((current) => removeThreadMessage(current, message.id));
+              if (editingMessage?.id === message.id) cancelEditing();
+              await broadcast('message_deleted', {
+                roomId,
+                messageId: message.id
+              } satisfies ChatMessageDeletedBroadcastPayload);
+              await invalidateConversationData();
+            } catch (error) {
+              Alert.alert('Delete failed', error instanceof Error ? error.message : 'Could not delete your message.');
+            } finally {
+              setMessageActionLoading(false);
+            }
+          })();
+        }
+      }
+    ]);
+  };
+
+  const togglePinned = async () => {
+    const next = !pinned;
+    setSettingsBusy('pin');
+    try {
+      await messageService.setConversationPinned(roomId, next);
+      setPinned(next);
+      patchConversationState({ pinned: next });
+      await invalidateConversationData();
+    } catch (error) {
+      Alert.alert('Pin failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSettingsBusy(null);
+    }
+  };
+
+  const toggleMuted = async () => {
+    const next = !muted;
+    setSettingsBusy('mute');
+    try {
+      await messageService.setConversationMuted(roomId, next);
+      setMuted(next);
+      setConversationMutedLocally(roomId, next);
+      patchConversationState({ muted: next });
+      await invalidateConversationData();
+    } catch (error) {
+      Alert.alert('Mute failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSettingsBusy(null);
+    }
+  };
+
+  const confirmRemoveMember = (member: UserProfile) => {
+    Alert.alert('Remove member?', `${member.displayName} will no longer be able to access this conversation.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setSettingsBusy('remove');
+            try {
+              await messageService.removeGroupMember(roomId, member.id);
+              await Promise.all([loadInitial(), invalidateConversationData()]);
+            } catch (error) {
+              Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setSettingsBusy(null);
+            }
+          })();
+        }
+      }
+    ]);
+  };
+
+  const confirmLeaveConversation = () => {
+    Alert.alert('Leave conversation?', 'You will stop receiving messages and notifications from this chat.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setSettingsBusy('leave');
+            try {
+              await messageService.leaveConversation(roomId);
+              setConversationMutedLocally(roomId, false);
+              queryClient.setQueryData<Conversation[]>(messageKeys.conversations, (current = []) =>
+                current.filter((item) => item.id !== roomId)
+              );
+              queryClient.removeQueries({ queryKey: messageKeys.conversation(roomId) });
+              queryClient.removeQueries({ queryKey: messageKeys.messages(roomId) });
+              setSettingsOpen(false);
+              onLeftConversation?.();
+            } catch (error) {
+              Alert.alert('Could not leave', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setSettingsBusy(null);
+            }
+          })();
+        }
+      }
+    ]);
+  };
+
   const persistAfterBroadcast = async (message: ThreadChatMessage) => {
     try {
       const persisted = await threadFirstChatService.insertMessage(message);
@@ -372,6 +622,7 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
       mediaHeight: null,
       mediaMimeType: null,
       createdAt: new Date().toISOString(),
+      editedAt: null,
       deliveryStatus: 'sending'
     };
 
@@ -414,6 +665,7 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
         mediaHeight: media.mediaHeight,
         mediaMimeType: media.mediaMimeType,
         createdAt: new Date().toISOString(),
+        editedAt: null,
         deliveryStatus: 'sending'
       };
 
@@ -434,7 +686,17 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
       otherParticipants.length > 0 &&
       otherParticipants.every((participant) => isAtLeastReadThrough(item.createdAt, participant.lastReadAt));
 
-    return <MessageBubble message={item} currentUserId={currentUserId} showSeen={showSeen} />;
+    const canManage = item.senderId === currentUserId
+      && item.deliveryStatus !== 'sending'
+      && item.deliveryStatus !== 'failed';
+    return (
+      <MessageBubble
+        message={item}
+        currentUserId={currentUserId}
+        showSeen={showSeen}
+        onLongPress={canManage ? () => setSelectedMessage(item) : undefined}
+      />
+    );
   };
 
   return (
@@ -445,6 +707,11 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
           <AppText style={styles.title} numberOfLines={1}>{title}</AppText>
           <AppText style={styles.subtitle} numberOfLines={1}>{typingLabel}</AppText>
         </View>
+        <IconButton
+          icon={MoreVertical}
+          accessibilityLabel="Conversation settings"
+          onPress={() => setSettingsOpen(true)}
+        />
       </View>
 
       {initialLoading ? (
@@ -476,29 +743,71 @@ export function ThreadFirstChatScreen({ roomId, title = 'Chat', onBack }: Thread
         />
       )}
 
-      <View style={styles.composer}>
-        <IconButton
-          icon={Plus}
-          accessibilityLabel="Attach photo or video"
-          disabled={mediaLoading}
-          onPress={() => void sendMedia()}
-        />
-        <TextInput
-          value={body}
-          onChangeText={updateBody}
-          placeholder="Message..."
-          placeholderTextColor={colors.text.tertiary}
-          style={styles.input}
-          multiline
-        />
-        <IconButton
-          icon={Send}
-          filled
-          accessibilityLabel="Send message"
-          disabled={!body.trim()}
-          onPress={sendText}
-        />
+      <View style={styles.composerContainer}>
+        {editingMessage ? (
+          <View style={styles.editBanner}>
+            <View style={styles.editCopy}>
+              <AppText style={styles.editTitle}>Editing message</AppText>
+              <AppText variant="small" numberOfLines={1}>{editingMessage.body}</AppText>
+            </View>
+            <IconButton icon={X} size={32} iconSize={15} accessibilityLabel="Cancel editing" onPress={cancelEditing} />
+          </View>
+        ) : null}
+        <View style={styles.composer}>
+          <IconButton
+            icon={Plus}
+            accessibilityLabel="Attach photo or video"
+            disabled={mediaLoading || Boolean(editingMessage)}
+            onPress={() => void sendMedia()}
+          />
+          <TextInput
+            value={body}
+            onChangeText={updateBody}
+            placeholder={editingMessage ? 'Edit message...' : 'Message...'}
+            placeholderTextColor={colors.text.tertiary}
+            style={styles.input}
+            multiline
+          />
+          <IconButton
+            icon={Send}
+            filled
+            accessibilityLabel={editingMessage ? 'Save edited message' : 'Send message'}
+            disabled={!body.trim() || messageActionLoading}
+            onPress={editingMessage ? () => void saveEdit() : sendText}
+          />
+        </View>
       </View>
+
+      <BottomSheet open={Boolean(selectedMessage)} title="Message actions" onClose={() => setSelectedMessage(null)}>
+        <View style={styles.messageActions}>
+          {selectedMessage?.messageType === 'text' ? (
+            <Button full variant="dark" icon={Edit3} onPress={startEditingSelectedMessage}>Edit message</Button>
+          ) : null}
+          <Button full variant="danger" icon={Trash2} onPress={confirmDeleteSelectedMessage}>Delete message</Button>
+        </View>
+      </BottomSheet>
+
+      <ConversationSettingsSheet
+        open={settingsOpen}
+        title={title}
+        isGroup={Boolean(conversation?.isGroup)}
+        members={conversationMembers}
+        participantRoles={participantRoles}
+        currentUserId={currentUserId}
+        currentUserRole={currentUserRole}
+        pinned={pinned}
+        muted={muted}
+        busyAction={settingsBusy}
+        onClose={() => setSettingsOpen(false)}
+        onTogglePinned={() => void togglePinned()}
+        onToggleMuted={() => void toggleMuted()}
+        onAddMembers={() => {
+          setSettingsOpen(false);
+          onAddMembers?.();
+        }}
+        onRemoveMember={confirmRemoveMember}
+        onLeave={confirmLeaveConversation}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -630,6 +939,32 @@ const styles = StyleSheet.create({
   seenText: {
     color: colors.semantic.success
   },
+  bubblePressed: {
+    opacity: 0.76
+  },
+  composerContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.dark[700]
+  },
+  editBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.sm
+  },
+  editCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingLeft: spacing.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.orange[500]
+  },
+  editTitle: {
+    color: colors.orange[400],
+    fontFamily: typography.bodyBold,
+    fontSize: 12
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -637,8 +972,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     paddingTop: 10,
     paddingBottom: 30,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.dark[700]
+  },
+  messageActions: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm
   },
   input: {
     flex: 1,

@@ -6,6 +6,7 @@ import {
   pushNotificationsEnabledKey,
   shouldHandleNotification
 } from '@/lib/notifications';
+import { useMessagingStore } from '@/store/messagingStore';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -17,6 +18,7 @@ jest.mock('expo-notifications', () => ({
 describe('notification preferences', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
+    useMessagingStore.setState({ mutedConversations: {} });
   });
 
   it('covers message and invite notification categories', () => {
@@ -32,6 +34,16 @@ describe('notification preferences', () => {
     );
 
     await expect(shouldHandleNotification({ kind: 'message' })).resolves.toBe(false);
+  });
+
+  it('suppresses in-flight notifications for a muted conversation', async () => {
+    useMessagingStore.getState().setConversationMutedLocally('muted-room', true);
+
+    await expect(shouldHandleNotification({
+      kind: 'chat_message',
+      type: 'message',
+      conversationId: 'muted-room'
+    })).resolves.toBe(false);
   });
 
   it('treats follow requests as follow notifications', async () => {

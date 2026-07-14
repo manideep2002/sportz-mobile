@@ -1,3 +1,4 @@
+import { BellOff, MoreVertical, Pin } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, VerifiedName } from '@/components/ui';
@@ -10,15 +11,16 @@ interface ConversationRowProps {
   conversation: Conversation;
   currentUserId: string;
   onPress: () => void;
+  onMenuPress?: () => void;
 }
 
-export function ConversationRow({ conversation, currentUserId, onPress }: ConversationRowProps) {
+export function ConversationRow({ conversation, currentUserId, onPress, onMenuPress }: ConversationRowProps) {
   const other = getOtherParticipant(conversation, currentUserId) ?? conversation.participants[0];
   const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other?.initials ?? '??';
   const title = conversation.isGroup ? conversation.title : other?.displayName ?? conversation.title;
 
   return (
-    <Pressable onPress={onPress} style={styles.row}>
+    <Pressable onPress={onPress} onLongPress={onMenuPress} style={styles.row}>
       <Avatar
         initials={avatarInitials}
         uri={conversation.isGroup ? undefined : other?.avatarUrl}
@@ -38,11 +40,31 @@ export function ConversationRow({ conversation, currentUserId, onPress }: Conver
           {conversation.lastMessage}
         </AppText>
       </View>
-      {conversation.unreadCount > 0 ? (
-        <View style={styles.badge}>
-          <AppText style={styles.badgeText}>{conversation.unreadCount}</AppText>
+      <View style={styles.trailing}>
+        <View style={styles.indicators}>
+          {conversation.pinned ? <Pin size={12} color={colors.orange[400]} fill={colors.orange[400]} /> : null}
+          {conversation.muted ? <BellOff size={13} color={colors.text.tertiary} /> : null}
         </View>
-      ) : null}
+        {conversation.unreadCount > 0 ? (
+          <View style={styles.badge}>
+            <AppText style={styles.badgeText}>{conversation.unreadCount}</AppText>
+          </View>
+        ) : null}
+        {onMenuPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Manage ${title}`}
+            hitSlop={10}
+            onPress={(event) => {
+              event.stopPropagation();
+              onMenuPress();
+            }}
+            style={styles.menuButton}
+          >
+            <MoreVertical size={17} color={colors.text.secondary} />
+          </Pressable>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -88,5 +110,22 @@ const styles = StyleSheet.create({
     color: colors.light[0],
     fontFamily: typography.bodyBold,
     fontSize: 11
+  },
+  trailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs
+  },
+  indicators: {
+    minHeight: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs
+  },
+  menuButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });

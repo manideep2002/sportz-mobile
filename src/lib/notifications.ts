@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
+import { useMessagingStore } from '@/store/messagingStore';
 
 export const pushNotificationsEnabledKey = 'sportz.push.enabled';
 export const notificationPreferencesKey = 'sportz.notification.preferences';
@@ -53,7 +54,15 @@ export async function shouldHandleNotification(data: Record<string, unknown>) {
   const enabled = await AsyncStorage.getItem(pushNotificationsEnabledKey);
   if (enabled === 'false') return false;
 
-  const kind = typeof data.kind === 'string' ? data.kind : undefined;
+  const rawKind = typeof data.kind === 'string' ? data.kind : undefined;
+  const kind = rawKind === 'chat_message' || data.type === 'message' ? 'message' : rawKind;
+  if (kind === 'message') {
+    const conversationId = [data.conversationId, data.roomId, data.entityId]
+      .find((value): value is string => typeof value === 'string' && Boolean(value));
+    if (conversationId && useMessagingStore.getState().mutedConversations[conversationId]) {
+      return false;
+    }
+  }
   const preference = preferenceForKind(kind);
   if (!preference) return true;
 

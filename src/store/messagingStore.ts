@@ -12,6 +12,7 @@ interface MessagingState {
   /** Optimistic last-message previews written before the server round-trip completes. */
   conversationPreviews: Map<string, ConversationPreview>;
   toggleMuteConversation: (conversationId: string) => void;
+  setConversationMutedLocally: (conversationId: string, muted: boolean) => void;
   markConversationReadLocally: (conversationId: string) => void;
   setConversationPreview: (conversationId: string, preview: ConversationPreview) => void;
   clearConversationPreview: (conversationId: string) => void;
@@ -27,6 +28,14 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       mutedConversations: {
         ...state.mutedConversations,
         [conversationId]: !state.mutedConversations[conversationId]
+      }
+    })),
+
+  setConversationMutedLocally: (conversationId, muted) =>
+    set((state) => ({
+      mutedConversations: {
+        ...state.mutedConversations,
+        [conversationId]: muted
       }
     })),
 

@@ -153,8 +153,13 @@ export interface Conversation {
   lastMessageAt: string;
   unreadCount: number;
   pinned?: boolean;
+  muted?: boolean;
+  currentUserRole?: ChatParticipantRole;
+  participantRoles?: Record<ID, ChatParticipantRole>;
   communityId?: ID;
 }
+
+export type ChatParticipantRole = 'owner' | 'admin' | 'member';
 
 export interface Message {
   id: ID;
@@ -164,6 +169,7 @@ export interface Message {
   createdAt: string;
   readBy: ID[];
   pending?: boolean;
+  editedAt?: string | null;
 }
 
 export interface EventMessage {

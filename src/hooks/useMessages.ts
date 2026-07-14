@@ -33,11 +33,17 @@ const clearConversationUnread = (queryClient: QueryClient, conversationId: strin
   );
 };
 
-export const useConversation = (conversationId: string) =>
-  useQuery({
+export const useConversation = (conversationId: string) => {
+  const queryClient = useQueryClient();
+  return useQuery({
     queryKey: messageKeys.conversation(conversationId),
-    queryFn: () => messageService.getConversation(conversationId)
+    queryFn: () => messageService.getConversation(conversationId),
+    enabled: Boolean(conversationId),
+    placeholderData: () => queryClient
+      .getQueryData<Conversation[]>(messageKeys.conversations)
+      ?.find((conversation) => conversation.id === conversationId)
   });
+};
 
 export const useConversations = () => {
   const readConversationIds = useMessagingStore((state) => state.readConversationIds);

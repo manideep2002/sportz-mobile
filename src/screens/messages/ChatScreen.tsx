@@ -32,7 +32,11 @@ export function ChatScreen() {
     <ThreadFirstChatScreen
       roomId={roomId}
       title={title}
+      conversation={conversation ?? undefined}
+      initialOpenSettings={route.params.openSettings}
+      onAddMembers={() => navigation.navigate('NewMessage', { addToConversationId: roomId })}
       onBack={() => navigation.goBack()}
+      onLeftConversation={() => navigation.popToTop()}
     />
   );
 }

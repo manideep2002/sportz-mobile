@@ -30,6 +30,18 @@ describe('messagingStore — mute', () => {
     });
     expect(useMessagingStore.getState().mutedConversations['conv-1']).toBe(false);
   });
+
+  it('sets the server-confirmed mute state explicitly', () => {
+    act(() => {
+      useMessagingStore.getState().setConversationMutedLocally('conv-1', true);
+      useMessagingStore.getState().setConversationMutedLocally('conv-2', false);
+    });
+
+    expect(useMessagingStore.getState().mutedConversations).toEqual({
+      'conv-1': true,
+      'conv-2': false
+    });
+  });
 });
 
 describe('messagingStore — readConversationIds', () => {

@@ -1,7 +1,7 @@
-import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { threadFirstChatService } from '@/services/threadFirstChatService';
 import type { Conversation, Message } from '@/types/domain';
+import type { ThreadChatMessage } from '@/types/threadFirstChat';
 
 const appError = (error: unknown, fallback: string) => {
   if (error instanceof Error) return error;
@@ -59,6 +59,11 @@ export const messageService = {
     await threadFirstChatService.setRoomMuted(roomId, muted);
   },
 
+  async setConversationPinned(roomId: string, pinned: boolean): Promise<void> {
+    assertSupabaseConfigured();
+    await threadFirstChatService.setRoomPinned(roomId, pinned);
+  },
+
   async createDirectConversation(otherUserId: string): Promise<string> {
     assertSupabaseConfigured();
 
@@ -91,44 +96,24 @@ export const messageService = {
 
   async leaveConversation(roomId: string): Promise<void> {
     assertSupabaseConfigured();
-
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw appError(authError, 'Could not verify your session.');
-    if (!authData.user) throw new Error('You must be signed in to leave a group.');
-
-    await threadFirstChatService.removeRoomMember(roomId, authData.user.id);
+    await threadFirstChatService.leaveRoom(roomId);
   },
 
-  async updateMessage(messageId: string, body: string): Promise<void> {
+  async updateMessage(messageId: string, body: string): Promise<ThreadChatMessage> {
     assertSupabaseConfigured();
-
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw appError(authError, 'Could not verify your session.');
-    if (!authData.user) throw new Error('You must be signed in to edit messages.');
-
-    const { error } = await supabase
-      .from('chat_messages')
-      .update({ body, edited_at: new Date().toISOString() })
-      .eq('id', messageId)
-      .eq('sender_id', authData.user.id)
-      .eq('message_type', 'text');
-
-    if (error) throw appError(error, 'Could not update your message.');
+    try {
+      return await threadFirstChatService.updateMessage(messageId, body);
+    } catch (error) {
+      throw appError(error, 'Could not update your message.');
+    }
   },
 
   async deleteMessage(messageId: string): Promise<void> {
     assertSupabaseConfigured();
-
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw appError(authError, 'Could not verify your session.');
-    if (!authData.user) throw new Error('You must be signed in to delete messages.');
-
-    const { error } = await supabase
-      .from('chat_messages')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', messageId)
-      .eq('sender_id', authData.user.id);
-
-    if (error) throw appError(error, 'Could not delete your message.');
+    try {
+      await threadFirstChatService.deleteMessage(messageId);
+    } catch (error) {
+      throw appError(error, 'Could not delete your message.');
+    }
   }
 };

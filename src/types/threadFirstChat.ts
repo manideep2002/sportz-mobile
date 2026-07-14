@@ -14,6 +14,7 @@ export interface ThreadChatMessage {
   mediaHeight: number | null;
   mediaMimeType: string | null;
   createdAt: string;
+  editedAt: string | null;
   deliveryStatus?: ChatDeliveryStatus;
 }
 
@@ -22,10 +23,16 @@ export interface ThreadChatParticipant {
   userId: string;
   lastReadAt: string | null;
   isActive: boolean;
+  role: 'owner' | 'admin' | 'member';
 }
 
 export interface ChatMessageBroadcastPayload {
   message: ThreadChatMessage;
+}
+
+export interface ChatMessageDeletedBroadcastPayload {
+  roomId: string;
+  messageId: string;
 }
 
 export interface ChatReadBroadcastPayload {

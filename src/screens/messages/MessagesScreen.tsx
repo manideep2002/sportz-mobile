@@ -67,6 +67,7 @@ export function MessagesScreen() {
               conversation={conversation}
               currentUserId={currentUserId}
               onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
+              onMenuPress={() => navigation.navigate('Chat', { conversationId: conversation.id, openSettings: true })}
             />
           ))}
         </View>
@@ -79,6 +80,7 @@ export function MessagesScreen() {
             conversation={conversation}
             currentUserId={currentUserId}
             onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
+            onMenuPress={() => navigation.navigate('Chat', { conversationId: conversation.id, openSettings: true })}
           />
         ))}
         {!isLoading && !isError && rest.length === 0 && pinned.length === 0 ? (
