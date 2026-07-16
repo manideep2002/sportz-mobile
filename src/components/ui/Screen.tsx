@@ -8,6 +8,7 @@ interface ScreenProps {
   scroll?: boolean;
   withTabPadding?: boolean;
   keyboard?: boolean;
+  keyboardOffset?: number;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   refreshControl?: ReactElement<RefreshControlProps>;
@@ -18,6 +19,7 @@ export function Screen({
   scroll = true,
   withTabPadding = false,
   keyboard = false,
+  keyboardOffset = Platform.OS === 'ios' ? 0 : 10,
   style,
   contentContainerStyle,
   refreshControl
@@ -49,7 +51,11 @@ export function Screen({
   if (!keyboard) return body;
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={keyboardOffset}
+    >
       {body}
     </KeyboardAvoidingView>
   );

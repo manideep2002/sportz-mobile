@@ -232,11 +232,11 @@ export function ThreadFirstChatScreen({
       current.map((participant) =>
         participant.userId === userId
           ? {
-              ...participant,
-              lastReadAt: isAtLeastReadThrough(lastReadAt, participant.lastReadAt)
-                ? participant.lastReadAt
-                : lastReadAt
-            }
+            ...participant,
+            lastReadAt: isAtLeastReadThrough(lastReadAt, participant.lastReadAt)
+              ? participant.lastReadAt
+              : lastReadAt
+          }
           : participant
       )
     );
@@ -700,7 +700,11 @@ export function ThreadFirstChatScreen({
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         {onBack ? <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={onBack} /> : null}
         <View style={styles.headerCopy}>

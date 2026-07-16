@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import type * as ImagePicker from 'expo-image-picker';
 import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 import { postSports } from '@/constants/sports';
@@ -70,12 +70,12 @@ export function CreatePostScreen() {
   const canPublish = isEditing
     ? Boolean(body.trim() || (kind === 'stats' && statsLine.trim()))
     : Boolean(
-        body.trim() ||
-          mediaUri ||
-          (kind === 'stats' && statsLine.trim()) ||
-          taggedUsers.length ||
-          locationLabel
-      );
+      body.trim() ||
+      mediaUri ||
+      (kind === 'stats' && statsLine.trim()) ||
+      taggedUsers.length ||
+      locationLabel
+    );
 
   useEffect(() => {
     if (!editPost || hydratedEditPost) return;
@@ -90,7 +90,7 @@ export function CreatePostScreen() {
     setVisibility(
       editPost.visibility === 'followers' ? 'Followers'
         : editPost.visibility === 'group' ? COMMUNITY_LABEL
-        : 'Public'
+          : 'Public'
     );
     setHydratedEditPost(true);
   }, [editPost, hydratedEditPost]);
@@ -119,7 +119,7 @@ export function CreatePostScreen() {
       const [place] = await Location.reverseGeocodeAsync(currentLocation.coords);
       setLocationLabel(
         [place.city ?? place.district ?? place.subregion, place.region].filter(Boolean).join(', ') ||
-          `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
+        `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
       );
     } catch (error) {
       Alert.alert('Could not detect location', error instanceof Error ? error.message : 'Please try again.');
@@ -186,7 +186,11 @@ export function CreatePostScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">{isEditing ? 'Edit Post' : 'New Post'}</AppText>
@@ -351,7 +355,7 @@ export function CreatePostScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -309,8 +309,9 @@ export function StoryViewerScreen() {
       ) : null}
       {story?.user.id ? (
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
           style={[styles.replyBar, { bottom: insets.bottom > 0 ? insets.bottom + 8 : 28 }]}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
         >
           <View style={styles.reactions}>
             {['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F44F}', '\u{1F3C6}'].map((reaction) => (

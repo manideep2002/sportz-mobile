@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft, ImagePlus } from 'lucide-react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { Alert, FlatList, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Button, IconButton } from '@/components/ui';
 import { colors, radii, spacing } from '@/design/tokens';
@@ -67,7 +67,11 @@ export function CreateStoryScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={() => navigation.goBack()} />
         <AppText variant="h3">Create Story</AppText>
@@ -130,7 +134,7 @@ export function CreateStoryScreen() {
       <Button variant="ghost" full icon={Camera} onPress={handleCapture}>
         Capture with camera
       </Button>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
