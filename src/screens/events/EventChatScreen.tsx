@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, VerifiedName } from '@/components/ui';
@@ -59,7 +59,11 @@ export function EventChatScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Event Chat</AppText>
@@ -118,7 +122,7 @@ export function EventChatScreen() {
         />
         <IconButton icon={Send} filled disabled={!body.trim() || sending || isError} onPress={() => void send()} />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

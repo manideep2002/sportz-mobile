@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft, Calendar, Clock } from 'lucide-react-native';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { addDays, format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -76,7 +76,7 @@ export function CreateEventScreen() {
   const [visibility, setVisibility] = useState(eventVisibilityOptions[0].value);
   const [entryFee, setEntryFee] = useState('0');
   const [coverImage, setCoverImage] = useState<string | null>(null);
-  
+
   // Date/Time state - default to tomorrow at 6 PM
   const tomorrow = addDays(new Date(), 1);
   tomorrow.setHours(18, 0, 0, 0);
@@ -84,7 +84,7 @@ export function CreateEventScreen() {
   const [dateText, setDateText] = useState(formatDateInput(tomorrow));
   const [timeText, setTimeText] = useState(formatTimeInput(tomorrow));
   const [duration, setDuration] = useState('2'); // hours
-  
+
   const createEvent = useCreateEvent();
   const visibilityDescription = eventVisibilityOptions.find((option) => option.value === visibility)?.description;
   const parsedEntryFee = Number(entryFee);
@@ -171,7 +171,7 @@ export function CreateEventScreen() {
       } catch {
         geocoded = undefined;
       }
-      
+
       const created = await createEvent.mutateAsync({
         title: title.trim(),
         eventType,
@@ -210,7 +210,11 @@ export function CreateEventScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Create Event</AppText>
@@ -230,14 +234,14 @@ export function CreateEventScreen() {
             </>
           )}
         </Pressable>
-        
+
         <Input
           label="Event Title"
           value={title}
           onChangeText={setTitle}
           placeholder="e.g., Weekend 5v5 Basketball"
         />
-        
+
         <View style={styles.group}>
           <AppText style={styles.label}>Sport</AppText>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -290,7 +294,7 @@ export function CreateEventScreen() {
           keyboardType="numeric"
           placeholder="2"
         />
-        
+
         <Input
           label="Location / Court"
           value={locationName}
@@ -303,7 +307,7 @@ export function CreateEventScreen() {
           value={city}
           onChangeText={setCity}
         />
-        
+
         <Input
           label="Max Players"
           value={maxPlayers}
@@ -324,7 +328,7 @@ export function CreateEventScreen() {
             {eventPaymentNotice}
           </AppText>
         ) : null}
-        
+
         <View style={styles.group}>
           <AppText style={styles.label}>Event Type</AppText>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -355,7 +359,7 @@ export function CreateEventScreen() {
             </AppText>
           ) : null}
         </View>
-        
+
         <Input
           label="Description"
           value={description}
@@ -364,12 +368,12 @@ export function CreateEventScreen() {
           numberOfLines={4}
           placeholder="Describe rules, skill level, and requirements..."
         />
-        
+
         <Button full size="lg" loading={createEvent.isPending} onPress={handleCreate}>
           Create Event
         </Button>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

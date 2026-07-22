@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft } from 'lucide-react-native';
-import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { InteractionManager, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, BottomSheet, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
@@ -137,7 +137,11 @@ export function EditProfileScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Edit Profile</AppText>
@@ -192,7 +196,7 @@ export function EditProfileScreen() {
           ) : null}
         </View>
       </BottomSheet>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

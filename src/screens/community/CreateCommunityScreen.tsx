@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
@@ -37,7 +37,11 @@ export function CreateCommunityScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">New Community</AppText>
@@ -72,7 +76,7 @@ export function CreateCommunityScreen() {
         <Input label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
         <Button full size="lg" loading={createCommunity.isPending} onPress={submit}>Create Community</Button>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
