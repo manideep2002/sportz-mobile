@@ -7,6 +7,13 @@ import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useMessagingStore } from '@/store/messagingStore';
 
+/**
+ * Returns true only on iOS and Android — the two platforms that support
+ * Expo Notifications native APIs. Always false on web.
+ */
+export const isNativePlatform = (): boolean =>
+  Platform.OS === 'ios' || Platform.OS === 'android';
+
 export const pushNotificationsEnabledKey = 'sportz.push.enabled';
 export const notificationPreferencesKey = 'sportz.notification.preferences';
 const pushInstallationIdKey = 'sportz.push.installationId';
@@ -97,20 +104,24 @@ export async function saveNotificationPreferences(
   );
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const shouldPresent = await shouldHandleNotification(
-      notification.request.content.data as Record<string, unknown>
-    );
-    return {
-      shouldShowAlert: shouldPresent,
-      shouldPlaySound: shouldPresent,
-      shouldSetBadge: shouldPresent,
-      shouldShowBanner: shouldPresent,
-      shouldShowList: shouldPresent
-    };
-  }
-});
+// Only register the notification handler on native platforms.
+// expo-notifications is unavailable on web and throws UnavailabilityError.
+if (isNativePlatform()) {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const shouldPresent = await shouldHandleNotification(
+        notification.request.content.data as Record<string, unknown>
+      );
+      return {
+        shouldShowAlert: shouldPresent,
+        shouldPlaySound: shouldPresent,
+        shouldSetBadge: shouldPresent,
+        shouldShowBanner: shouldPresent,
+        shouldShowList: shouldPresent
+      };
+    }
+  });
+}
 
 async function getOrCreateInstallationId() {
   const existing = await AsyncStorage.getItem(pushInstallationIdKey);
@@ -122,6 +133,9 @@ async function getOrCreateInstallationId() {
 }
 
 export async function registerForPushNotificationsAsync() {
+  // Push token registration is a native-only feature.
+  if (!isNativePlatform()) return null;
+
   const enabled = await AsyncStorage.getItem(pushNotificationsEnabledKey);
   if (enabled === 'false') return null;
 
