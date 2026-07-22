@@ -15,5 +15,5 @@
 - Use pagination (`range`) for feed, messages, events, comments, and notifications before production traffic.
 - Add server-side indexes for sort/filter columns; current schema includes feed, message, event, notification, and geospatial indexes. Keep using `created_at` indexes for explicit chronological queries, and use UUIDv7 primarily for insert locality and cursor-friendly IDs.
 - Home feeds use a hybrid fan-out cache: standard accounts enqueue `feed_fanout_jobs` on post creation and the `feed-fanout` Edge Function writes `feed_items`; high-follower accounts are merged on read via `list_home_feed`.
-- Run `supabase/functions/feed-fanout` on a frequent scheduler or queue trigger in production so cached home feeds stay hot.
+- `feed-fanout`, `push-fanout`, and `process-social-events` run on pg_cron schedules registered by migration `20260722000001_feed_fanout_pg_cron_scheduler.sql`. On the free tier (pg_cron unavailable), configure an external cron to POST each function — see `docs/SETUP.md §8`.
 - Use EAS production builds for Hermes and release-mode performance.
