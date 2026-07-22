@@ -16,6 +16,7 @@ interface MessagingState {
   markConversationReadLocally: (conversationId: string) => void;
   setConversationPreview: (conversationId: string, preview: ConversationPreview) => void;
   clearConversationPreview: (conversationId: string) => void;
+  resetForSession: () => void;
 }
 
 export const useMessagingStore = create<MessagingState>((set, get) => ({
@@ -61,5 +62,12 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         lastMessageAt: new Date().toISOString()
       });
       return { conversationPreviews: next };
+    }),
+
+  resetForSession: () =>
+    set({
+      mutedConversations: {},
+      readConversationIds: new Set<string>(),
+      conversationPreviews: new Map<string, ConversationPreview>()
     })
 }));

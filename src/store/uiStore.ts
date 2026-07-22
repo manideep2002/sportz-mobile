@@ -21,6 +21,7 @@ interface UiState {
   setOnlineUserIds: (userIds: string[]) => void;
   openCreateSheet: () => void;
   closeCreateSheet: () => void;
+  resetForSession: () => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -43,7 +44,13 @@ export const useUiStore = create<UiState>()(
         })),
       setOnlineUserIds: (userIds) => set({ onlineUserIds: new Set(userIds) }),
       openCreateSheet: () => set({ createSheetOpen: true }),
-      closeCreateSheet: () => set({ createSheetOpen: false })
+      closeCreateSheet: () => set({ createSheetOpen: false }),
+      resetForSession: () =>
+        set({
+          createSheetOpen: false,
+          notificationUnreadCount: 0,
+          onlineUserIds: new Set()
+        })
     }),
     {
       name: 'sportz.ui',

@@ -6,6 +6,8 @@ export type AuthStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: undefined;
+  ProfileCompletion: undefined;
+  ProfileLoadError: undefined;
 };
 
 export type MainTabParamList = {

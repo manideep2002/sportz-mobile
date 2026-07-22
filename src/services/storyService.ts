@@ -35,6 +35,16 @@ interface StoryRow {
 }
 
 export const storyService = {
+  async clearSeenState(): Promise<void> {
+    seenStoryIds.clear();
+    seenStoriesLoaded = false;
+    try {
+      await AsyncStorage.removeItem(seenStoriesStorageKey);
+    } catch {
+      // In-memory state is still cleared even when device storage is unavailable.
+    }
+  },
+
   async listStories(): Promise<Story[]> {
     assertSupabaseConfigured();
     await loadSeenStories();

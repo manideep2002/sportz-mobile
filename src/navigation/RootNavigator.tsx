@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { sportzDarkTheme, sportzLightTheme } from '@/design/theme';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { MainTabs } from './MainTabs';
@@ -48,6 +47,9 @@ import { LanguageScreen } from '@/screens/settings/LanguageScreen';
 import { AppearanceScreen } from '@/screens/settings/AppearanceScreen';
 import { SportsInterestsScreen } from '@/screens/settings/SportsInterestsScreen';
 import { HelpScreen } from '@/screens/settings/HelpScreen';
+import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/AuthProfileGateScreens';
+import { AppText } from '@/components/ui';
+import { colors, spacing } from '@/design/tokens';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -76,13 +78,24 @@ const linking: LinkingOptions<RootStackParamList> = {
 };
 
 function AuthNavigator() {
+  const authStatus = useAuthStore((state) => state.authStatus);
+  const initialRouteName = authStatus === 'passwordRecovery'
+    ? 'ResetPassword'
+    : authStatus === 'profileCompletion'
+      ? 'ProfileCompletion'
+      : authStatus === 'profileError'
+        ? 'ProfileLoadError'
+        : 'Splash';
+
   return (
-    <Auth.Navigator screenOptions={{ headerShown: false }}>
+    <Auth.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
       <Auth.Screen name="Splash" component={SplashScreen} />
       <Auth.Screen name="Login" component={LoginScreen} />
       <Auth.Screen name="Register" component={RegisterScreen} />
       <Auth.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Auth.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Auth.Screen name="ProfileCompletion" component={ProfileCompletionScreen} />
+      <Auth.Screen name="ProfileLoadError" component={ProfileLoadErrorScreen} />
     </Auth.Navigator>
   );
 }
@@ -131,26 +144,40 @@ function AppNavigator() {
 
 export function RootNavigator() {
   const profile = useAuthStore((state) => state.profile);
+  const session = useAuthStore((state) => state.session);
+  const authStatus = useAuthStore((state) => state.authStatus);
   const themeMode = useUiStore((state) => state.themeMode);
   const theme = themeMode === 'light' ? sportzLightTheme : sportzDarkTheme;
+  const authenticated = authStatus === 'signedIn' && Boolean(session && profile);
 
-  // Handle PASSWORD_RECOVERY event when the app is already open.
-  // Supabase emits this after exchanging the recovery token from the deep-link.
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        // Navigate to ResetPassword regardless of current screen.
-        navigationRef.current?.navigate('Auth', { screen: 'ResetPassword' });
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+  if (authStatus === 'initializing' || authStatus === 'loadingProfile') {
+    return (
+      <View style={styles.authLoading}>
+        <ActivityIndicator color={colors.orange[500]} />
+        <AppText variant="bodyMuted">Loading your athlete profile...</AppText>
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer ref={navigationRef} theme={theme} linking={linking}>
       <Root.Navigator screenOptions={{ headerShown: false }}>
-        {profile ? <Root.Screen name="App" component={AppNavigator} /> : <Root.Screen name="Auth" component={AuthNavigator} />}
+        {authenticated ? (
+          <Root.Screen name="App" component={AppNavigator} navigationKey="signed-in" />
+        ) : (
+          <Root.Screen name="Auth" component={AuthNavigator} navigationKey={authStatus} />
+        )}
       </Root.Navigator>
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  authLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.dark[950]
+  }
+});

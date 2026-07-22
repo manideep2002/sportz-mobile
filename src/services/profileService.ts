@@ -3,6 +3,7 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { UserProfile } from '@/types/domain';
+import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 
 export interface FollowRequest {
   id: string;
@@ -16,8 +17,46 @@ export type ProfileUpdateInput = Partial<
   Pick<UserProfile, 'username' | 'displayName' | 'avatarUrl' | 'coverUrl' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable' | 'isPrivate'>
 >;
 
+export interface CompleteAuthProfileInput {
+  displayName: string;
+  username: string;
+  city: string;
+  primarySport: string;
+  sports: string[];
+  skillLevel: UserProfile['skillLevel'];
+}
+
+export interface AuthProfileState {
+  profile: UserProfile | null;
+  isComplete: boolean;
+}
+
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
 const profileCacheKey = (id: string) => `profile:v1:${id}`;
+
+interface AuthProfileRow {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  city: string | null;
+  primary_sport: string | null;
+  sports: string[] | null;
+  [key: string]: unknown;
+}
+
+const generatedUsernamePattern = /^athlete_[a-f0-9]{8}(?:_\d+)?$/i;
+
+const isAuthProfileComplete = (row: AuthProfileRow) =>
+  Boolean(
+    row.username?.trim() &&
+      !generatedUsernamePattern.test(row.username) &&
+      row.display_name?.trim() &&
+      row.display_name.trim() !== 'SPORTZ Athlete' &&
+      row.city?.trim() &&
+      row.primary_sport?.trim() &&
+      Array.isArray(row.sports) &&
+      row.sports.length > 0
+  );
 
 const loadProfile = async (id: string): Promise<UserProfile> => {
   const profileResult = await supabase.from('profiles').select('*').eq('id', id).single();
@@ -29,6 +68,48 @@ const loadProfile = async (id: string): Promise<UserProfile> => {
 };
 
 export const profileService = {
+  async getAuthProfileState(id: string): Promise<AuthProfileState> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return { profile: null, isComplete: false };
+
+    const row = data as AuthProfileRow;
+    return {
+      profile: mapProfileRow(row),
+      isComplete: isAuthProfileComplete(row)
+    };
+  },
+
+  async completeAuthProfile(id: string, input: CompleteAuthProfileInput): Promise<UserProfile> {
+    assertSupabaseConfigured();
+
+    const username = normalizeUsername(input.username);
+    validateUsername(username);
+    const sports = Array.from(new Set([input.primarySport.trim(), ...input.sports.map((sport) => sport.trim())])).filter(Boolean);
+
+    const { error } = await supabase.from('profiles').upsert(
+      {
+        id,
+        username,
+        display_name: input.displayName.trim(),
+        city: input.city.trim(),
+        primary_sport: input.primarySport.trim(),
+        sports,
+        skill_level: input.skillLevel,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'id' }
+    );
+    if (error) throw error;
+
+    await hotCacheService.invalidate(profileCacheKey(id));
+    const state = await this.getAuthProfileState(id);
+    if (!state.profile || !state.isComplete) throw new Error('Your athlete profile is still incomplete.');
+    return state.profile;
+  },
+
   async getProfile(id: string): Promise<UserProfile> {
     assertSupabaseConfigured();
 

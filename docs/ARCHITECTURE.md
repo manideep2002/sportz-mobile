@@ -8,6 +8,17 @@
 - TanStack Query handles API cache, offline persistence, and optimistic mutation state.
 - Supabase is isolated behind service modules so screens never call SQL clients directly.
 
+### Auth lifecycle
+
+- `useAuthBootstrap` owns the single application-level Supabase auth subscription.
+- `authStore` serializes bootstrap and auth events into explicit signed-out, profile-loading,
+  profile-completion, password-recovery, error, and signed-in states.
+- A token refresh only replaces the live session. Sign-out and account changes clear the
+  persisted React Query client, hot caches, story-seen state, and session messaging/UI state.
+- Authenticated users with a missing or generated profile stay signed in and complete their
+  profile through the auth gate. The database permits only an authenticated user to insert
+  a profile row with their own user ID.
+
 ## Feature Modules
 
 - Auth: `src/screens/auth`, `src/services/authService.ts`
