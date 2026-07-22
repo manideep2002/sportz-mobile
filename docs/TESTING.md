@@ -15,7 +15,8 @@ npm test
 
 ## Manual QA
 
-- Auth: email login, register, reset, Google, Apple on iOS.
+- Auth: email login, validated 13+ registration, email confirmation, reset, Google,
+  Apple on iOS, and OAuth profile completion. Phone verification is intentionally deferred.
 - Feed: infinite scroll, optimistic like rollback, post create/edit/delete, media upload, comments and replies.
 - Profiles: edit profile, public follow, private follow request accept/decline, hireable filters.
 - Events: create event, join, waitlist when full, RSVP, organizer attendee removal, player count updates, event chat.

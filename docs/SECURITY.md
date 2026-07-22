@@ -6,6 +6,11 @@
 - Use signed URLs for private media if private stories, paid events, or team-only uploads are introduced.
 - Rate-limit edge functions for search, push notification fan-out, and media processing.
 - Validate form input on client with TypeScript and on backend with database constraints.
+- Registration requires users to be at least 13 years old. The client schema is
+  enforced again in the auth service before any Supabase signup request.
+- Mobile numbers are normalized as Indian E.164 contact data. Phone verification is
+  deferred until a production SMS provider and abuse-protected server flow are configured;
+  the app must not label stored numbers as verified or generate client-side OTPs.
 - Store push tokens in `push_tokens` with RLS scoped to the current user.
 - Send push notifications only from the `push-fanout` Edge Function; it must use the service-role key server-side and respect `notification_preferences` plus `conversation_mutes`.
 - Restrict message reads to conversation members.

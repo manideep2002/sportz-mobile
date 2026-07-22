@@ -9,9 +9,3 @@ export function validateUsername(username: string): void {
     throw new Error('Username must be 3–30 characters and use only letters, numbers, or underscores.');
   }
 }
-
-export function validateRegisterPassword(password: string, confirmPassword: string): void {
-  if (password !== confirmPassword) {
-    throw new Error('Passwords do not match.');
-  }
-}

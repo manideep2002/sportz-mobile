@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,10 +10,21 @@ import { allSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AuthStackParamList } from '@/navigation/routes';
+import {
+  getRegistrationFieldErrors,
+  MINIMUM_REGISTRATION_AGE,
+  normalizeEmail,
+  normalizeIndianPhoneNumber,
+  normalizeWhitespace,
+  REGISTRATION_LIMITS,
+  registrationSchema,
+  type RegistrationField,
+  type RegistrationFieldErrors
+} from '@/schemas/registrationSchema';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
-import { normalizeUsername, validateUsername } from '@/utils/authValidation';
+import { normalizeUsername } from '@/utils/authValidation';
 import { useAuthStore } from '@/store/authStore';
 import type { Gender, SkillLevel, Sport } from '@/types/domain';
 
@@ -146,7 +157,40 @@ export function RegisterScreen({ navigation }: Props) {
   const [secondarySports, setSecondarySports] = useState<Sport[]>([]);
   const [confirmationVisible, setConfirmationVisible] = useState(false);
   const [avatarAsset, setAvatarAsset] = useState<ImagePickerAsset | null>(null);
+  const [touched, setTouched] = useState<Partial<Record<RegistrationField, boolean>>>({});
+  const [submitFieldErrors, setSubmitFieldErrors] = useState<RegistrationFieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const usernameAvailability = useUsernameAvailability(username);
+
+  const registrationInput = {
+    firstName,
+    lastName,
+    username,
+    email,
+    password,
+    confirmPassword,
+    mobileNumber,
+    dateOfBirth,
+    gender,
+    city,
+    primarySport,
+    primarySportExperienceLevel,
+    secondarySports
+  };
+  const registrationValidation = registrationSchema.safeParse(registrationInput);
+  const schemaFieldErrors = registrationValidation.success
+    ? {}
+    : getRegistrationFieldErrors(registrationValidation.error);
+  const fieldErrors = { ...schemaFieldErrors, ...submitFieldErrors };
+  const busy = loading || submitting;
+  const canSubmit = registrationValidation.success && usernameAvailability.status === 'available' && !busy;
+  const markTouched = (field: RegistrationField) => {
+    setTouched((current) => (current[field] ? current : { ...current, [field]: true }));
+  };
+  const visibleError = (field: RegistrationField) =>
+    touched[field] || submitFieldErrors[field] ? fieldErrors[field] : undefined;
 
   const passwordStatus = passwordRules.map((rule) => ({ ...rule, valid: rule.test(password) }));
   const passwordIsValid = passwordStatus.every((rule) => rule.valid);
@@ -175,13 +219,16 @@ export function RegisterScreen({ navigation }: Props) {
       ? 'Select secondary sports'
       : `${secondarySports.slice(0, 2).join(', ')}${secondarySports.length > 2 ? ` +${secondarySports.length - 2}` : ''}`;
   const usernameStatusStyle =
-    usernameAvailability.status === 'available'
+    visibleError('username')
+      ? styles.passwordHintError
+      : usernameAvailability.status === 'available'
       ? styles.successText
       : usernameAvailability.status === 'taken' || usernameAvailability.status === 'invalid'
         ? styles.passwordHintError
         : styles.helperText;
 
   const handlePrimarySportSelect = (sport: Sport) => {
+    markTouched('primarySport');
     setPrimarySport(sport);
     setSecondarySports((selected) => selected.filter((secondarySport) => secondarySport !== sport));
     setPrimarySportPickerVisible(false);
@@ -191,6 +238,7 @@ export function RegisterScreen({ navigation }: Props) {
   const toggleSecondarySport = (sport: Sport) => {
     if (sport === primarySport) return;
 
+    markTouched('secondarySports');
     setSecondarySports((selected) =>
       selected.includes(sport)
         ? selected.filter((secondarySport) => secondarySport !== sport)
@@ -199,7 +247,8 @@ export function RegisterScreen({ navigation }: Props) {
   };
 
   const handleLocationSelect = (location: string) => {
-    setCity(location);
+    markTouched('city');
+    setCity(normalizeWhitespace(location));
     setLocationQuery('');
     setLocationPickerVisible(false);
   };
@@ -238,7 +287,8 @@ export function RegisterScreen({ navigation }: Props) {
         .filter(Boolean)
         .join(', ');
 
-      setCity(detectedCity || `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`);
+      markTouched('city');
+      setCity(normalizeWhitespace(detectedCity || `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`));
       setLocationQuery('');
       setLocationPickerVisible(false);
     } catch (error) {
@@ -249,59 +299,59 @@ export function RegisterScreen({ navigation }: Props) {
   };
 
   const handleCreate = async () => {
-    if (!passwordIsValid) {
-      Alert.alert('Strengthen password', 'Use 10+ characters with uppercase, lowercase, a number, a symbol, and no spaces.');
+    if (submittingRef.current) return;
+
+    const parsed = registrationSchema.safeParse(registrationInput);
+    if (!parsed.success) {
+      setTouched(Object.fromEntries(
+        Object.keys(registrationInput).map((field) => [field, true])
+      ) as Partial<Record<RegistrationField, boolean>>);
+      setSubmitFieldErrors(getRegistrationFieldErrors(parsed.error));
       return;
     }
 
-    if (!passwordMatches) {
-      Alert.alert('Passwords do not match', 'Confirm password must match the password you created.');
-      return;
-    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    setFormError(null);
+    setSubmitFieldErrors({});
+    const registration = parsed.data;
+    let accountCreated = false;
 
-    const normalizedUsername = normalizeUsername(username);
     try {
-      validateUsername(normalizedUsername);
-    } catch (error) {
-      Alert.alert('Invalid username', error instanceof Error ? error.message : 'Please choose a valid username.');
-      return;
-    }
-
-    try {
-      const availability = await usernameAvailabilityService.verifyUsernameAvailability(normalizedUsername, undefined, {
+      const availability = await usernameAvailabilityService.verifyUsernameAvailability(registration.username, undefined, {
         forceExact: true
       });
       if (availability.status !== 'available') {
-        Alert.alert('Username unavailable', availability.message);
+        setTouched((current) => ({ ...current, username: true }));
+        setSubmitFieldErrors({ username: availability.message });
         return;
       }
 
-      await signUp({
-        email: email.trim(),
-        password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        username: normalizedUsername,
-        city: city.trim(),
-        mobileNumber: mobileNumber.trim(),
-        dateOfBirth,
-        gender,
-        primarySport,
-        primarySportExperienceLevel,
-        secondarySports
-      });
-      await usernameAvailabilityService.rememberUsername(normalizedUsername);
+      await signUp(registration);
+      accountCreated = true;
+      await usernameAvailabilityService.rememberUsername(registration.username).catch(() => undefined);
       const createdProfile = useAuthStore.getState().profile;
       if (createdProfile && avatarAsset) {
-        const avatarUrl = await storageService.uploadMedia(avatarAsset, 'avatars', createdProfile.id);
-        await profileService.updateProfile(createdProfile.id, { avatarUrl });
-        useAuthStore.getState().setProfile({ ...createdProfile, avatarUrl });
+        try {
+          const avatarUrl = await storageService.uploadMedia(avatarAsset, 'avatars', createdProfile.id);
+          await profileService.updateProfile(createdProfile.id, { avatarUrl });
+          useAuthStore.getState().setProfile({ ...createdProfile, avatarUrl });
+        } catch (error) {
+          Alert.alert('Profile created', error instanceof Error ? `Your photo could not be uploaded: ${error.message}` : 'Your photo could not be uploaded.');
+        }
       }
       if (!createdProfile) {
         setConfirmationVisible(true);
       }
     } catch (error) {
-      Alert.alert('Could not create profile', error instanceof Error ? error.message : 'Please try again.');
+      setFormError(
+        accountCreated
+          ? 'Your account was created, but profile setup could not finish. Sign in to continue.'
+          : error instanceof Error ? error.message : 'Could not create your profile. Please try again.'
+      );
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -319,16 +369,80 @@ export function RegisterScreen({ navigation }: Props) {
         </Pressable>
         <View style={styles.form}>
           <View style={styles.row}>
-            <Input label="First Name" value={firstName} onChangeText={setFirstName} style={styles.flexInput} />
-            <Input label="Last Name" value={lastName} onChangeText={setLastName} style={styles.flexInput} />
+            <View style={styles.flexInput}>
+              <Input
+                label="First Name"
+                accessibilityLabel="First Name"
+                value={firstName}
+                onChangeText={(value) => { setFirstName(value); markTouched('firstName'); }}
+                onBlur={() => { markTouched('firstName'); setFirstName(normalizeWhitespace(firstName)); }}
+                autoCapitalize="words"
+                maxLength={REGISTRATION_LIMITS.firstName}
+              />
+              <FieldError message={visibleError('firstName')} />
+            </View>
+            <View style={styles.flexInput}>
+              <Input
+                label="Last Name"
+                accessibilityLabel="Last Name"
+                value={lastName}
+                onChangeText={(value) => { setLastName(value); markTouched('lastName'); }}
+                onBlur={() => { markTouched('lastName'); setLastName(normalizeWhitespace(lastName)); }}
+                autoCapitalize="words"
+                maxLength={REGISTRATION_LIMITS.lastName}
+              />
+              <FieldError message={visibleError('lastName')} />
+            </View>
           </View>
-          <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
+          <Input
+            label="Username"
+            accessibilityLabel="Username"
+            value={username}
+            onChangeText={(value) => {
+              setUsername(value);
+              markTouched('username');
+              setSubmitFieldErrors((current) => ({ ...current, username: undefined }));
+            }}
+            onBlur={() => { markTouched('username'); setUsername(normalizeUsername(username)); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={REGISTRATION_LIMITS.username + 1}
+          />
           <AppText variant="small" style={[styles.usernameHint, usernameStatusStyle]}>
-            {usernameAvailability.message}
+            {visibleError('username') ?? usernameAvailability.message}
           </AppText>
-          <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <Input label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-          <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+          <Input
+            label="Email"
+            accessibilityLabel="Email"
+            value={email}
+            onChangeText={(value) => { setEmail(value); markTouched('email'); }}
+            onBlur={() => { markTouched('email'); setEmail(normalizeEmail(email)); }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={REGISTRATION_LIMITS.email}
+          />
+          <FieldError message={visibleError('email')} />
+          <Input
+            label="Password"
+            accessibilityLabel="Password"
+            value={password}
+            onChangeText={(value) => { setPassword(value); markTouched('password'); }}
+            onBlur={() => markTouched('password')}
+            secureTextEntry
+            maxLength={REGISTRATION_LIMITS.password}
+          />
+          <FieldError message={visibleError('password')} />
+          <Input
+            label="Confirm Password"
+            accessibilityLabel="Confirm Password"
+            value={confirmPassword}
+            onChangeText={(value) => { setConfirmPassword(value); markTouched('confirmPassword'); }}
+            onBlur={() => markTouched('confirmPassword')}
+            secureTextEntry
+            maxLength={REGISTRATION_LIMITS.password}
+          />
+          <FieldError message={visibleError('confirmPassword')} />
           <View style={styles.passwordRules}>
             {passwordStatus.map((rule) => (
               <View key={rule.label} style={styles.passwordRule}>
@@ -356,18 +470,29 @@ export function RegisterScreen({ navigation }: Props) {
           </View>
           <Input
             label="Mobile Number"
+            accessibilityLabel="Mobile Number"
             icon={Phone}
             value={mobileNumber}
-            onChangeText={setMobileNumber}
+            onChangeText={(value) => { setMobileNumber(value); markTouched('mobileNumber'); }}
+            onBlur={() => { markTouched('mobileNumber'); setMobileNumber(normalizeIndianPhoneNumber(mobileNumber)); }}
             keyboardType="phone-pad"
             autoComplete="tel"
+            maxLength={REGISTRATION_LIMITS.mobileNumber}
           />
+          <FieldError message={visibleError('mobileNumber')} />
           <View style={styles.group}>
             <AppText style={styles.label}>DOB</AppText>
-            <Pressable style={styles.selectInput} onPress={() => setCalendarVisible(true)}>
+            <Pressable
+              style={styles.selectInput}
+              onPress={() => { markTouched('dateOfBirth'); setCalendarVisible(true); }}
+              accessibilityRole="button"
+              accessibilityLabel="Date of birth"
+            >
               <CalendarDays size={17} color={colors.text.tertiary} strokeWidth={2} />
               <AppText style={styles.selectText}>{dateOfBirth || 'Select date of birth'}</AppText>
             </Pressable>
+            <AppText variant="small" style={styles.helperText}>You must be at least {MINIMUM_REGISTRATION_AGE} years old.</AppText>
+            <FieldError message={visibleError('dateOfBirth')} />
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Gender</AppText>
@@ -381,10 +506,16 @@ export function RegisterScreen({ navigation }: Props) {
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Primary Sport</AppText>
-            <Pressable style={styles.selectInput} onPress={openPrimarySportPicker}>
+            <Pressable
+              style={styles.selectInput}
+              onPress={openPrimarySportPicker}
+              accessibilityRole="button"
+              accessibilityLabel="Primary Sport"
+            >
               <AppText style={styles.selectText}>{primarySport}</AppText>
               <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
             </Pressable>
+            <FieldError message={visibleError('primarySport')} />
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>{primarySport} Experience Level</AppText>
@@ -403,26 +534,39 @@ export function RegisterScreen({ navigation }: Props) {
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Secondary Sports</AppText>
-            <Pressable style={styles.selectInput} onPress={openSecondarySportPicker}>
+            <Pressable
+              style={styles.selectInput}
+              onPress={openSecondarySportPicker}
+              accessibilityRole="button"
+              accessibilityLabel="Secondary Sports"
+            >
               <AppText style={styles.selectText}>{secondarySportsLabel}</AppText>
               <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
             </Pressable>
+            <FieldError message={visibleError('secondarySports')} />
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Location</AppText>
-            <Pressable style={styles.selectInput} onPress={() => setLocationPickerVisible(true)}>
-              <AppText style={styles.selectText}>{city}</AppText>
+            <Pressable
+              style={styles.selectInput}
+              onPress={() => { markTouched('city'); setLocationPickerVisible(true); }}
+              accessibilityRole="button"
+              accessibilityLabel="Location"
+            >
+              <AppText style={styles.selectText}>{city || 'Select location'}</AppText>
               <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
             </Pressable>
             <Button variant="dark" size="sm" icon={LocateFixed} loading={detectingLocation} onPress={handleDetectLocation}>
               Auto Detect Location
             </Button>
+            <FieldError message={visibleError('city')} />
           </View>
+          {formError ? <AppText accessibilityRole="alert" style={styles.passwordHintError}>{formError}</AppText> : null}
           <Button
             full
             size="lg"
-            loading={loading}
-            disabled={!passwordIsValid || !passwordMatches || usernameAvailability.status !== 'available'}
+            loading={busy}
+            disabled={!canSubmit}
             onPress={handleCreate}
           >
             Create Profile
@@ -439,6 +583,7 @@ export function RegisterScreen({ navigation }: Props) {
         monthDate={calendarMonth}
         onMonthChange={setCalendarMonth}
         onSelect={(date) => {
+          markTouched('dateOfBirth');
           setDateOfBirth(formatDate(date));
           setCalendarMonth(date);
           setCalendarVisible(false);
@@ -505,6 +650,14 @@ export function RegisterScreen({ navigation }: Props) {
   );
 }
 
+function FieldError({ message }: { message?: string }) {
+  return message ? (
+    <AppText accessibilityRole="alert" variant="small" style={styles.fieldError}>
+      {message}
+    </AppText>
+  ) : null;
+}
+
 interface LocationPickerModalProps {
   visible: boolean;
   selectedLocation: string;
@@ -543,7 +696,13 @@ function LocationPickerModal({
             </View>
             <IconButton icon={ChevronLeft} size={34} iconSize={16} onPress={onClose} />
           </View>
-          <Input value={query} onChangeText={onQueryChange} placeholder="Search city, state, or country" autoCapitalize="words" />
+          <Input
+            value={query}
+            onChangeText={onQueryChange}
+            placeholder="Search city, state, or country"
+            autoCapitalize="words"
+            maxLength={REGISTRATION_LIMITS.city}
+          />
           <Button variant="dark" size="sm" icon={LocateFixed} loading={detectingLocation} onPress={onDetect}>
             Auto Detect Location
           </Button>
@@ -696,6 +855,8 @@ function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSele
                   disabled={!date}
                   onPress={() => date && onSelect(date)}
                   style={[styles.dayCell, isSelected ? styles.daySelected : null]}
+                  accessibilityRole={date ? 'button' : undefined}
+                  accessibilityLabel={date ? `Select ${monthNames[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}` : undefined}
                 >
                   <AppText style={[styles.dayText, isSelected ? styles.daySelectedText : null]}>{day ?? ''}</AppText>
                 </Pressable>
@@ -781,18 +942,6 @@ const styles = StyleSheet.create({
   group: {
     gap: 6
   },
-  otpRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'center'
-  },
-  otpInput: {
-    flex: 1
-  },
-  otpButton: {
-    alignSelf: 'flex-end',
-    minHeight: 48
-  },
   successText: {
     color: colors.semantic.success
   },
@@ -824,6 +973,10 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     fontWeight: '700',
     fontSize: 12
+  },
+  fieldError: {
+    color: colors.semantic.danger,
+    marginTop: 4
   },
   switch: {
     flexDirection: 'row',

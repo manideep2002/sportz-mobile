@@ -5,39 +5,23 @@ import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { hotCacheService } from '@/services/hotCacheService';
 import { profileService } from '@/services/profileService';
-import type { Gender, SkillLevel, Sport, UserProfile } from '@/types/domain';
-import { normalizeUsername, validateUsername } from '@/utils/authValidation';
+import {
+  registrationSchema,
+  type RegisterInput
+} from '@/schemas/registrationSchema';
+import type { UserProfile } from '@/types/domain';
 
 export interface AuthResult {
   session: Session | null;
   user: User | null;
 }
 
-export interface RegisterInput {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  username: string;
-  city: string;
-  mobileNumber: string;
-  dateOfBirth: string;
-  gender: Gender;
-  primarySport: Sport;
-  primarySportExperienceLevel: SkillLevel;
-  secondarySports: Sport[];
-}
+export type { RegisterInput } from '@/schemas/registrationSchema';
 
 const SESSION_CACHE_KEY = 'auth:session:v1';
 const SESSION_CACHE_TTL_MS = 1000 * 30;
 
-export const normalizeIndianPhoneNumber = (value: string) => {
-  const stripped = value.replace(/[\s\-().]/g, '');
-  if (!stripped) return '';
-  if (stripped.startsWith('+')) return stripped;
-  const withoutLeadingZero = stripped.replace(/^0+/, '');
-  return `+91${withoutLeadingZero}`;
-};
+export { normalizeIndianPhoneNumber } from '@/schemas/registrationSchema';
 
 export const authService = {
   async getSession(): Promise<AuthResult> {
@@ -70,28 +54,29 @@ export const authService = {
   async signUp(input: RegisterInput): Promise<AuthResult> {
     assertSupabaseConfigured();
 
-    const username = normalizeUsername(input.username);
-    validateUsername(username);
-
-    const sports = Array.from(new Set([input.primarySport, ...input.secondarySports]));
+    const parsed = registrationSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message ?? 'Registration details are invalid.');
+    }
+    const registration = parsed.data;
+    const sports = Array.from(new Set([registration.primarySport, ...registration.secondarySports]));
 
     const { data, error } = await supabase.auth.signUp({
-      email: input.email.trim(),
-      password: input.password,
+      email: registration.email,
+      password: registration.password,
       options: {
         data: {
-          display_name: `${input.firstName.trim()} ${input.lastName.trim()}`,
-          username,
-          city: input.city.trim(),
-          mobile_number: normalizeIndianPhoneNumber(input.mobileNumber),
-          mobile_otp_verified: false,
-          date_of_birth: input.dateOfBirth,
-          gender: input.gender,
-          primary_sport: input.primarySport,
-          primary_sport_experience_level: input.primarySportExperienceLevel,
-          secondary_sports: input.secondarySports,
+          display_name: `${registration.firstName} ${registration.lastName}`,
+          username: registration.username,
+          city: registration.city,
+          mobile_number: registration.mobileNumber,
+          date_of_birth: registration.dateOfBirth,
+          gender: registration.gender,
+          primary_sport: registration.primarySport,
+          primary_sport_experience_level: registration.primarySportExperienceLevel,
+          secondary_sports: registration.secondarySports,
           sports,
-          skill_level: input.primarySportExperienceLevel
+          skill_level: registration.primarySportExperienceLevel
         }
       }
     });
@@ -99,18 +84,6 @@ export const authService = {
     const result = { session: data.session, user: data.user };
     await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
     return result;
-  },
-
-  async generateMobileOtp(mobileNumber: string): Promise<void> {
-    assertSupabaseConfigured();
-
-    const phone = normalizeIndianPhoneNumber(mobileNumber);
-    if (!phone) {
-      throw new Error('Enter a mobile number before generating an OTP.');
-    }
-
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) throw error;
   },
 
   async signInWithIdToken(provider: 'google' | 'apple', idToken: string): Promise<AuthResult> {
