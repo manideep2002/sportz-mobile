@@ -1,11 +1,16 @@
 /**
  * Tests for usePushNotifications — platform-conditional native notification behaviour.
  *
- * Platform is controlled via jest.mock('react-native', ...) overrides so we can
- * exercise both the web and native code-paths in the same test suite.
+ * @testing-library/react-native's renderHook() is async in this version; all
+ * call-sites must await it. Dynamic imports are unsupported by the Babel/Jest
+ * transform, so all mocked modules are accessed through their statically-imported
+ * aliases instead.
+ *
+ * isNativePlatform is mocked via a closure referencing `mockNativePlatform`
+ * (variable names prefixed "mock" are allowed inside jest.mock factories).
  */
 
-import { renderHook, act } from '@testing-library/react-native';
+import { act } from '@testing-library/react-native';
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
 
@@ -14,14 +19,20 @@ const mockCountUnread = jest.fn().mockResolvedValue(3);
 const mockRegisterForPush = jest.fn().mockResolvedValue('ExponentPushToken[test]');
 
 // Notification-listener mocks
-const mockAddReceivedListener = jest.fn().mockReturnValue({ remove: jest.fn() });
-const mockAddResponseListener = jest.fn().mockReturnValue({ remove: jest.fn() });
+const mockRemoveForeground = jest.fn();
+const mockRemoveResponse = jest.fn();
+const mockAddReceivedListener = jest.fn().mockReturnValue({ remove: mockRemoveForeground });
+const mockAddResponseListener = jest.fn().mockReturnValue({ remove: mockRemoveResponse });
 const mockGetLastResponse = jest.fn().mockResolvedValue(null);
+const mockNavigateFromNotificationData = jest.fn();
 
 // Realtime notification mock
 const mockUseRealtimeNotifications = jest.fn();
 
-// ─── Static mocks (applied unconditionally) ──────────────────────────────────
+// Mutable flag controlling isNativePlatform — "mock" prefix allows access inside factory
+let mockNativePlatform = false;
+
+// ─── Static mocks ─────────────────────────────────────────────────────────────
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -36,8 +47,8 @@ jest.mock('expo-notifications', () => ({
 }));
 
 jest.mock('@/lib/notifications', () => ({
-  // We re-export a writable isNativePlatform so individual tests can override it.
-  isNativePlatform: jest.fn(),
+  // Closure over mockNativePlatform — updated in beforeEach, read at call time
+  isNativePlatform: () => mockNativePlatform,
   registerForPushNotificationsAsync: (...args: unknown[]) => mockRegisterForPush(...args),
   shouldHandleNotification: jest.fn().mockResolvedValue(true)
 }));
@@ -65,75 +76,84 @@ jest.mock('@/hooks/useNotifications', () => ({
 
 jest.mock('@/navigation/navigationRef', () => ({ navigationRef: {} }));
 jest.mock('@/navigation/notificationRouting', () => ({
-  navigateFromNotificationData: jest.fn()
+  navigateFromNotificationData: (...args: unknown[]) =>
+    mockNavigateFromNotificationData(...args)
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
 // eslint-disable-next-line import/first
+import { renderHook } from '@testing-library/react-native';
+// eslint-disable-next-line import/first
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 // eslint-disable-next-line import/first
-import { isNativePlatform } from '@/lib/notifications';
+import { shouldHandleNotification } from '@/lib/notifications';
 
-const mockIsNativePlatform = isNativePlatform as jest.MockedFunction<typeof isNativePlatform>;
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function renderHookAndFlush() {
-  const result = renderHook(() => usePushNotifications());
-  // Flush all pending microtasks / async state updates.
-  return result;
-}
+const mockShouldHandle = shouldHandleNotification as jest.MockedFunction<
+  typeof shouldHandleNotification
+>;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('usePushNotifications', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Restore safe defaults after clearAllMocks resets all mock implementations
+    mockCountUnread.mockResolvedValue(3);
+    mockRegisterForPush.mockResolvedValue('ExponentPushToken[test]');
     mockGetLastResponse.mockResolvedValue(null);
+    mockAddReceivedListener.mockReturnValue({ remove: mockRemoveForeground });
+    mockAddResponseListener.mockReturnValue({ remove: mockRemoveResponse });
+    mockShouldHandle.mockResolvedValue(true);
   });
 
   // ── Web platform ────────────────────────────────────────────────────────────
 
   describe('on web (isNativePlatform = false)', () => {
     beforeEach(() => {
-      mockIsNativePlatform.mockReturnValue(false);
+      mockNativePlatform = false;
     });
 
     it('does NOT register native received listener', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockAddReceivedListener).not.toHaveBeenCalled();
     });
 
     it('does NOT register native response listener', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockAddResponseListener).not.toHaveBeenCalled();
     });
 
     it('does NOT call getLastNotificationResponseAsync', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockGetLastResponse).not.toHaveBeenCalled();
     });
 
     it('does NOT call registerForPushNotificationsAsync', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockRegisterForPush).not.toHaveBeenCalled();
     });
 
     it('still fetches unread count via Supabase', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockCountUnread).toHaveBeenCalledTimes(1);
       expect(mockSetNotificationUnreadCount).toHaveBeenCalledWith(3);
     });
 
     it('still subscribes to realtime notifications', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockUseRealtimeNotifications).toHaveBeenCalled();
     });
   });
@@ -142,33 +162,32 @@ describe('usePushNotifications', () => {
 
   describe('on native (isNativePlatform = true)', () => {
     beforeEach(() => {
-      mockIsNativePlatform.mockReturnValue(true);
+      mockNativePlatform = true;
     });
 
     it('registers both native listeners', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockAddReceivedListener).toHaveBeenCalledTimes(1);
       expect(mockAddResponseListener).toHaveBeenCalledTimes(1);
     });
 
     it('calls getLastNotificationResponseAsync on mount', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockGetLastResponse).toHaveBeenCalledTimes(1);
     });
 
     it('calls registerForPushNotificationsAsync when user is present', async () => {
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
       expect(mockRegisterForPush).toHaveBeenCalledTimes(1);
     });
 
-    it('routes to correct screen when a last-notification response exists', async () => {
-      const { navigateFromNotificationData } = await import('@/navigation/notificationRouting');
-      const { shouldHandleNotification } = await import('@/lib/notifications');
-      (shouldHandleNotification as jest.Mock).mockResolvedValueOnce(true);
-
+    it('routes to the correct screen when a last-notification response exists', async () => {
       const fakeResponse = {
         notification: {
           request: {
@@ -179,11 +198,13 @@ describe('usePushNotifications', () => {
         }
       };
       mockGetLastResponse.mockResolvedValueOnce(fakeResponse);
+      mockShouldHandle.mockResolvedValueOnce(true);
 
-      renderHookAndFlush();
-      await act(async () => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
 
-      expect(navigateFromNotificationData).toHaveBeenCalledWith(
+      expect(mockNavigateFromNotificationData).toHaveBeenCalledWith(
         expect.anything(),
         fakeResponse.notification.request.content.data
       );
@@ -193,22 +214,47 @@ describe('usePushNotifications', () => {
       mockGetLastResponse.mockRejectedValueOnce(new Error('UnavailabilityError'));
 
       // Should not throw
-      expect(() => {
-        renderHookAndFlush();
-      }).not.toThrow();
-
-      await act(async () => {});
-      // No unhandled rejection — test passes if we reach this point.
+      await expect(
+        act(async () => {
+          await renderHook(() => usePushNotifications());
+        })
+      ).resolves.not.toThrow();
     });
 
-    it('calls remove() on both listeners during cleanup', () => {
+    it('does not navigate when shouldHandleNotification returns false', async () => {
+      const fakeResponse = {
+        notification: {
+          request: {
+            content: { data: { entityType: 'like', entityId: 'post-1' } }
+          }
+        }
+      };
+      mockGetLastResponse.mockResolvedValueOnce(fakeResponse);
+      mockShouldHandle.mockResolvedValueOnce(false);
+
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
+
+      expect(mockNavigateFromNotificationData).not.toHaveBeenCalled();
+    });
+
+    it('calls remove() on both listeners during cleanup', async () => {
       const removeForeground = jest.fn();
       const removeResponse = jest.fn();
       mockAddReceivedListener.mockReturnValueOnce({ remove: removeForeground });
       mockAddResponseListener.mockReturnValueOnce({ remove: removeResponse });
 
-      const { unmount } = renderHookAndFlush();
-      unmount();
+      let unmountFn: (() => Promise<void>) | undefined;
+
+      await act(async () => {
+        const { unmount } = await renderHook(() => usePushNotifications());
+        unmountFn = unmount;
+      });
+
+      await act(async () => {
+        await unmountFn?.();
+      });
 
       expect(removeForeground).toHaveBeenCalledTimes(1);
       expect(removeResponse).toHaveBeenCalledTimes(1);
