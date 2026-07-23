@@ -1,7 +1,11 @@
+import type { ImagePickerAsset } from 'expo-image-picker';
+
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
+import { normalizeProfileSportsSelection } from '@/schemas/profileSportsSchema';
 import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
+import { storageService } from '@/services/storageService';
 import type { UserProfile } from '@/types/domain';
 import { normalizeUsername, validateUsername } from '@/utils/authValidation';
 
@@ -15,7 +19,10 @@ export interface FollowRequest {
 
 export type ProfileUpdateInput = Partial<
   Pick<UserProfile, 'username' | 'displayName' | 'avatarUrl' | 'coverUrl' | 'bio' | 'city' | 'primarySport' | 'sports' | 'position' | 'skillLevel' | 'isHireable' | 'isPrivate'>
->;
+> & {
+  coverAsset?: ImagePickerAsset;
+  removeCover?: boolean;
+};
 
 export interface CompleteAuthProfileInput {
   displayName: string;
@@ -58,13 +65,29 @@ const isAuthProfileComplete = (row: AuthProfileRow) =>
       row.sports.length > 0
   );
 
+const resolveProfileCover = async (profile: UserProfile): Promise<UserProfile> => {
+  const storedCover = storageService.profileCoverObjectFromValue(profile.coverUrl);
+  const isPrivateLegacyPublicCover = Boolean(
+    profile.isPrivate &&
+      profile.coverUrl?.includes('://') &&
+      storedCover?.bucket !== 'profile-covers'
+  );
+
+  return {
+    ...profile,
+    coverUrl: isPrivateLegacyPublicCover
+      ? null
+      : await storageService.resolveProfileCoverUrl(profile.coverUrl)
+  };
+};
+
 const loadProfile = async (id: string): Promise<UserProfile> => {
   const profileResult = await supabase.from('profiles').select('*').eq('id', id).single();
 
   if (profileResult.error) throw profileResult.error;
   if (!profileResult.data) throw new Error('Profile not found.');
 
-  return mapProfileRow(profileResult.data);
+  return resolveProfileCover(mapProfileRow(profileResult.data));
 };
 
 export const profileService = {
@@ -77,7 +100,7 @@ export const profileService = {
 
     const row = data as AuthProfileRow;
     return {
-      profile: mapProfileRow(row),
+      profile: await resolveProfileCover(mapProfileRow(row)),
       isComplete: isAuthProfileComplete(row)
     };
   },
@@ -157,7 +180,10 @@ export const profileService = {
 
     return (data ?? [])
       .filter((profile) => !blockedIds.has(profile.id as string))
-      .map((profile) => mapProfileRow(profile, { followers: 0, following: 0, posts: 0 }));
+      .map((profile) => ({
+        ...mapProfileRow(profile, { followers: 0, following: 0, posts: 0 }),
+        coverUrl: null
+      }));
   },
 
   async listFollowedIds(profileIds: string[]): Promise<Set<string>> {
@@ -178,30 +204,112 @@ export const profileService = {
     return new Set((data ?? []).map((row) => row.following_id as string));
   },
 
-  async updateProfile(id: string, input: ProfileUpdateInput): Promise<void> {
+  async updateProfile(id: string, input: ProfileUpdateInput): Promise<UserProfile> {
     assertSupabaseConfigured();
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        display_name: input.displayName,
-        username: input.username,
-        avatar_url: input.avatarUrl,
-        cover_url: input.coverUrl,
-        bio: input.bio,
-        city: input.city,
-        primary_sport: input.primarySport,
-        sports: input.sports,
-        position: input.position,
-        skill_level: input.skillLevel,
-        is_hireable: input.isHireable,
-        is_private: input.isPrivate,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
+    if (input.coverAsset && input.removeCover) {
+      throw new Error('Choose a replacement cover or remove the current cover, not both.');
+    }
 
-    if (error) throw error;
-    await hotCacheService.invalidate(profileCacheKey(id));
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user || authData.user.id !== id) {
+      throw new Error('You can only update your own profile.');
+    }
+
+    const originalResult = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (originalResult.error) throw originalResult.error;
+    if (!originalResult.data) throw new Error('Profile not found.');
+
+    const original = originalResult.data as {
+      primary_sport?: string | null;
+      sports?: string[] | null;
+      cover_url?: string | null;
+    };
+    const currentPrimarySport = input.primarySport ?? original.primary_sport ?? 'Basketball';
+    const currentSports = input.sports ?? original.sports ?? [currentPrimarySport];
+    const sportSelection = normalizeProfileSportsSelection(currentPrimarySport, currentSports);
+    let stagedCoverPath: string | null = null;
+    let persisted = false;
+
+    try {
+      if (input.coverAsset) {
+        stagedCoverPath = await storageService.uploadProfileCover(input.coverAsset, id);
+      }
+
+      const originalStoredCover = storageService.profileCoverObjectFromValue(original.cover_url);
+      const privateLegacyCover = Boolean(
+        input.isPrivate === true &&
+          original.cover_url?.includes('://') &&
+          originalStoredCover?.bucket !== 'profile-covers'
+      );
+      const coverChanged = Boolean(
+        input.coverAsset ||
+          input.removeCover ||
+          input.coverUrl !== undefined ||
+          privateLegacyCover
+      );
+      const nextCoverValue = input.coverAsset
+        ? stagedCoverPath
+        : input.removeCover || privateLegacyCover
+          ? null
+          : input.coverUrl;
+      const updateValues: Record<string, unknown> = {
+        primary_sport: sportSelection.primarySport,
+        sports: sportSelection.sports,
+        updated_at: new Date().toISOString()
+      };
+      const optionalValues: [string, unknown][] = [
+        ['display_name', input.displayName],
+        ['username', input.username],
+        ['avatar_url', input.avatarUrl],
+        ['bio', input.bio],
+        ['city', input.city],
+        ['position', input.position],
+        ['skill_level', input.skillLevel],
+        ['is_hireable', input.isHireable],
+        ['is_private', input.isPrivate]
+      ];
+      for (const [column, value] of optionalValues) {
+        if (value !== undefined) updateValues[column] = value;
+      }
+      if (coverChanged) updateValues.cover_url = nextCoverValue;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updateValues)
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('Profile update did not return a profile.');
+      persisted = true;
+
+      const oldCover = original.cover_url;
+      if (coverChanged && oldCover && oldCover !== nextCoverValue) {
+        try {
+          await storageService.removeProfileCover(oldCover);
+        } catch {
+          // The persisted profile is authoritative; an orphaned object can be cleaned up later.
+        }
+      }
+
+      await hotCacheService.invalidate(profileCacheKey(id));
+      return resolveProfileCover(mapProfileRow(data));
+    } catch (error) {
+      if (stagedCoverPath && !persisted) {
+        try {
+          await storageService.removeProfileCover(stagedCoverPath);
+        } catch {
+          // Preserve the original failure while making a best effort to remove the staged object.
+        }
+      }
+      throw error;
+    }
   },
 
   async listFollowers(userId: string): Promise<UserProfile[]> {

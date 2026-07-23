@@ -6,7 +6,7 @@ import { Ban, ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, 
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
-
+import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
 import { colors, spacing, typography } from '@/design/tokens';
@@ -223,7 +223,12 @@ export function UserProfileScreen() {
         <View style={{ flex: 1 }} />
         <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
       </View>
-      <LinearGradient colors={['#0A1A08', '#18381A']} style={styles.cover} />
+      <ProfileCover
+        fallbackColors={['#0A1A08', '#18381A']}
+        uri={profile.coverUrl}
+        style={styles.cover}
+        testID="public-profile-cover"
+      />
       <View style={styles.avatarWrap}>
         <Avatar initials={profile.initials} uri={profile.avatarUrl} size={80} online={profile.isOnline} />
       </View>

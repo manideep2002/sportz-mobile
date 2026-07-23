@@ -1,14 +1,21 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Camera, ChevronLeft } from 'lucide-react-native';
+import type { ImagePickerAsset } from 'expo-image-picker';
+import { Camera, ChevronLeft, Image as ImageIcon } from 'lucide-react-native';
 import { InteractionManager, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppText, Avatar, BottomSheet, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
 import { colors, spacing } from '@/design/tokens';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AppStackParamList } from '@/navigation/routes';
+import {
+  changePrimaryProfileSport,
+  normalizeProfileSportsSelection,
+  toggleProfileSport
+} from '@/schemas/profileSportsSchema';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
@@ -29,15 +36,25 @@ export function EditProfileScreen() {
   const [username, setUsername] = useState(profile?.username ? `@${profile.username}` : '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [city, setCity] = useState(profile?.city ?? '');
-  const [sport, setSport] = useState<Sport>(profile?.primarySport ?? 'Basketball');
+  const [sportSelection, setSportSelection] = useState(() =>
+    normalizeProfileSportsSelection(
+      profile?.primarySport ?? 'Basketball',
+      profile?.sports ?? [profile?.primarySport ?? 'Basketball']
+    )
+  );
   const [position, setPosition] = useState(profile?.position ?? '');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>(profile?.skillLevel ?? 'Advanced');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl ?? null);
   const [coverUrl, setCoverUrl] = useState(profile?.coverUrl ?? null);
+  const [coverAsset, setCoverAsset] = useState<ImagePickerAsset | null>(null);
+  const [removeCover, setRemoveCover] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profilePhotoSheetOpen, setProfilePhotoSheetOpen] = useState(false);
+  const [coverSheetOpen, setCoverSheetOpen] = useState(false);
   const hasProfilePhoto = Boolean(avatarUrl || profile?.avatarUrl);
+  const displayedCoverUrl = removeCover ? null : coverAsset?.uri ?? coverUrl;
+  const hasCover = Boolean(displayedCoverUrl);
   const usernameAvailability = useUsernameAvailability(username, profile?.username);
   const usernameStatusStyle =
     usernameAvailability.status === 'available'
@@ -52,15 +69,17 @@ export function EditProfileScreen() {
     try {
       const picked = await storageService.pickImage();
       if (!picked) return;
-      const url = await storageService.uploadMedia(picked, kind === 'avatar' ? 'avatars' : 'post-media', profile.id);
+      if (kind === 'cover') {
+        setCoverAsset(picked);
+        setRemoveCover(false);
+        return;
+      }
+
+      const url = await storageService.uploadMedia(picked, 'avatars', profile.id);
       if (kind === 'avatar') {
-        await profileService.updateProfile(profile.id, { avatarUrl: url });
+        const updatedProfile = await profileService.updateProfile(profile.id, { avatarUrl: url });
         setAvatarUrl(url);
-        setProfile({ ...profile, avatarUrl: url });
-      } else {
-        await profileService.updateProfile(profile.id, { coverUrl: url });
-        setCoverUrl(url);
-        setProfile({ ...profile, coverUrl: url });
+        setProfile(updatedProfile);
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Could not update media.');
@@ -73,9 +92,9 @@ export function EditProfileScreen() {
     setSaving(true);
     setError(null);
     try {
-      await profileService.updateProfile(profile.id, { avatarUrl: null });
+      const updatedProfile = await profileService.updateProfile(profile.id, { avatarUrl: null });
       setAvatarUrl(null);
-      setProfile({ ...profile, avatarUrl: null });
+      setProfile(updatedProfile);
       setProfilePhotoSheetOpen(false);
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : 'Could not remove profile photo.');
@@ -98,6 +117,21 @@ export function EditProfileScreen() {
     });
   };
 
+  const chooseNewCover = () => {
+    setCoverSheetOpen(false);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        void uploadProfileMedia('cover');
+      }, 100);
+    });
+  };
+
+  const stageCoverRemoval = () => {
+    setCoverAsset(null);
+    setRemoveCover(true);
+    setCoverSheetOpen(false);
+  };
+
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
@@ -114,20 +148,22 @@ export function EditProfileScreen() {
         return;
       }
 
-      await profileService.updateProfile(profile.id, {
+      const updatedProfile = await profileService.updateProfile(profile.id, {
         displayName,
         username: normalizedUsername,
         bio,
         city,
-        primarySport: sport,
-        sports: [sport],
+        primarySport: sportSelection.primarySport,
+        sports: sportSelection.sports,
         position,
         skillLevel,
         avatarUrl,
-        coverUrl
+        ...(coverAsset ? { coverAsset } : {}),
+        ...(removeCover ? { removeCover: true } : {})
       });
       await usernameAvailabilityService.rememberUsername(normalizedUsername);
-      setProfile({ ...profile, displayName, username: normalizedUsername, bio, city, primarySport: sport, sports: [sport], position, skillLevel, avatarUrl, coverUrl });
+      setCoverUrl(updatedProfile.coverUrl ?? null);
+      setProfile(updatedProfile);
       navigation.goBack();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Please try again.');
@@ -148,6 +184,18 @@ export function EditProfileScreen() {
         <Button size="sm" loading={saving} disabled={usernameAvailability.status !== 'available'} onPress={handleSave}>Save</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Pressable
+          accessibilityLabel="Change profile cover"
+          accessibilityRole="button"
+          onPress={() => setCoverSheetOpen(true)}
+          style={styles.coverEdit}
+        >
+          <ProfileCover uri={displayedCoverUrl} style={styles.coverPreview} testID="edit-profile-cover" />
+          <View style={styles.coverAction}>
+            <ImageIcon color={colors.light[0]} size={16} />
+            <AppText variant="small">{hasCover ? 'Change cover' : 'Add cover'}</AppText>
+          </View>
+        </Pressable>
         <View style={styles.avatarContainer}>
           <Pressable style={styles.avatarEdit} onPress={showProfilePhotoOptions} accessibilityRole="button" accessibilityLabel="Change profile photo">
             <Avatar initials={profile?.initials ?? 'MK'} uri={avatarUrl} size={84} />
@@ -168,9 +216,28 @@ export function EditProfileScreen() {
         <AppText style={styles.label}>Primary Sport</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {sports.map((item) => (
-            <Chip key={item} selected={item === sport} onPress={() => setSport(item)}>{item}</Chip>
+            <Chip
+              key={item}
+              selected={item === sportSelection.primarySport}
+              onPress={() => setSportSelection((current) => changePrimaryProfileSport(current, item))}
+            >
+              {item}
+            </Chip>
           ))}
         </ScrollView>
+        <AppText style={styles.label}>Sports Interests</AppText>
+        <View style={styles.sportsWrap}>
+          {sports.map((item) => (
+            <Chip
+              disabled={item === sportSelection.primarySport}
+              key={item}
+              selected={sportSelection.sports.includes(item)}
+              onPress={() => setSportSelection((current) => toggleProfileSport(current, item))}
+            >
+              {item}{item === sportSelection.primarySport ? ' · Primary' : ''}
+            </Chip>
+          ))}
+        </View>
         <Input label="Position / Role" value={position} onChangeText={setPosition} />
         <AppText style={styles.label}>Skill Level</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -196,6 +263,18 @@ export function EditProfileScreen() {
           ) : null}
         </View>
       </BottomSheet>
+      <BottomSheet open={coverSheetOpen} title="Profile Cover" onClose={() => setCoverSheetOpen(false)}>
+        <View style={styles.photoSheet}>
+          <Button variant="dark" full disabled={saving} onPress={chooseNewCover}>
+            Choose New Cover
+          </Button>
+          {hasCover ? (
+            <Button variant="danger" full disabled={saving} onPress={stageCoverRemoval}>
+              Remove Cover
+            </Button>
+          ) : null}
+        </View>
+      </BottomSheet>
     </KeyboardAvoidingView>
   );
 }
@@ -217,6 +296,26 @@ const styles = StyleSheet.create({
     padding: spacing.screen,
     gap: spacing.md,
     paddingBottom: 40
+  },
+  coverEdit: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  coverPreview: {
+    height: 150
+  },
+  coverAction: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(5, 8, 18, 0.72)',
+    borderRadius: 18,
+    bottom: spacing.sm,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    position: 'absolute',
+    right: spacing.sm
   },
   avatarContainer: {
     alignSelf: 'center',
@@ -250,6 +349,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
     marginBottom: -6
+  },
+  sportsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   },
   error: {
     color: colors.semantic.danger,

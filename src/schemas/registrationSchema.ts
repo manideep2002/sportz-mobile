@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { allSports } from '@/constants/sports';
+import { isProfileSport } from '@/schemas/profileSportsSchema';
 import type { Gender, SkillLevel, Sport } from '@/types/domain';
 import { normalizeUsername } from '@/utils/authValidation';
 
@@ -68,15 +69,13 @@ const normalizedNameSchema = (label: string, maximum: number) =>
         .regex(namePattern, `${label} can contain letters, spaces, apostrophes, and hyphens.`)
     );
 
-const sportSchema = z.custom<Sport>(
-  (value) => typeof value === 'string' && allSports.includes(value as Sport),
-  { message: 'Select a valid primary sport.' }
-);
+const sportSchema = z.custom<Sport>(isProfileSport, {
+  message: 'Select a valid primary sport.'
+});
 
-const secondarySportSchema = z.custom<Sport>(
-  (value) => typeof value === 'string' && allSports.includes(value as Sport),
-  { message: 'Select only valid secondary sports.' }
-);
+const secondarySportSchema = z.custom<Sport>(isProfileSport, {
+  message: 'Select only valid secondary sports.'
+});
 
 export const createRegistrationSchema = (today?: Date) =>
   z.object({

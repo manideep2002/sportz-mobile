@@ -11,6 +11,11 @@ import {
   type ResumableUploadResult
 } from '@/services/resumableUploadService';
 
+export interface StoredProfileCover {
+  bucket: 'profile-covers' | 'post-media';
+  objectName: string;
+}
+
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'android') {
     const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -29,6 +34,52 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
 }
 
 export const storageService = {
+  profileCoverObjectFromValue(value?: string | null): StoredProfileCover | null {
+    if (!value) return null;
+
+    if (!value.includes('://')) {
+      const objectName = value.replace(/^\/+/, '');
+      return objectName.includes('/')
+        ? { bucket: 'profile-covers', objectName }
+        : null;
+    }
+
+    try {
+      const pathname = new URL(value).pathname;
+      for (const bucket of ['profile-covers', 'post-media'] as const) {
+        const markers = [
+          `/storage/v1/object/public/${bucket}/`,
+          `/storage/v1/object/sign/${bucket}/`,
+          `/storage/v1/render/image/public/${bucket}/`,
+          `/storage/v1/render/image/sign/${bucket}/`
+        ];
+        const marker = markers.find((candidate) => pathname.includes(candidate));
+        if (!marker) continue;
+
+        const objectName = decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length));
+        return objectName.includes('/') ? { bucket, objectName } : null;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  },
+
+  async resolveProfileCoverUrl(value?: string | null): Promise<string | null> {
+    if (!value) return null;
+    if (!env.isSupabaseConfigured || value.includes('://')) return value;
+
+    const storedCover = this.profileCoverObjectFromValue(value);
+    if (!storedCover || storedCover.bucket !== 'profile-covers') return null;
+
+    const { data, error } = await supabase.storage
+      .from('profile-covers')
+      .createSignedUrl(storedCover.objectName, 300);
+    if (error) return null;
+    return data.signedUrl;
+  },
+
   postMediaObjectNameFromUrl(mediaUrl?: string | null): string | null {
     if (!mediaUrl) return null;
     try {
@@ -135,6 +186,41 @@ export const storageService = {
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
+  },
+
+  async uploadProfileCover(
+    asset: ImagePicker.ImagePickerAsset,
+    ownerId: string
+  ): Promise<string> {
+    this.validateMediaAsset(asset, {
+      maxSizeMb: 10,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+    });
+
+    if (!env.isSupabaseConfigured) return asset.uri;
+
+    const { ext, mime } = resolveAssetExtAndMime(asset);
+    const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const fileData = await readFileAsArrayBuffer(asset.uri);
+    const { error } = await supabase.storage.from('profile-covers').upload(path, fileData, {
+      contentType: mime,
+      cacheControl: '31536000',
+      upsert: false
+    });
+    if (error) throw error;
+    return path;
+  },
+
+  async removeProfileCover(value: string): Promise<void> {
+    if (!env.isSupabaseConfigured || !value) return;
+
+    const storedCover = this.profileCoverObjectFromValue(value);
+    if (!storedCover) return;
+
+    const { error } = await supabase.storage
+      .from(storedCover.bucket)
+      .remove([storedCover.objectName]);
+    if (error) throw error;
   },
 
   async uploadPostMediaResumable(

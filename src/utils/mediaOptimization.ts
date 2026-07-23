@@ -11,6 +11,8 @@ export interface ImageTransformOptions {
 
 const STORAGE_PUBLIC_PATH = '/storage/v1/object/public/';
 const STORAGE_RENDER_PATH = '/storage/v1/render/image/public/';
+const STORAGE_SIGNED_PATH = '/storage/v1/object/sign/';
+const STORAGE_SIGNED_RENDER_PATH = '/storage/v1/render/image/sign/';
 const TRANSFORMABLE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tiff']);
 
 const clampDimension = (value?: number) => {
@@ -34,7 +36,9 @@ const isSupabaseStorageUrl = (url: URL) => {
   const configuredHost = new URL(env.supabaseUrl).host;
   return url.host === configuredHost && (
     url.pathname.includes(STORAGE_PUBLIC_PATH) ||
-    url.pathname.includes(STORAGE_RENDER_PATH)
+    url.pathname.includes(STORAGE_RENDER_PATH) ||
+    url.pathname.includes(STORAGE_SIGNED_PATH) ||
+    url.pathname.includes(STORAGE_SIGNED_RENDER_PATH)
   );
 };
 
@@ -52,7 +56,9 @@ export function optimizedImageUrl(uri?: string | null, options: ImageTransformOp
       return uri;
     }
 
-    url.pathname = url.pathname.replace(STORAGE_PUBLIC_PATH, STORAGE_RENDER_PATH);
+    url.pathname = url.pathname
+      .replace(STORAGE_PUBLIC_PATH, STORAGE_RENDER_PATH)
+      .replace(STORAGE_SIGNED_PATH, STORAGE_SIGNED_RENDER_PATH);
 
     const width = clampDimension(options.width);
     const height = clampDimension(options.height);
@@ -106,6 +112,14 @@ export const mediaVariants = {
     optimizedImageUrl(uri, {
       width: 1200,
       height: 620,
+      resize: 'cover',
+      quality: 78
+    }),
+
+  profileCover: (uri?: string | null) =>
+    optimizedImageUrl(uri, {
+      width: 1200,
+      height: 600,
       resize: 'cover',
       quality: 78
     }),

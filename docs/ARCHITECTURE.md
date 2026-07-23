@@ -89,3 +89,4 @@ Storage buckets:
 - `post-media`
 - `story-media`
 - `event-covers`
+- `profile-covers` (private; signed reads are authorized by profile privacy, follow, and block state)

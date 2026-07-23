@@ -6,7 +6,7 @@ import { Bookmark, Heart, MessageCircle, MessageSquare, Settings, Trophy } from 
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-
+import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
 
@@ -71,9 +71,7 @@ export function ProfileScreen() {
       <View style={styles.settings}>
         <IconButton icon={Settings} onPress={() => navigation.navigate('Settings')} />
       </View>
-      <LinearGradient colors={['#0A0D1A', '#101629']} style={styles.cover}>
-        <View style={styles.coverLines} />
-      </LinearGradient>
+      <ProfileCover uri={profile.coverUrl} style={styles.cover} testID="own-profile-cover" />
       <View style={styles.avatarWrap}>
         <Avatar initials={profile.initials} uri={profile.avatarUrl} size={84} online />
       </View>
@@ -314,15 +312,6 @@ const styles = StyleSheet.create({
   },
   cover: {
     height: 200
-  },
-  coverLines: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,90,31,0.25)'
   },
   avatarWrap: {
     marginTop: -42,

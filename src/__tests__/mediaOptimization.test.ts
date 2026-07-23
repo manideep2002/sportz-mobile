@@ -37,4 +37,14 @@ describe('mediaOptimization', () => {
     expect(optimized).toContain('height=2500');
     expect(optimized).toContain('quality=72');
   });
+
+  it('optimizes private signed profile covers without dropping the token', () => {
+    const signedCoverUrl = `${env.supabaseUrl}/storage/v1/object/sign/profile-covers/user-1/cover.jpg?token=signed-token`;
+    const optimized = mediaVariants.profileCover(signedCoverUrl);
+
+    expect(optimized).toContain('/storage/v1/render/image/sign/profile-covers/user-1/cover.jpg');
+    expect(optimized).toContain('token=signed-token');
+    expect(optimized).toContain('width=1200');
+    expect(optimized).toContain('height=600');
+  });
 });

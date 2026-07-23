@@ -72,17 +72,23 @@ This applies all migrations in `supabase/migrations/` in order, including:
 | `20260711000002_resumable_media_placeholders_and_feed_cleanup` | Storage finalizer trigger, `post_media_assets` |
 | `20260712000002_deprecate_legacy_push_tokens` | Drops the unused legacy `push_tokens` table |
 | `20260722000001_feed_fanout_pg_cron_scheduler` | pg_cron jobs for feed-fanout, push-fanout, social-events; `deployment_health_check` view |
+| `20260723000009_private_profile_covers_and_sports_integrity` | Private profile-cover bucket/RLS and primary-sport selection integrity |
+| `20260723000010_private_profile_legacy_cover_guard` | Clears legacy public cover URLs whenever a profile becomes private |
 
 ---
 
 ## 4. Supabase — storage
 
-The storage policies in `supabase/storage.sql` must be applied separately:
+Storage buckets and their current RLS policies are applied by the migrations:
 
 ```bash
-# Paste supabase/storage.sql in the Supabase SQL editor, or:
-supabase db push   # if storage.sql has been added to migrations
+supabase db push
 ```
+
+`profile-covers` is intentionally private. Profile rows store an object path, and
+the app requests a short-lived signed URL only after storage RLS verifies that the
+viewer is the owner, the profile is public, or the viewer is an approved follower.
+Do not change this bucket to public.
 
 ---
 
