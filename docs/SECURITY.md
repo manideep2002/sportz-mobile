@@ -22,3 +22,13 @@
 - Review reports through the admin-only moderation queue before enabling broad public discovery at scale.
 - Account deletion must go through the `delete-account` Edge Function; never expose auth admin APIs in the client.
 - Run security review on OAuth redirect URLs before App Store submission.
+
+## Court discovery and bookings
+
+- Court distance, discovery filters, opening state, and future availability are calculated by database RPCs.
+- Weekly operating hours and closures are publicly readable but writable only by administrators under RLS.
+- Authenticated users may read only their own court bookings; administrators retain all-booking read access.
+- Direct booking inserts and updates are denied. Booking, cancellation, confirmation, and administrative cancellation use checked `security definer` RPCs.
+- `court_bookings_no_overlap` remains the final database-level conflict guarantee for pending and confirmed bookings. The booking RPC additionally locks the court row to serialize competing slot requests.
+- User cancellation is limited to pending or confirmed bookings before the court-specific notice deadline. Administrators may cancel active bookings but cannot reopen cancelled bookings.
+- SPORTZ does not process court payments. A court must declare `external` payment or `not_required`.

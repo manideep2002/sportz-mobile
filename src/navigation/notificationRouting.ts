@@ -27,6 +27,8 @@ export type PushNotificationRouteData = {
   room_id?: unknown;
   communityId?: unknown;
   community_id?: unknown;
+  bookingId?: unknown;
+  booking_id?: unknown;
 };
 
 const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
@@ -46,7 +48,8 @@ export const notificationToRouteData = (notification: SportzNotification): PushN
   communityId:
     notification.entityType === 'group' || notification.entityType === 'page'
       ? notification.entityId
-      : undefined
+      : undefined,
+  bookingId: notification.entityType === 'court_booking' ? notification.entityId : undefined
 });
 
 export function navigateFromNotificationData(
@@ -78,6 +81,18 @@ export function navigateFromNotificationData(
     (entityType === 'event' ? entityId : undefined);
   if (eventId || (screen === '/event/[id]' && entityId)) {
     navigationRef.navigate('App', { screen: 'EventDetail', params: { eventId: eventId ?? entityId ?? '' } });
+    return true;
+  }
+
+  const bookingId =
+    stringValue(data.bookingId) ??
+    stringValue(data.booking_id) ??
+    (entityType === 'court_booking' ? entityId : undefined);
+  if (bookingId || (screen === 'CourtBookingDetail' && entityId)) {
+    navigationRef.navigate('App', {
+      screen: 'CourtBookingDetail',
+      params: { bookingId: bookingId ?? entityId ?? '' }
+    });
     return true;
   }
 

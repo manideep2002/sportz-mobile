@@ -12,35 +12,38 @@ interface CourtCardProps {
 }
 
 export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
+  const distanceLabel = court.distanceKm === null ? 'Distance unavailable' : `${court.distanceKm.toFixed(1)} km`;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
-      <Card style={[styles.card, !court.availableNow ? styles.disabled : null]}>
+      <Card style={[styles.card, !court.futureBookable ? styles.disabled : null]}>
         <View style={styles.sportIcon}>
           <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
         </View>
         <View style={styles.meta}>
           <AppText style={styles.name}>{court.name}</AppText>
           <AppText variant="small">
-            {court.distanceKm} km - {court.surface} - {court.rating.toFixed(1)}
+            {distanceLabel} - {court.surface} - {court.rating.toFixed(1)}
           </AppText>
           <View style={styles.priceRow}>
-            <AppText style={[styles.price, !court.availableNow ? styles.mutedPrice : null]}>
+            <AppText style={[styles.price, !court.futureBookable ? styles.mutedPrice : null]}>
               {currency(court.hourlyPrice, court.currency)}
               <AppText variant="small">/hr</AppText>
             </AppText>
-            <Badge tone={court.availableNow ? 'green' : 'red'}>{court.availabilityLabel}</Badge>
+            <Badge tone={court.openNow ? 'green' : court.futureBookable ? 'orange' : 'red'}>
+              {court.availabilityLabel}
+            </Badge>
           </View>
         </View>
         <Button
-          variant={court.availableNow ? 'primary' : 'dark'}
+          variant={court.futureBookable ? 'primary' : 'dark'}
           size="sm"
           onPress={(event) => {
             event.stopPropagation();
-            if (court.availableNow) onBook?.();
+            if (court.futureBookable) onBook?.();
             else onPress?.();
           }}
         >
-          {court.availableNow ? 'Book' : 'View'}
+          {court.futureBookable ? 'Book' : 'View'}
         </Button>
       </Card>
     </Pressable>

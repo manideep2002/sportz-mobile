@@ -58,25 +58,45 @@ export function CourtDetailScreen() {
               <AppText variant="h2">{court.name}</AppText>
               <AppText variant="bodyMuted">{court.city}</AppText>
             </View>
-            <Badge tone={court.availableNow ? 'green' : 'red'}>{court.availabilityLabel}</Badge>
+            <Badge tone={court.openNow ? 'green' : court.futureBookable ? 'orange' : 'red'}>
+              {court.availabilityLabel}
+            </Badge>
           </View>
           <View style={styles.metaCard}>
             <Meta label="Sport" value={court.sport} />
             <Meta label="Surface" value={court.surface} />
             <Meta label="Rating" value={court.rating.toFixed(1)} />
             <Meta label="Price" value={`${currency(court.hourlyPrice, court.currency)}/hr`} />
+            <Meta label="Booking slot" value={`${court.slotDurationMinutes} minutes`} />
+            <Meta label="Timezone" value={court.timezone} />
+            <Meta
+              label="Payment"
+              value={court.paymentPolicy === 'external' ? 'Pay venue directly' : 'No payment required'}
+            />
+            <Meta
+              label="Cancellation"
+              value={`${court.cancellationNoticeHours} hours before start`}
+            />
           </View>
           <Button
             full
             size="lg"
             icon={MapPin}
-            disabled={!court.availableNow}
+            disabled={!court.futureBookable}
             onPress={() => navigation.navigate('CourtBooking', { courtId: court.id })}
           >
-            {court.availableNow ? 'Book Court' : 'Court Unavailable'}
+            {court.futureBookable ? 'View Available Slots' : 'No Future Slots'}
+          </Button>
+          <Button full size="lg" variant="dark" onPress={() => navigation.navigate('CourtBookings')}>
+            My Bookings
           </Button>
           {profile?.isAdmin ? (
-            <Button full size="lg" variant="dark" onPress={() => navigation.navigate('CourtBookings', { courtId: court.id })}>
+            <Button
+              full
+              size="lg"
+              variant="dark"
+              onPress={() => navigation.navigate('CourtBookings', { courtId: court.id, admin: true })}
+            >
               Manage Bookings
             </Button>
           ) : null}

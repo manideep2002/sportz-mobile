@@ -16,6 +16,7 @@ type SettingsItemConfig = {
   detail?: string;
   icon: LucideIcon;
   route?: keyof AppStackParamList;
+  adminBookings?: boolean;
 };
 
 const accountItems: SettingsItemConfig[] = [
@@ -71,12 +72,24 @@ export function SettingsScreen() {
         <View style={{ width: 40 }} />
       </View>
       <Section title="Account" items={accountItems} navigation={navigation} />
+      <SettingsItem
+        label="My Bookings"
+        detail="Track, view, or cancel court bookings"
+        icon={CalendarCheck}
+        onPress={() => navigation.navigate('CourtBookings')}
+      />
       {profile?.isAdmin ? (
         <Section
           title="Admin"
           items={[
             { label: 'Moderation Queue', detail: 'Review reports and actions', icon: ShieldCheck, route: 'Moderation' },
-            { label: 'Court Bookings', detail: 'Confirm or cancel booking requests', icon: CalendarCheck, route: 'CourtBookings' }
+            {
+              label: 'Court Bookings',
+              detail: 'Confirm or cancel booking requests',
+              icon: CalendarCheck,
+              route: 'CourtBookings',
+              adminBookings: true
+            }
           ]}
           navigation={navigation}
         />
@@ -121,7 +134,11 @@ function Section({ title, items, navigation }: { title: string; items: SettingsI
           detail={item.detail}
           icon={item.icon}
           onPress={() => {
-            if (item.route) navigation.navigate(item.route as never);
+            if (item.route === 'CourtBookings' && item.adminBookings) {
+              navigation.navigate('CourtBookings', { admin: true });
+            } else if (item.route) {
+              navigation.navigate(item.route as never);
+            }
           }}
         />
       ))}

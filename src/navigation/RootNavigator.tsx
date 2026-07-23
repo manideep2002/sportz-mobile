@@ -39,6 +39,7 @@ import { FollowRequestsScreen } from '@/screens/profile/FollowRequestsScreen';
 import { CourtBookingScreen } from '@/screens/courts/CourtBookingScreen';
 import { CourtDetailScreen } from '@/screens/courts/CourtDetailScreen';
 import { CourtBookingsScreen } from '@/screens/courts/CourtBookingsScreen';
+import { CourtBookingDetailScreen } from '@/screens/courts/CourtBookingDetailScreen';
 import { CreateCommunityScreen } from '@/screens/community/CreateCommunityScreen';
 import { PrivacyScreen } from '@/screens/settings/PrivacyScreen';
 import { NotificationSettingsScreen } from '@/screens/settings/NotificationSettingsScreen';
@@ -70,7 +71,8 @@ const linking: LinkingOptions<RootStackParamList> = {
         screens: {
           PostDetail: 'post/:postId',
           UserProfile: 'profile/:userId',
-          EventDetail: 'event/:eventId'
+          EventDetail: 'event/:eventId',
+          CourtBookingDetail: 'booking/:bookingId'
         }
       }
     }
@@ -130,6 +132,7 @@ function AppNavigator() {
       <App.Screen name="CourtDetail" component={CourtDetailScreen} />
       <App.Screen name="CourtBooking" component={CourtBookingScreen} />
       <App.Screen name="CourtBookings" component={CourtBookingsScreen} />
+      <App.Screen name="CourtBookingDetail" component={CourtBookingDetailScreen} />
       <App.Screen name="CreateCommunity" component={CreateCommunityScreen} />
       <App.Screen name="Privacy" component={PrivacyScreen} />
       <App.Screen name="NotificationSettings" component={NotificationSettingsScreen} />

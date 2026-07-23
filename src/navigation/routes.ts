@@ -45,7 +45,8 @@ export type AppStackParamList = {
   FollowRequests: undefined;
   CourtDetail: { courtId: string };
   CourtBooking: { courtId: string };
-  CourtBookings: { courtId?: string } | undefined;
+  CourtBookings: { courtId?: string; admin?: boolean } | undefined;
+  CourtBookingDetail: { bookingId: string; admin?: boolean };
   CreateCommunity: undefined;
   Privacy: undefined;
   NotificationSettings: undefined;

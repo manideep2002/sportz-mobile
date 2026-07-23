@@ -1,19 +1,46 @@
+import { useMemo, useState } from 'react';
 import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { CalendarCheck, ChevronLeft } from 'lucide-react-native';
 
-
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
-
+import {
+  AppRefreshControl,
+  AppText,
+  Avatar,
+  Badge,
+  Button,
+  Chip,
+  IconButton,
+  Screen,
+  VerifiedName
+} from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useCourtBookings, useUpdateCourtBookingStatus } from '@/hooks/useCourts';
+import {
+  useAdminCourtBookings,
+  useMyCourtBookings,
+  useUpdateCourtBookingStatus
+} from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
+import { useAuthStore } from '@/store/authStore';
 import type { CourtBooking } from '@/types/domain';
-import { eventDate, formatTime } from '@/utils/format';
+import {
+  bookingMatchesFilter,
+  formatCourtDate,
+  formatCourtTime,
+  type CourtBookingFilter
+} from '@/utils/courtTime';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CourtBookings'>;
+
+const filters: { key: CourtBookingFilter; label: string }[] = [
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'past', label: 'Past' }
+];
 
 const statusTone = (status: CourtBooking['status']) => {
   if (status === 'confirmed') return 'green' as const;
@@ -24,11 +51,25 @@ const statusTone = (status: CourtBooking['status']) => {
 export function CourtBookingsScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
-  const courtId = route.params?.courtId;
-  const { data: bookings = [], isLoading, isError, isRefetching, error, refetch } = useCourtBookings(courtId);
+  const profile = useAuthStore((state) => state.profile);
+  const adminMode = Boolean(route.params?.admin && profile?.isAdmin);
+  const courtId = adminMode ? route.params?.courtId : undefined;
+  const myBookings = useMyCourtBookings(!adminMode);
+  const adminBookings = useAdminCourtBookings(courtId, adminMode);
+  const query = adminMode ? adminBookings : myBookings;
   const updateStatus = useUpdateCourtBookingStatus(courtId);
+  const [filter, setFilter] = useState<CourtBookingFilter>('upcoming');
+  const visibleBookings = useMemo(
+    () => adminMode
+      ? query.data ?? []
+      : (query.data ?? []).filter((booking) => bookingMatchesFilter(booking, filter)),
+    [adminMode, filter, query.data]
+  );
 
-  const setStatus = async (booking: CourtBooking, status: CourtBooking['status']) => {
+  const setStatus = async (
+    booking: CourtBooking,
+    status: Extract<CourtBooking['status'], 'confirmed' | 'cancelled'>
+  ) => {
     try {
       await updateStatus.mutateAsync({ bookingId: booking.id, status });
     } catch (error) {
@@ -41,61 +82,103 @@ export function CourtBookingsScreen() {
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl
-          refreshing={isRefetching}
-          onRefresh={() => void refetch()}
+          refreshing={query.isRefetching}
+          onRefresh={() => void query.refetch()}
         />
       }
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <AppText variant="h3">Court Bookings</AppText>
+        <AppText variant="h3">{adminMode ? 'Manage Bookings' : 'My Bookings'}</AppText>
         <View style={styles.headerSpacer} />
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
-      {isError ? (
+      {!adminMode ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          {filters.map((item) => (
+            <Chip key={item.key} selected={filter === item.key} onPress={() => setFilter(item.key)}>
+              {item.label}
+            </Chip>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {query.isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {query.isError ? (
         <View style={styles.empty}>
           <AppText variant="bodyMuted">
-            {error instanceof Error ? error.message : 'Could not load court bookings.'}
+            {query.error instanceof Error ? query.error.message : 'Could not load court bookings.'}
           </AppText>
-          <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+          <Button size="sm" onPress={() => void query.refetch()}>Retry</Button>
         </View>
       ) : null}
 
-      {!isLoading && !isError && bookings.length === 0 ? (
+      {!query.isLoading && !query.isError && visibleBookings.length === 0 ? (
         <View style={styles.empty}>
           <CalendarCheck size={42} color={colors.text.tertiary} />
-          <AppText variant="h4">No bookings</AppText>
-          <AppText variant="bodyMuted">Court requests will appear here.</AppText>
+          <AppText variant="h4">{adminMode ? 'No booking requests' : `No ${filter} bookings`}</AppText>
+          <AppText variant="bodyMuted">
+            {adminMode
+              ? 'Booking requests for this scope will appear here.'
+              : 'Book a court and track its status here.'}
+          </AppText>
+          {!adminMode ? <Button size="sm" onPress={() => navigation.navigate('Courts')}>Find Courts</Button> : null}
         </View>
       ) : null}
 
-      {bookings.map((booking) => (
+      {visibleBookings.map((booking) => (
         <View key={booking.id} style={styles.booking}>
           <View style={styles.topRow}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex}>
               <AppText style={styles.courtName}>{booking.court.name}</AppText>
-              <AppText variant="small">{booking.court.city} - {booking.court.sport}</AppText>
+              <AppText variant="small">{booking.court.city} · {booking.court.sport}</AppText>
             </View>
             <Badge tone={statusTone(booking.status)}>{booking.status}</Badge>
           </View>
-          <View style={styles.userRow}>
-            <Avatar initials={booking.user.initials} uri={booking.user.avatarUrl} size={36} />
-            <View style={{ flex: 1 }}>
+          {adminMode ? (
+            <View style={styles.userRow}>
+              <Avatar initials={booking.user.initials} uri={booking.user.avatarUrl} size={36} />
               <VerifiedName profile={booking.user} style={styles.userName} numberOfLines={1} />
-              <AppText variant="small">{eventDate(booking.startsAt)} - {formatTime(booking.startsAt)} to {formatTime(booking.endsAt)}</AppText>
-            </View>
-          </View>
-          {booking.status === 'pending' ? (
-            <View style={styles.actions}>
-              <Button size="sm" loading={updateStatus.isPending} onPress={() => void setStatus(booking, 'confirmed')}>
-                Confirm
-              </Button>
-              <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onPress={() => void setStatus(booking, 'cancelled')}>
-                Cancel
-              </Button>
             </View>
           ) : null}
+          <AppText variant="small">
+            {formatCourtDate(booking.startsAt, booking.court.timezone)}
+            {' · '}
+            {formatCourtTime(booking.startsAt, booking.court.timezone)}
+            {' – '}
+            {formatCourtTime(booking.endsAt, booking.court.timezone)}
+          </AppText>
+          <View style={styles.actions}>
+            <Button
+              size="sm"
+              variant="dark"
+              onPress={() => navigation.navigate('CourtBookingDetail', {
+                bookingId: booking.id,
+                admin: adminMode
+              })}
+            >
+              View Details
+            </Button>
+            {adminMode && booking.status === 'pending' ? (
+              <>
+                <Button
+                  size="sm"
+                  loading={updateStatus.isPending}
+                  onPress={() => void setStatus(booking, 'confirmed')}
+                >
+                  Confirm
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={updateStatus.isPending}
+                  onPress={() => void setStatus(booking, 'cancelled')}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : null}
+          </View>
         </View>
       ))}
     </Screen>
@@ -113,6 +196,9 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40
+  },
+  filters: {
+    gap: spacing.xs
   },
   empty: {
     alignItems: 'center',
@@ -132,6 +218,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md
   },
+  flex: {
+    flex: 1
+  },
   courtName: {
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
@@ -143,12 +232,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   userName: {
+    flex: 1,
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 14
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
     gap: spacing.sm
   }

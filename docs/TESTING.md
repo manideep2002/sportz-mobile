@@ -36,3 +36,26 @@ npx supabase test db
 - Account deletion: destructive confirmation, Edge Function success/failure handling.
 - Offline: launch app offline after a successful online cache fill.
 - Dark/light: settings toggle and OS theme behavior.
+
+## Court discovery and booking lifecycle
+
+Run the database suite with the local Supabase stack:
+
+```powershell
+npx.cmd supabase test db
+```
+
+The court lifecycle suite covers server-side discovery filters, PostGIS distance calculation, operating hours, closures, court timezones, occupied-slot removal, booking conflicts, cancellation deadlines, administrative confirmation, and user/admin RLS.
+
+Manual mobile QA:
+
+1. Grant location permission and confirm courts are ordered by non-zero distance.
+2. Deny permission and confirm profile-city/manual-city discovery remains usable.
+3. Filter by sport, surface, maximum distance, maximum price, open-now, and future availability.
+4. Open a court that is currently closed but future-bookable and book one server-returned slot.
+5. Confirm the slot disappears on another account and a concurrent request is rejected.
+6. Review Pending, Upcoming, Confirmed, Cancelled, and Past in My Bookings.
+7. Cancel before the deadline, verify the slot returns, and verify late cancellation is blocked.
+8. Confirm administrators can still view, confirm, and cancel requests.
+9. Test the external Maps link with and without an available map handler.
+10. Verify the booking screen states that payment is made directly to the venue or is not required.

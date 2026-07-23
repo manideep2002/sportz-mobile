@@ -124,15 +124,31 @@ export interface Court {
   name: string;
   sport: Sport;
   city: string;
+  address: string | null;
   latitude: number;
   longitude: number;
-  distanceKm: number;
+  distanceKm: number | null;
   surface: string;
   rating: number;
   hourlyPrice: number;
   currency: 'INR' | 'USD';
-  availableNow: boolean;
+  openNow: boolean;
+  futureBookable: boolean;
   availabilityLabel: string;
+  timezone: string;
+  slotDurationMinutes: number;
+  bookingWindowDays: number;
+  cancellationNoticeHours: number;
+  bookingRequiresApproval: boolean;
+  paymentPolicy: 'external' | 'not_required';
+}
+
+export interface CourtAvailabilitySlot {
+  startsAt: string;
+  endsAt: string;
+  slotDurationMinutes: number;
+  price: number;
+  currency: Court['currency'];
 }
 
 export interface CourtBooking {
@@ -142,7 +158,14 @@ export interface CourtBooking {
   startsAt: string;
   endsAt: string;
   status: 'pending' | 'confirmed' | 'cancelled';
+  price: number;
+  currency: Court['currency'];
   createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  canCancel: boolean;
+  cancellationDeadline: string;
 }
 
 export interface Conversation {
@@ -205,7 +228,7 @@ export interface SportzNotification {
   lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
-  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page';
+  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking';
   data?: Record<string, unknown>;
 }
 
