@@ -156,30 +156,21 @@ Before pushing to production, verify:
 
 ## App icons and splash
 
-Before production, add:
-
-- `assets/icon.png`: 1024×1024, no transparency.
-- `assets/adaptive-icon.png`: Android foreground with safe area.
-- `assets/splash.png`: portrait SPORTZ court-line splash.
-- Optional Android notification icon: monochrome white glyph.
-
-Then wire them in `app.config.js`:
+Production assets are stored in `assets/` and wired through the dynamic `app.config.js` configuration:
 
 ```js
-module.exports = {
-  expo: {
-    icon: './assets/icon.png',
-    splash: {
-      image: './assets/splash.png',
-      resizeMode: 'contain',
-      backgroundColor: '#0A0907'
-    },
-    android: {
-      adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#0A0907'
-      }
-    }
+icon: './assets/icon.png',
+android: {
+  adaptiveIcon: {
+    foregroundImage: './assets/adaptive-icon.png',
+    backgroundColor: '#0A0907'
   }
-};
+},
+web: {
+  favicon: './assets/favicon.png'
+}
 ```
+
+The `expo-splash-screen` plugin configures `assets/splash.png` with `contain` and a matching `#0A0907` background. The `expo-notifications` plugin configures the white-only `assets/notification-icon.png` glyph and SPORTZ orange notification color.
+
+Asset dimensions, alpha rules, regeneration instructions, and Android adaptive-icon safe-area constraints are documented in `assets/README.md`. Regenerate with `python scripts/generate_brand_assets.py`, then validate with `npx expo config --type public` and an Android production export.

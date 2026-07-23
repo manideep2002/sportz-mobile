@@ -8,6 +8,7 @@ module.exports = {
     version: '1.0.0',
     orientation: 'portrait',
     userInterfaceStyle: 'automatic',
+    icon: './assets/icon.png',
     assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: false,
@@ -21,6 +22,10 @@ module.exports = {
     },
     android: {
       package: 'com.sportz.mobile',
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#0A0907'
+      },
       permissions: [
         'CAMERA',
         'READ_MEDIA_IMAGES',
@@ -39,14 +44,32 @@ module.exports = {
         }
       ],
       [
+        'expo-splash-screen',
+        {
+          image: './assets/splash.png',
+          imageWidth: 390,
+          resizeMode: 'contain',
+          backgroundColor: '#0A0907',
+          dark: {
+            image: './assets/splash.png',
+            backgroundColor: '#0A0907'
+          }
+        }
+      ],
+      [
         'expo-notifications',
         {
+          icon: './assets/notification-icon.png',
           color: '#FF5A1F',
           sounds: []
         }
       ],
       '@react-native-community/datetimepicker'
     ],
+    web: {
+      bundler: 'metro',
+      favicon: './assets/favicon.png'
+    },
     extra: {
       eas: {
         projectId: '2961c035-fb1f-4581-8f72-798e998d175a'
