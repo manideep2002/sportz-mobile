@@ -29,6 +29,21 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
 }
 
 export const storageService = {
+  postMediaObjectNameFromUrl(mediaUrl?: string | null): string | null {
+    if (!mediaUrl) return null;
+    try {
+      const marker = '/storage/v1/object/public/post-media/';
+      const markerIndex = new URL(mediaUrl).pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+      const objectName = decodeURIComponent(
+        new URL(mediaUrl).pathname.slice(markerIndex + marker.length)
+      );
+      return objectName.includes('/') ? objectName : null;
+    } catch {
+      return null;
+    }
+  },
+
   async pickMedia(): Promise<ImagePicker.ImagePickerAsset | null> {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -125,7 +140,7 @@ export const storageService = {
   async uploadPostMediaResumable(
     asset: ImagePicker.ImagePickerAsset,
     ownerId: string,
-    postId: string,
+    postId?: string,
     onProgress?: (progress: { bytesUploaded: number; bytesTotal: number; percentage: number }) => void
   ): Promise<ResumableUploadResult> {
     const { ext } = resolveAssetExtAndMime(asset);
@@ -137,7 +152,7 @@ export const storageService = {
       objectName,
       cacheControl: '31536000',
       metadata: {
-        postId,
+        ...(postId ? { postId } : {}),
         ownerId,
         mediaKind: asset.type === 'video' ? 'video' : 'image',
         width: asset.width,
@@ -146,6 +161,12 @@ export const storageService = {
       },
       onProgress
     });
+  },
+
+  async removePostMedia(objectName: string): Promise<void> {
+    if (!objectName) return;
+    const { error } = await supabase.storage.from('post-media').remove([objectName]);
+    if (error) throw error;
   },
   /**
    * Validate a media asset before uploading.

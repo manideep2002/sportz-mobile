@@ -4,12 +4,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import type * as ImagePicker from 'expo-image-picker';
 import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
-import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 import { postSports } from '@/constants/sports';
 import { colors, radii, spacing, typography } from '@/design/tokens';
-import { useCreatePost, usePost, useUpdatePost } from '@/hooks/useFeed';
+import { useCreatePost, useEditablePost, useUpdatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
@@ -38,12 +38,6 @@ export function CreatePostScreen() {
   const isEditing = Boolean(editPostId);
   const profile = useAuthStore((state) => state.profile);
 
-  // Detect community context from route params.
-  const isCommunityPost = Boolean(route.params?.communityId);
-  const visibilityOptions = isCommunityPost
-    ? COMMUNITY_VISIBILITY_OPTIONS
-    : DEFAULT_VISIBILITY_OPTIONS;
-
   const [body, setBody] = useState('');
   const [sport, setSport] = useState<Sport>('Basketball');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
@@ -54,7 +48,7 @@ export function CreatePostScreen() {
   const [statsLine, setStatsLine] = useState('');
   // Default to 'Community' when in a group/page context so posts are group-scoped.
   const [visibility, setVisibility] = useState<string>(
-    isCommunityPost ? COMMUNITY_LABEL : 'Public'
+    route.params?.communityId ? COMMUNITY_LABEL : 'Public'
   );
   const [locationLabel, setLocationLabel] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -63,19 +57,32 @@ export function CreatePostScreen() {
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [tagSearchResults, setTagSearchResults] = useState<UserProfile[]>([]);
   const [hydratedEditPost, setHydratedEditPost] = useState(false);
-  const { data: editPost } = usePost(editPostId ?? '');
+  const [mediaRemoved, setMediaRemoved] = useState(false);
+  const {
+    data: editPost,
+    isLoading: editPostLoading,
+    isError: editPostIsError,
+    error: editPostError,
+    refetch: refetchEditPost
+  } = useEditablePost(editPostId ?? '');
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
+  const communityId = route.params?.communityId ?? editPost?.communityId ?? undefined;
+  const isCommunityPost = Boolean(communityId);
+  const communityVisibilityLabel = editPost?.visibility === 'public' ? 'Public' : COMMUNITY_LABEL;
+  const visibilityOptions = isCommunityPost
+    ? isEditing
+      ? [communityVisibilityLabel] as const
+      : COMMUNITY_VISIBILITY_OPTIONS
+    : DEFAULT_VISIBILITY_OPTIONS;
   const previewImageUri = mediaVariants.feedImage(thumbnailUri ?? mediaUri) ?? thumbnailUri ?? mediaUri;
-  const canPublish = isEditing
-    ? Boolean(body.trim() || (kind === 'stats' && statsLine.trim()))
-    : Boolean(
-      body.trim() ||
-      mediaUri ||
-      (kind === 'stats' && statsLine.trim()) ||
-      taggedUsers.length ||
-      locationLabel
-    );
+  const canPublish = Boolean(
+    body.trim() ||
+    mediaUri ||
+    (kind === 'stats' && statsLine.trim()) ||
+    taggedUsers.length ||
+    locationLabel
+  );
 
   useEffect(() => {
     if (!editPost || hydratedEditPost) return;
@@ -86,6 +93,9 @@ export function CreatePostScreen() {
     setMediaUri(editPost.mediaUrl ?? null);
     setMediaAsset(null);
     setMediaKind(editPost.mediaKind ?? 'none');
+    setMediaRemoved(false);
+    setLocationLabel(editPost.locationLabel ?? '');
+    setTaggedUsers(editPost.mentionedUsers ?? []);
     // Hydrate the visibility label from the stored value.
     setVisibility(
       editPost.visibility === 'followers' ? 'Followers'
@@ -98,10 +108,13 @@ export function CreatePostScreen() {
   const handlePickMedia = async () => {
     try {
       const media = await storageService.pickMedia();
-      setMediaUri(media?.uri ?? null);
-      setMediaAsset(media ?? null);
+      if (!media) return;
+      storageService.validateMediaAsset(media);
+      setMediaUri(media.uri);
+      setMediaAsset(media);
       setThumbnailUri((media as { thumbnail?: string; thumbnailUri?: string } | null)?.thumbnail ?? (media as { thumbnailUri?: string } | null)?.thumbnailUri ?? null);
-      setMediaKind(media?.type === 'video' ? 'video' : media ? 'image' : 'none');
+      setMediaKind(media.type === 'video' ? 'video' : 'image');
+      setMediaRemoved(false);
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -129,21 +142,11 @@ export function CreatePostScreen() {
   };
 
   const handlePublish = async () => {
-    const mentions = isEditing ? '' : taggedUsers.map((user) => `@${user.username}`).join(' ');
-    const additions = [
-      !isEditing && locationLabel ? `At ${locationLabel}` : ''
-    ].filter(Boolean);
-    const fallbackBody =
-      kind === 'stats' && statsLine.trim()
-        ? 'Game stats'
-        : mediaUri
-          ? kind === 'highlight'
-            ? 'Shared a new highlight.'
-            : 'Shared a new sports update.'
-          : '';
-    const publishedBody = [mentions, body.trim() || fallbackBody, ...additions].filter(Boolean).join('\n');
     if (!canPublish) {
-      Alert.alert(isEditing ? 'Add post text' : 'Add something to share', isEditing ? 'Write an update before saving.' : 'Write an update or choose a photo or video.');
+      Alert.alert(
+        isEditing ? 'Add something to save' : 'Add something to share',
+        'Write an update or choose a photo or video.'
+      );
       return;
     }
 
@@ -152,13 +155,19 @@ export function CreatePostScreen() {
         await updatePost.mutateAsync({
           postId: editPostId,
           input: {
-            body: body.trim() || fallbackBody,
+            body: body.trim(),
             sport,
             kind,
-            statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
+            statsLine: kind === 'stats' ? statsLine.trim() : '',
             visibility: visibility === COMMUNITY_LABEL
               ? 'group'
-              : visibility.toLowerCase() as 'public' | 'followers'
+              : visibility.toLowerCase() as 'public' | 'followers',
+            communityId: communityId ?? null,
+            mediaAsset,
+            mediaKind,
+            removeMedia: mediaRemoved,
+            mentionedUserIds: taggedUsers.map((user) => user.id),
+            locationLabel: locationLabel.trim() || null
           }
         });
         navigation.goBack();
@@ -166,7 +175,7 @@ export function CreatePostScreen() {
       }
 
       await createPost.mutateAsync({
-        body: publishedBody,
+        body: body.trim(),
         sport,
         kind,
         mediaUrl: mediaUri,
@@ -176,14 +185,36 @@ export function CreatePostScreen() {
         visibility: visibility === COMMUNITY_LABEL
           ? 'group'
           : visibility.toLowerCase() as 'public' | 'followers',
-        communityId: route.params?.communityId,
-        mentionedUserIds: taggedUsers.map((user) => user.id)
+        communityId,
+        mentionedUserIds: taggedUsers.map((user) => user.id),
+        locationLabel: locationLabel.trim() || null
       });
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Could not publish', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert(isEditing ? 'Could not save' : 'Could not publish', error instanceof Error ? error.message : 'Please try again.');
     }
   };
+
+  if (isEditing && editPostLoading && !editPost) {
+    return (
+      <View style={[styles.root, styles.centeredState]}>
+        <ActivityIndicator color={colors.orange[500]} />
+        <AppText variant="bodyMuted">Loading post…</AppText>
+      </View>
+    );
+  }
+
+  if (isEditing && editPostIsError && !editPost) {
+    return (
+      <View style={[styles.root, styles.centeredState]}>
+        <AppText variant="h3">Could not load this post</AppText>
+        <AppText variant="bodyMuted">
+          {editPostError instanceof Error ? editPostError.message : 'Please try again.'}
+        </AppText>
+        <Button onPress={() => void refetchEditPost()}>Retry</Button>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -209,7 +240,12 @@ export function CreatePostScreen() {
             )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {visibilityOptions.map((item) => (
-                <Chip key={item} selected={item === visibility} onPress={() => setVisibility(item)}>
+                <Chip
+                  key={item}
+                  selected={item === visibility}
+                  disabled={isEditing && isCommunityPost}
+                  onPress={() => setVisibility(item)}
+                >
                   {item}
                 </Chip>
               ))}
@@ -253,31 +289,37 @@ export function CreatePostScreen() {
                 <AppText variant="small">A preview will appear after upload.</AppText>
               </View>
             )}
-            {!isEditing ? (
-              <IconButton
-                icon={X}
-                accessibilityLabel="Remove media"
-                size={34}
-                style={styles.removeMedia}
-                onPress={() => {
-                  setMediaUri(null);
-                  setMediaAsset(null);
-                  setThumbnailUri(null);
-                  setMediaKind('none');
-                }}
-              />
-            ) : null}
+            <IconButton
+              icon={X}
+              accessibilityLabel="Remove media"
+              size={34}
+              style={styles.removeMedia}
+              onPress={() => {
+                setMediaUri(null);
+                setMediaAsset(null);
+                setThumbnailUri(null);
+                setMediaKind('none');
+                setMediaRemoved(true);
+              }}
+            />
           </View>
         ) : null}
         <View style={styles.mediaActions}>
-          {!isEditing ? (
-            <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
-          ) : null}
+          <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
           <ComposerAction icon={BarChart3} label="Stats" selected={kind === 'stats'} onPress={() => setKind(kind === 'stats' ? 'post' : 'stats')} />
           <ComposerAction icon={BarChart3} label="Highlight" selected={kind === 'highlight'} onPress={() => setKind(kind === 'highlight' ? 'post' : 'highlight')} />
-          {!isEditing ? (
-            <ComposerAction icon={MapPin} label={detectingLocation ? 'Locating...' : locationLabel || 'Location'} selected={Boolean(locationLabel)} onPress={() => void handleDetectLocation()} />
-          ) : null}
+          <ComposerAction
+            icon={MapPin}
+            label={detectingLocation ? 'Locating...' : locationLabel || 'Location'}
+            selected={Boolean(locationLabel)}
+            onPress={() => {
+              if (locationLabel) {
+                setLocationLabel('');
+                return;
+              }
+              void handleDetectLocation();
+            }}
+          />
         </View>
         <AppText style={styles.label}>Tag Sport</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
@@ -287,14 +329,12 @@ export function CreatePostScreen() {
             </Chip>
           ))}
         </ScrollView>
-        {!isEditing ? (
-          <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
-            <Users size={16} color={colors.text.tertiary} />
-            <AppText style={styles.tagText}>
-              {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
-            </AppText>
-          </Pressable>
-        ) : null}
+        <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
+          <Users size={16} color={colors.text.tertiary} />
+          <AppText style={styles.tagText}>
+            {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
+          </AppText>
+        </Pressable>
       </ScrollView>
       <Modal visible={tagPickerOpen} transparent animationType="fade" onRequestClose={() => setTagPickerOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setTagPickerOpen(false)}>
@@ -341,7 +381,10 @@ export function CreatePostScreen() {
               <Pressable
                 key={user.id}
                 style={[styles.tagOption, styles.tagOptionSelected]}
-                onPress={() => setTaggedUsers((old) => old.filter((t) => t.id !== user.id))}
+                onPress={() => {
+                  setTaggedUsers((old) => old.filter((taggedUser) => taggedUser.id !== user.id));
+                  setBody((old) => old.replace(new RegExp(`@${user.username}\\b\\s*`, 'i'), '').trimStart());
+                }}
               >
                 <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
                 <View style={styles.tagOptionMeta}>
@@ -372,6 +415,12 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.dark[950]
+  },
+  centeredState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    padding: spacing.xl
   },
   header: {
     paddingTop: 56,

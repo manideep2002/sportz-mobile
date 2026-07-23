@@ -19,9 +19,14 @@ export function Button({ children, disabled, loading, onPress, ...props }: Props
   );
 }
 
-export function Chip({ children, selected, onPress }: PropsWithChildren<{ selected?: boolean; onPress?: () => void }>) {
+export function Chip({ children, selected, disabled, onPress }: PropsWithChildren<{ selected?: boolean; disabled?: boolean; onPress?: () => void }>) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: Boolean(selected) }} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: Boolean(selected), disabled: Boolean(disabled) }}
+      disabled={disabled}
+      onPress={onPress}
+    >
       <Text>{children}</Text>
     </Pressable>
   );

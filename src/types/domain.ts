@@ -55,6 +55,7 @@ export type PostKind = 'post' | 'thread' | 'stats' | 'highlight';
 export interface Post {
   id: ID;
   author: UserProfile;
+  communityId?: ID | null;
   kind: PostKind;
   sport: Sport;
   body: string;
@@ -66,6 +67,9 @@ export interface Post {
   mediaHeight?: number | null;
   statsLine?: string;
   visibility?: 'public' | 'followers' | 'group';
+  locationLabel?: string | null;
+  mentionedUserIds?: ID[];
+  mentionedUsers?: UserProfile[];
   eventTeaser?: EventTeaser;
   likedByMe: boolean;
   savedByMe: boolean;

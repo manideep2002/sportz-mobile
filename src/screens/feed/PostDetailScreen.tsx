@@ -207,7 +207,12 @@ export function PostDetailScreen() {
         }}
         onReport={reportPost}
         onEdit={() => {
-          if (post) navigation.navigate('CreatePost', { editPostId: post.id });
+          if (post) {
+            navigation.navigate('CreatePost', {
+              editPostId: post.id,
+              communityId: post.communityId ?? undefined
+            });
+          }
         }}
         onDelete={() => {
           if (post) {

@@ -222,7 +222,12 @@ export function FeedScreen() {
           if (activeOptionsPost) reportPost(activeOptionsPost);
         }}
         onEdit={() => {
-          if (activeOptionsPost) navigation.navigate('CreatePost', { editPostId: activeOptionsPost.id });
+          if (activeOptionsPost) {
+            navigation.navigate('CreatePost', {
+              editPostId: activeOptionsPost.id,
+              communityId: activeOptionsPost.communityId ?? undefined
+            });
+          }
         }}
         onDelete={() => {
           if (activeOptionsPost) deletePostMutation.mutate(activeOptionsPost.id);

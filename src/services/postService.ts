@@ -4,7 +4,7 @@ import { feedDedupeService } from '@/services/feedDedupeService';
 import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
-import type { Comment, Post } from '@/types/domain';
+import type { Comment, Post, UserProfile } from '@/types/domain';
 import { createUuid } from '@/utils/uuid';
 import type * as ImagePicker from 'expo-image-picker';
 
@@ -19,10 +19,17 @@ export interface CreatePostInput {
   visibility?: 'public' | 'followers' | 'group';
   communityId?: string;
   mentionedUserIds?: string[];
+  locationLabel?: string | null;
 }
 
-export type UpdatePostInput = Partial<Pick<CreatePostInput, 'body' | 'sport' | 'kind' | 'statsLine'>> & {
+export type UpdatePostInput = Pick<CreatePostInput, 'body' | 'sport'> & Partial<Pick<CreatePostInput, 'kind' | 'statsLine'>> & {
   visibility?: 'public' | 'followers' | 'group';
+  communityId?: string | null;
+  mediaAsset?: ImagePicker.ImagePickerAsset | null;
+  mediaKind?: Post['mediaKind'];
+  removeMedia?: boolean;
+  mentionedUserIds?: string[];
+  locationLabel?: string | null;
 };
 
 export interface FeedPage {
@@ -60,6 +67,7 @@ interface EmbeddedProfile {
 interface PostRow {
   id: string;
   author_id: string;
+  community_id: string | null;
   kind: Post['kind'] | null;
   sport: string | null;
   body: string;
@@ -72,6 +80,7 @@ interface PostRow {
   media_processing_status?: 'processing' | 'ready' | 'failed' | null;
   stats_line: string | null;
   visibility: Post['visibility'] | null;
+  location_label?: string | null;
   created_at: string;
   /** Supabase returns the joined relation as `profiles` when using `profiles:author_id(*)`. */
   profiles: EmbeddedProfile | null;
@@ -84,9 +93,19 @@ interface PostRow {
   shares_count?: number | null;
 }
 
+interface PostMentionRow {
+  mentioned_user_id: string;
+  profiles: EmbeddedProfile | null;
+}
+
 type HomeFeedRow = Omit<PostRow, 'profiles'> & {
   profiles?: null;
 };
+
+type HomeFeedContextRow = Pick<
+  PostRow,
+  'id' | 'community_id' | 'location_label' | 'media_storage_path' | 'media_processing_status'
+>;
 
 const POST_CACHE_TTL_MS = 1000 * 45;
 const ACTIVE_TIMELINE_RETENTION_MS = 1000 * 60 * 60 * 24 * 30;
@@ -130,7 +149,11 @@ interface PostShareRow {
   post_id: string;
 }
 
-const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
+const mapPostRow = (
+  row: PostRow,
+  engagement: PostEngagement,
+  mentionedUsers: UserProfile[] = []
+): Post => ({
   id: row.id,
   author: mapProfileRow(row.profiles ?? {
     id: row.author_id,
@@ -138,6 +161,7 @@ const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
     username: row.username ?? null,
     avatar_url: row.avatar_url ?? null
   }),
+  communityId: row.community_id,
   kind: row.kind ?? 'post',
   sport: row.sport ?? 'Basketball',
   body: row.body,
@@ -149,6 +173,9 @@ const mapPostRow = (row: PostRow, engagement: PostEngagement): Post => ({
   mediaHeight: row.media_height ?? null,
   statsLine: row.stats_line ?? undefined,
   visibility: row.visibility ?? 'public',
+  locationLabel: row.location_label ?? null,
+  mentionedUserIds: mentionedUsers.map((profile) => profile.id),
+  mentionedUsers,
   likedByMe: engagement.likedByMe.has(row.id),
   savedByMe: engagement.savedByMe.has(row.id),
   likes: engagement.likes.get(row.id) ?? row.likes_count ?? 0,
@@ -217,6 +244,21 @@ const loadPostEngagement = async (postIds: string[]): Promise<PostEngagement> =>
   }
 
   return engagement;
+};
+
+const loadPostMentions = async (postId: string): Promise<UserProfile[]> => {
+  const { data, error } = await supabase
+    .from('post_mentions')
+    .select('mentioned_user_id, profiles:mentioned_user_id(*)')
+    .eq('post_id', postId);
+  if (error) {
+    if (error.code === '42P01') return [];
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as PostMentionRow[]).map((row) =>
+    mapProfileRow(row.profiles ?? { id: row.mentioned_user_id })
+  );
 };
 
 const loadCommentEngagement = async (commentIds: string[]): Promise<CommentEngagement> => {
@@ -309,8 +351,20 @@ const listCachedHomeFeedPage = async (cursor?: string, limit = 10): Promise<Feed
     throw error;
   }
 
-  const rows = ((data ?? []) as HomeFeedRow[]).map((row) => ({
+  const cachedRows = (data ?? []) as HomeFeedRow[];
+  const { data: contextData, error: contextError } = cachedRows.length
+    ? await supabase
+        .from('posts')
+        .select('id, community_id, location_label, media_storage_path, media_processing_status')
+        .in('id', cachedRows.map((row) => row.id))
+    : { data: [], error: null };
+  if (contextError) throw contextError;
+  const contextByPostId = new Map(
+    ((contextData ?? []) as HomeFeedContextRow[]).map((row) => [row.id, row])
+  );
+  const rows = cachedRows.map((row) => ({
     ...row,
+    ...contextByPostId.get(row.id),
     profiles: null
   })) as PostRow[];
 
@@ -356,8 +410,11 @@ const loadPost = async (postId: string): Promise<Post> => {
     .single();
   if (error) throw error;
 
-  const engagement = await loadPostEngagement([data.id]);
-  return mapPostRow(data as unknown as PostRow, engagement);
+  const [engagement, mentionedUsers] = await Promise.all([
+    loadPostEngagement([data.id]),
+    loadPostMentions(data.id)
+  ]);
+  return mapPostRow(data as unknown as PostRow, engagement, mentionedUsers);
 };
 
 const invalidatePostCache = (postId: string) => hotCacheService.invalidateByPrefix(postCachePrefix(postId));
@@ -414,6 +471,11 @@ export const postService = {
     });
   },
 
+  async getPostForEdit(postId: string): Promise<Post> {
+    assertSupabaseConfigured();
+    return loadPost(postId);
+  },
+
   async createPost(input: CreatePostInput): Promise<Post> {
     assertSupabaseConfigured();
 
@@ -448,18 +510,21 @@ export const postService = {
         media_height: mediaHeight,
         media_processing_status: mediaUpload ? 'processing' : 'ready',
         stats_line: input.statsLine ?? null,
-        // When a communityId is provided, default visibility to 'group'
-        // so posts are community-scoped by default. The caller (UI) may
-        // override with an explicit 'public' value if desired.
         visibility: input.communityId
           ? (input.visibility ?? 'group')
           : (input.visibility ?? 'public'),
-        community_id: input.communityId ?? null
+        community_id: input.communityId ?? null,
+        location_label: input.locationLabel?.trim() || null
       })
       .select('*, profiles:author_id(*)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (mediaUpload?.objectName) {
+        await storageService.removePostMedia(mediaUpload.objectName).catch(() => undefined);
+      }
+      throw error;
+    }
     if ((input.kind ?? 'post') === 'stats') {
       await updateProfileStatsFromPosts(authData.user.id);
     }
@@ -478,7 +543,8 @@ export const postService = {
       if (mentionError && mentionError.code !== '42P01') throw mentionError;
     }
 
-    const post = mapPostRow(data as unknown as PostRow, emptyEngagement());
+    const mentionedUsers = mentionedUserIds.length ? await loadPostMentions(data.id) : [];
+    const post = mapPostRow(data as unknown as PostRow, emptyEngagement(), mentionedUsers);
     await hotCacheService.set(postCacheKey(post.id, authData.user.id), post, { ttlMs: POST_CACHE_TTL_MS });
     await hotCacheService.invalidate(profileCacheKey(authData.user.id));
     return post;
@@ -491,40 +557,122 @@ export const postService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to edit posts.');
 
-    const updateData: Partial<{
-      body: string;
-      sport: string;
-      kind: Post['kind'];
-      stats_line: string | null;
-      visibility: 'public' | 'followers' | 'group';
-      updated_at: string;
-    }> = {
-      updated_at: new Date().toISOString()
-    };
-    if (input.body !== undefined) updateData.body = input.body;
-    if (input.sport !== undefined) updateData.sport = input.sport;
-    if (input.kind !== undefined) updateData.kind = input.kind;
-    if (input.statsLine !== undefined) updateData.stats_line = input.statsLine ?? null;
-    if (input.visibility !== undefined) updateData.visibility = input.visibility;
-
-    const { data, error } = await supabase
+    const { data: originalData, error: originalError } = await supabase
       .from('posts')
-      .update(updateData)
+      .select('*, profiles:author_id(*)')
       .eq('id', postId)
       .eq('author_id', authData.user.id)
-      .select('*, profiles:author_id(*)')
       .single();
-    if (error) throw error;
+    if (originalError) throw originalError;
 
-    if (input.kind === 'stats' || input.statsLine !== undefined) {
-      await updateProfileStatsFromPosts(authData.user.id);
+    const originalRow = originalData as unknown as PostRow;
+    const originalMediaStoragePath = originalRow.media_storage_path ??
+      storageService.postMediaObjectNameFromUrl(originalRow.media_url);
+    if (
+      input.communityId !== undefined &&
+      input.communityId !== originalRow.community_id
+    ) {
+      throw new Error('A post cannot be moved into or out of a community.');
     }
 
-    const engagement = await loadPostEngagement([postId]);
-    const post = mapPostRow(data as unknown as PostRow, engagement);
+    const visibility = input.visibility ?? originalRow.visibility ?? 'public';
+    if (originalRow.community_id && originalRow.visibility === 'group' && visibility !== 'group') {
+      throw new Error('A group post must remain visible only to its community.');
+    }
+
+    const [engagement, originalMentionedUsers] = await Promise.all([
+      loadPostEngagement([postId]),
+      loadPostMentions(postId)
+    ]);
+    const mentionedUserIds = Array.from(new Set(
+      input.mentionedUserIds ?? originalMentionedUsers.map((profile) => profile.id)
+    )).filter((userId) => userId && userId !== authData.user?.id);
+
+    let replacementUpload: Awaited<ReturnType<typeof storageService.uploadPostMediaResumable>> | null = null;
+    if (input.mediaAsset) {
+      storageService.validateMediaAsset(input.mediaAsset);
+      replacementUpload = await storageService.uploadPostMediaResumable(
+        input.mediaAsset,
+        authData.user.id
+      );
+    }
+
+    const mediaRemoved = input.removeMedia === true;
+    const mediaUrl = mediaRemoved
+      ? null
+      : replacementUpload?.publicUrl ?? originalRow.media_url;
+    const mediaStoragePath = mediaRemoved
+      ? null
+      : replacementUpload?.objectName ?? originalRow.media_storage_path ?? null;
+    const mediaKind = mediaRemoved
+      ? 'none'
+      : input.mediaAsset
+        ? (input.mediaKind ?? (input.mediaAsset.type === 'video' ? 'video' : 'image'))
+        : originalRow.media_kind ?? 'none';
+    const mediaWidth = mediaRemoved
+      ? null
+      : input.mediaAsset?.width ?? originalRow.media_width ?? null;
+    const mediaHeight = mediaRemoved
+      ? null
+      : input.mediaAsset?.height ?? originalRow.media_height ?? null;
+
+    const { data, error } = await supabase.rpc('update_post_content', {
+      target_post_id: postId,
+      target_body: input.body,
+      target_sport: input.sport,
+      target_kind: input.kind ?? originalRow.kind ?? 'post',
+      target_stats_line: input.statsLine ?? originalRow.stats_line,
+      target_visibility: visibility,
+      target_media_url: mediaUrl,
+      target_media_kind: mediaKind,
+      target_media_storage_path: mediaStoragePath,
+      target_media_width: mediaWidth,
+      target_media_height: mediaHeight,
+      target_media_processing_status: replacementUpload
+        ? 'processing'
+        : originalRow.media_processing_status ?? 'ready',
+      target_location_label: input.locationLabel ?? originalRow.location_label ?? null,
+      target_mentioned_user_ids: mentionedUserIds
+    });
+    if (error) {
+      if (replacementUpload?.objectName) {
+        await storageService.removePostMedia(replacementUpload.objectName).catch(() => undefined);
+      }
+      throw error;
+    }
+
+    const updatedRow = {
+      ...(data as unknown as PostRow),
+      profiles: originalRow.profiles
+    };
+
+    if (input.kind === 'stats' || input.statsLine !== undefined) {
+      await updateProfileStatsFromPosts(authData.user.id).catch(() => undefined);
+    }
+
+    const { data: mentionedData, error: mentionedError } = await supabase
+      .from('post_mentions')
+      .select('mentioned_user_id, profiles:mentioned_user_id(*)')
+      .eq('post_id', postId);
+    const mentionedUsers = mentionedError
+      ? originalMentionedUsers.filter((profile) => mentionedUserIds.includes(profile.id))
+      : ((mentionedData ?? []) as unknown as PostMentionRow[]).map((row) =>
+          mapProfileRow(row.profiles ?? { id: row.mentioned_user_id })
+        );
+    const post = mapPostRow(updatedRow, engagement, mentionedUsers);
     await invalidatePostCache(postId);
     await hotCacheService.set(postCacheKey(postId, authData.user.id), post, { ttlMs: POST_CACHE_TTL_MS });
     await hotCacheService.invalidate(profileCacheKey(authData.user.id));
+
+    const replacedExistingMedia = replacementUpload || mediaRemoved;
+    if (
+      replacedExistingMedia &&
+      originalMediaStoragePath &&
+      originalMediaStoragePath !== mediaStoragePath
+    ) {
+      await storageService.removePostMedia(originalMediaStoragePath).catch(() => undefined);
+    }
+
     return post;
   },
 

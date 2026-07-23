@@ -20,6 +20,7 @@ export const feedKeys = {
   infiniteRoot: infiniteFeedRoot,
   infinite: (viewerId: string) => [...infiniteFeedRoot, viewerId] as const,
   post: (id: string) => ['post', id] as const,
+  editablePost: (id: string) => ['post', 'edit', id] as const,
   comments: (postId: string) => ['comments', postId] as const,
   userPosts: (userId: string) => ['feed', 'user', userId] as const,
   communityPosts: (communityId: string) => ['feed', 'community', communityId] as const,
@@ -60,6 +61,13 @@ export const usePost = (postId: string) =>
   useQuery({
     queryKey: feedKeys.post(postId),
     queryFn: () => postService.getPost(postId),
+    enabled: Boolean(postId)
+  });
+
+export const useEditablePost = (postId: string) =>
+  useQuery({
+    queryKey: feedKeys.editablePost(postId),
+    queryFn: () => postService.getPostForEdit(postId),
     enabled: Boolean(postId)
   });
 
@@ -121,6 +129,7 @@ export const useUpdatePost = () => {
       postService.updatePost(postId, input),
     onSuccess: (post) => {
       patchPostEverywhere(queryClient, post.id, () => post);
+      queryClient.setQueryData(feedKeys.editablePost(post.id), post);
     }
   });
 };

@@ -97,7 +97,7 @@ export function PostOptionsSheet({
   if (isOwnPost) {
     options.push({
       label: 'Edit',
-      detail: 'Update post text, sport, visibility, or stat line',
+      detail: 'Update post text, media, tags, location, sport, or visibility',
       icon: Edit3,
       onPress: () => {
         onClose();

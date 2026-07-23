@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { MessageCircle, Share2, MoreHorizontal, Play, Bookmark } from 'lucide-react-native';
+import { Bookmark, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
 import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
@@ -78,6 +78,12 @@ function PostCardComponent({
           <AppText variant="bodyMuted" style={styles.body}>
             {post.body}
           </AppText>
+          {post.locationLabel ? (
+            <View style={styles.location}>
+              <MapPin size={14} color={colors.text.tertiary} />
+              <AppText variant="small">{post.locationLabel}</AppText>
+            </View>
+          ) : null}
           {post.kind === 'stats' && post.statsLine ? (
             <View style={styles.statsLine}>
               <AppText style={styles.statsLineText}>{post.statsLine}</AppText>
@@ -227,6 +233,13 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: 14,
     paddingTop: 10
+  },
+  location: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm
   },
   statsLine: {
     marginHorizontal: 14,
