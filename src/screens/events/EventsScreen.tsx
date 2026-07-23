@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw } from 'lucide-react-native';
@@ -10,10 +10,9 @@ import { EventCard } from '@/components/events/EventCard';
 import { AppRefreshControl, AppText, Button, Card, SectionHeader, Screen, IconButton } from '@/components/ui';
 
 import { colors, radii, spacing, typography } from '@/design/tokens';
-import { useEvents, useJoinEvent } from '@/hooks/useEvents';
+import { useEventParticipationBatch, useEvents, useJoinEvent, useLeaveEventWaitlist } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
-import type { Sport } from '@/types/domain';
-import { eventService } from '@/services/eventService';
+import type { EventParticipationStatus, Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -25,55 +24,85 @@ function buildWeekDays() {
   return Array.from({ length: 7 }, (_, i) => addDays(today, i));
 }
 
+const participationLabel = (status: EventParticipationStatus) => {
+  switch (status) {
+    case 'going':
+      return 'Going';
+    case 'waitlisted':
+      return 'Waitlisted';
+    case 'interested':
+      return 'Interested';
+    case 'declined':
+      return 'Declined';
+    default:
+      return null;
+  }
+};
+
 export function EventsScreen() {
   const navigation = useNavigation<Navigation>();
   const { data: events = [], isLoading, isError, refetch, isRefetching } = useEvents();
   const joinEvent = useJoinEvent();
+  const leaveWaitlist = useLeaveEventWaitlist();
+  const {
+    data: participationByEvent = {},
+    isRefetching: participationRefetching,
+    refetch: refetchParticipation
+  } = useEventParticipationBatch(events.map((event) => event.id));
 
   const weekDays = buildWeekDays();
   const [selectedDay, setSelectedDay] = useState<Date>(weekDays[0]);
   const [selectedSport, setSelectedSport] = useState<Sport | 'All'>('All');
-  const [joinedEventIds, setJoinedEventIds] = useState<Set<string>>(new Set());
-  const [waitlistedEventIds, setWaitlistedEventIds] = useState<Set<string>>(new Set());
-  const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
+  const [participationActionEventId, setParticipationActionEventId] = useState<string | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
-  // Check attendance status for all events — single batched DB query instead
-  // of one round-trip per event, which was causing the UI to appear stuck.
-  useEffect(() => {
-    if (!events.length) return;
-    const checkAttendance = async () => {
-      try {
-        const joined = await eventService.checkUserAttendanceBatch(events.map((e) => e.id));
-        setJoinedEventIds(joined);
-      } catch {
-        // Non-fatal — attendance indicators just won't show
+  const leaveEventWaitlist = (eventId: string) => {
+    Alert.alert('Leave waitlist', 'You will lose your current place in the queue.', [
+      { text: 'Keep Place', style: 'cancel' },
+      {
+        text: 'Leave Waitlist',
+        style: 'destructive',
+        onPress: async () => {
+          setParticipationActionEventId(eventId);
+          try {
+            await leaveWaitlist.mutateAsync(eventId);
+            Alert.alert('Waitlist left', 'You are no longer waiting for this event.');
+          } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave the waitlist');
+          } finally {
+            setParticipationActionEventId(null);
+          }
+        }
       }
-    };
-    void checkAttendance();
-  }, [events]);
+    ]);
+  };
 
-  const handleJoin = async (eventId: string) => {
-    if (joinedEventIds.has(eventId) || waitlistedEventIds.has(eventId) || joiningEventId) return;
-    setJoiningEventId(eventId);
+  const handleParticipationAction = async (eventId: string) => {
+    if (participationActionEventId) return;
+    const currentStatus = participationByEvent[eventId] ?? 'none';
+    if (currentStatus === 'waitlisted') {
+      leaveEventWaitlist(eventId);
+      return;
+    }
+    if (currentStatus !== 'none') return;
+
+    setParticipationActionEventId(eventId);
     try {
       const result = await joinEvent.mutateAsync(eventId);
       if (result === 'waitlisted') {
-        setWaitlistedEventIds((prev) => new Set([...prev, eventId]));
-        Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
+        Alert.alert('Added to waitlist', 'You will be promoted automatically if a spot opens.');
       } else {
-        setJoinedEventIds((prev) => new Set([...prev, eventId]));
         Alert.alert('Joined event', 'You are on the attendee list.');
       }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
     } finally {
-      setJoiningEventId(null);
+      setParticipationActionEventId(null);
     }
   };
 
   const handleRefresh = () => {
-    void refetch();
+    void Promise.all([refetch(), refetchParticipation()]);
   };
 
   /* Filter events by selected sport */
@@ -95,7 +124,7 @@ export function EventsScreen() {
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl
-          refreshing={isRefetching}
+          refreshing={isRefetching || participationRefetching}
           onRefresh={handleRefresh}
         />
       }
@@ -105,7 +134,7 @@ export function EventsScreen() {
           Events<AppText variant="h2" color={colors.orange[500]}>.</AppText>
         </AppText>
         <View style={styles.headerActions}>
-          {isRefetching ? (
+          {isRefetching || participationRefetching ? (
             <ActivityIndicator size="small" color={colors.orange[500]} style={{ marginRight: 8 }} />
           ) : (
             <IconButton icon={RefreshCw} onPress={handleRefresh} />
@@ -193,11 +222,10 @@ export function EventsScreen() {
           <EventCard
             key={event.id}
             event={event}
-            joined={joinedEventIds.has(event.id)}
-            waitlisted={waitlistedEventIds.has(event.id)}
-            joining={joiningEventId === event.id}
+            participationStatus={participationByEvent[event.id] ?? 'none'}
+            actionPending={participationActionEventId === event.id}
             onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
-            onJoin={() => handleJoin(event.id)}
+            onParticipationAction={() => handleParticipationAction(event.id)}
           />
         ))}
       </View>
@@ -233,6 +261,24 @@ export function EventsScreen() {
                     <AppText variant="small">{event.eventType}</AppText>
                     <AppText variant="small">{event.locationName}</AppText>
                     <AppText style={styles.upcomingDate}>{format(new Date(event.startsAt), 'EEE, MMM d')}</AppText>
+                    {participationLabel(participationByEvent[event.id] ?? 'none') ? (
+                      <AppText style={styles.participationStatus}>
+                        {participationLabel(participationByEvent[event.id] ?? 'none')}
+                      </AppText>
+                    ) : null}
+                    {participationByEvent[event.id] === 'waitlisted' ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        loading={participationActionEventId === event.id}
+                        onPress={(pressEvent) => {
+                          pressEvent.stopPropagation();
+                          void handleParticipationAction(event.id);
+                        }}
+                      >
+                        Leave Waitlist
+                      </Button>
+                    ) : null}
                     <AppText style={styles.slots}>{Math.max(0, event.maxPlayers - event.playerCount)} slots left</AppText>
                   </View>
                 </Card>
@@ -364,6 +410,12 @@ const styles = StyleSheet.create({
   },
   upcomingDate: {
     color: colors.text.tertiary,
+    fontSize: 11,
+    marginTop: 2
+  },
+  participationStatus: {
+    color: colors.semantic.success,
+    fontFamily: typography.bodyBold,
     fontSize: 11,
     marginTop: 2
   },

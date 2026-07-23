@@ -3,26 +3,36 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
 import { eventVisibilityLabel } from '@/constants/events';
 import { colors, spacing, typography } from '@/design/tokens';
-import type { SportEvent } from '@/types/domain';
+import type { EventParticipationStatus, SportEvent } from '@/types/domain';
 import { eventDate, formatTime } from '@/utils/format';
 
 interface EventCardProps {
   event: SportEvent;
-  joined?: boolean;
-  waitlisted?: boolean;
-  joining?: boolean;
+  participationStatus?: EventParticipationStatus;
+  actionPending?: boolean;
   onPress?: () => void;
-  onJoin?: () => void;
+  onParticipationAction?: () => void;
 }
 
-export function EventCard({ event, joined = false, waitlisted = false, joining = false, onPress, onJoin }: EventCardProps) {
+export function EventCard({
+  event,
+  participationStatus = 'none',
+  actionPending = false,
+  onPress,
+  onParticipationAction
+}: EventCardProps) {
   const color = event.sport === 'Football' ? colors.semantic.success : colors.orange[500];
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
-  const canJoin = !joined && !waitlisted && (event.status === 'open' || event.status === 'full');
-  const actionLabel = joined
+  const canJoin = participationStatus === 'none' && (event.status === 'open' || event.status === 'full');
+  const canLeaveWaitlist = participationStatus === 'waitlisted';
+  const actionLabel = participationStatus === 'going'
     ? 'Joined'
-    : waitlisted
-      ? 'Waitlisted'
+    : participationStatus === 'waitlisted'
+      ? 'Leave Waitlist'
+      : participationStatus === 'interested'
+        ? 'Interested'
+        : participationStatus === 'declined'
+          ? 'Declined'
       : isFull
         ? 'Join Waitlist'
         : event.status === 'cancelled'
@@ -75,25 +85,19 @@ export function EventCard({ event, joined = false, waitlisted = false, joining =
                 </View>
               ))}
             </View>
-            {joined || waitlisted ? (
-              <Button size="sm" variant="dark" disabled style={styles.join}>
-                {actionLabel}
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant={isFull ? 'ghost' : 'primary'}
-                loading={joining}
-                disabled={!canJoin}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onJoin?.();
-                }}
-                style={styles.join}
-              >
-                {actionLabel}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant={canLeaveWaitlist || isFull ? 'ghost' : participationStatus === 'none' ? 'primary' : 'dark'}
+              loading={actionPending}
+              disabled={!canJoin && !canLeaveWaitlist}
+              onPress={(event) => {
+                event.stopPropagation();
+                onParticipationAction?.();
+              }}
+              style={styles.join}
+            >
+              {actionLabel}
+            </Button>
           </View>
         </View>
       </Card>

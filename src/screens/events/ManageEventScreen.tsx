@@ -9,7 +9,15 @@ import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, Input, Ve
 
 import { eventTypes, eventVisibilityOptions } from '@/constants/events';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useCancelEvent, useEvent, useEventWaitlist, useRemoveEventAttendee, useUpdateEvent } from '@/hooks/useEvents';
+import {
+  useCancelEvent,
+  useEvent,
+  useEventWaitlist,
+  usePromoteEventWaitlistUser,
+  useRemoveEventAttendee,
+  useRemoveEventWaitlistUser,
+  useUpdateEvent
+} from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { EventType, EventVisibility } from '@/types/domain';
 
@@ -29,6 +37,8 @@ export function ManageEventScreen() {
   const updateEvent = useUpdateEvent();
   const cancelEvent = useCancelEvent();
   const removeAttendee = useRemoveEventAttendee();
+  const removeWaitlistUser = useRemoveEventWaitlistUser();
+  const promoteWaitlistUser = usePromoteEventWaitlistUser();
   const [title, setTitle] = useState(event?.title ?? '');
   const [eventType, setEventType] = useState<EventType>(event?.eventType ?? eventTypes[0]);
   const [visibility, setVisibility] = useState<EventVisibility>(event?.visibility ?? 'public');
@@ -133,6 +143,34 @@ export function ManageEventScreen() {
     ]);
   };
 
+  const promoteWaitlistedUser = async (userId: string) => {
+    if (!event) return;
+    try {
+      await promoteWaitlistUser.mutateAsync({ eventId: event.id, userId });
+      Alert.alert('Player promoted', 'The player is now going and has been notified.');
+    } catch (error) {
+      Alert.alert('Promotion failed', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const confirmRemoveWaitlistedUser = (userId: string, displayName: string) => {
+    if (!event) return;
+    Alert.alert('Remove from waitlist', `Remove ${displayName} from this event's waitlist?`, [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await removeWaitlistUser.mutateAsync({ eventId: event.id, userId });
+          } catch (error) {
+            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }
+      }
+    ]);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -227,6 +265,9 @@ export function ManageEventScreen() {
               </View>
             ))}
             <AppText variant="h4">Waitlist</AppText>
+            <AppText variant="bodyMuted">
+              Departures promote the longest-waiting eligible player automatically. Manual promotion is available only when a space is open.
+            </AppText>
             {waitlistIsError ? (
               <View style={styles.state}>
                 <AppText variant="bodyMuted">Could not load the waitlist.</AppText>
@@ -242,6 +283,30 @@ export function ManageEventScreen() {
                 <View style={{ flex: 1 }}>
                   <VerifiedName profile={entry.user} style={styles.attendeeName} numberOfLines={1} />
                   <AppText variant="small">@{entry.user.username}</AppText>
+                </View>
+                <View style={styles.waitlistActions}>
+                  <Button
+                    size="sm"
+                    disabled={event.playerCount >= event.maxPlayers}
+                    loading={
+                      promoteWaitlistUser.isPending
+                      && promoteWaitlistUser.variables?.userId === entry.user.id
+                    }
+                    onPress={() => void promoteWaitlistedUser(entry.user.id)}
+                  >
+                    Promote
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={
+                      removeWaitlistUser.isPending
+                      && removeWaitlistUser.variables?.userId === entry.user.id
+                    }
+                    onPress={() => confirmRemoveWaitlistedUser(entry.user.id, entry.user.displayName)}
+                  >
+                    Remove
+                  </Button>
                 </View>
               </View>
             ))}
@@ -311,5 +376,9 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 14
+  },
+  waitlistActions: {
+    alignItems: 'flex-end',
+    gap: spacing.xs
   }
 });

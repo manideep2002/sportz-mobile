@@ -3,7 +3,7 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { EventCreateVisibility } from '@/constants/events';
-import type { EventMessage, EventType, EventVisibility, SportEvent } from '@/types/domain';
+import type { EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
   title: string;
@@ -115,6 +115,19 @@ const entryFeeLabel = (currency: string | null | undefined, cents: number | null
     minimumFractionDigits: feeCents % 100 === 0 ? 0 : 2
   })}`;
 };
+
+const participationStatuses = new Set<EventParticipationStatus>([
+  'none',
+  'going',
+  'interested',
+  'declined',
+  'waitlisted'
+]);
+
+const participationStatus = (value: unknown): EventParticipationStatus =>
+  typeof value === 'string' && participationStatuses.has(value as EventParticipationStatus)
+    ? (value as EventParticipationStatus)
+    : 'none';
 
 const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent['attendees'] = []): SportEvent => ({
   id: row.id,
@@ -242,7 +255,7 @@ export const eventService = {
     return eventService.getEvent(eventId);
   },
 
-  async joinEvent(eventId: string): Promise<'joined' | 'waitlisted'> {
+  async joinEvent(eventId: string): Promise<'going' | 'waitlisted'> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -253,7 +266,7 @@ export const eventService = {
       target_event_id: eventId
     });
     if (error) throw error;
-    return data === 'waitlisted' ? 'waitlisted' : 'joined';
+    return data === 'waitlisted' ? 'waitlisted' : 'going';
   },
 
   async rsvpEvent(eventId: string, status: 'going' | 'interested' | 'declined'): Promise<void> {
@@ -263,10 +276,9 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to RSVP.');
 
-    const { error } = await supabase.from('event_attendees').upsert({
-      event_id: eventId,
-      user_id: authData.user.id,
-      status
+    const { error } = await supabase.rpc('set_sport_event_rsvp', {
+      target_event_id: eventId,
+      target_status: status
     });
     if (error) throw error;
   },
@@ -284,10 +296,43 @@ export const eventService = {
     if (error) throw error;
   },
 
+  async leaveEventWaitlist(eventId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('You must be signed in to leave an event waitlist.');
+
+    const { error } = await supabase.rpc('leave_event_waitlist', {
+      target_event_id: eventId
+    });
+    if (error) throw error;
+  },
+
   async removeAttendee(eventId: string, userId: string): Promise<void> {
     assertSupabaseConfigured();
 
     const { error } = await supabase.rpc('remove_event_attendee', {
+      target_event_id: eventId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async removeWaitlistUser(eventId: string, userId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('remove_event_waitlist_user', {
+      target_event_id: eventId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async promoteWaitlistUser(eventId: string, userId: string): Promise<void> {
+    assertSupabaseConfigured();
+
+    const { error } = await supabase.rpc('promote_event_waitlist_user', {
       target_event_id: eventId,
       target_user_id: userId
     });
@@ -375,45 +420,49 @@ export const eventService = {
     if (error) throw error;
   },
 
-  async checkUserAttendance(eventId: string): Promise<'going' | 'interested' | 'declined' | null> {
+  async checkUserParticipation(eventId: string): Promise<EventParticipationStatus> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
-    if (!authData.user) return null;
+    if (!authData.user) return 'none';
 
-    const { data, error } = await supabase
-      .from('event_attendees')
-      .select('status')
-      .eq('event_id', eventId)
-      .eq('user_id', authData.user.id)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('get_event_participation_status', {
+      target_event_id: eventId
+    });
 
     if (error) throw error;
-    return data?.status as 'going' | 'interested' | 'declined' | null;
+    return participationStatus(data);
   },
 
   /**
-   * Batch version of checkUserAttendance — single DB round-trip for any number
-   * of events. Returns a Set of event IDs the current user is attending.
+   * Batch participation lookup. The serializable record is safe for the
+   * persisted React Query cache.
    */
-  async checkUserAttendanceBatch(eventIds: string[]): Promise<Set<string>> {
+  async checkUserParticipationBatch(eventIds: string[]): Promise<Record<string, EventParticipationStatus>> {
     assertSupabaseConfigured();
-    if (!eventIds.length) return new Set();
+    const uniqueEventIds = Array.from(new Set(eventIds));
+    const statuses = Object.fromEntries(
+      uniqueEventIds.map((eventId) => [eventId, 'none' as EventParticipationStatus])
+    );
+    if (!uniqueEventIds.length) return statuses;
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
-    if (!authData.user) return new Set();
+    if (!authData.user) return statuses;
 
-    const { data, error } = await supabase
-      .from('event_attendees')
-      .select('event_id')
-      .eq('user_id', authData.user.id)
-      .eq('status', 'going')
-      .in('event_id', eventIds);
+    const { data, error } = await supabase.rpc('get_event_participation_statuses', {
+      target_event_ids: uniqueEventIds
+    });
 
     if (error) throw error;
-    return new Set((data ?? []).map((row: { event_id: string }) => row.event_id));
+    (data ?? []).forEach((row: unknown) => {
+      const result = row as { event_id?: unknown; participation_status?: unknown };
+      if (typeof result.event_id === 'string' && result.event_id in statuses) {
+        statuses[result.event_id] = participationStatus(result.participation_status);
+      }
+    });
+    return statuses;
   },
 
   async listEventMessages(eventId: string): Promise<EventMessage[]> {

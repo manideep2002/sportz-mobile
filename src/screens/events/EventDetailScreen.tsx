@@ -11,7 +11,13 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, Pr
 import { eventPaymentNotice, eventVisibilityLabel } from '@/constants/events';
 import { CourtArt } from '@/components/feed/CourtArt';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useEvent, useJoinEvent, useLeaveEvent, useCheckAttendance } from '@/hooks/useEvents';
+import {
+  useEvent,
+  useEventParticipation,
+  useJoinEvent,
+  useLeaveEvent,
+  useLeaveEventWaitlist
+} from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventDate, formatTime } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
@@ -26,14 +32,14 @@ export function EventDetailScreen() {
   const route = useRoute<Route>();
   const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
   const {
-    data: attendanceStatus,
-    isRefetching: attendanceRefetching,
-    refetch: refetchAttendance
-  } = useCheckAttendance(route.params.eventId);
+    data: participationStatus = 'none',
+    isRefetching: participationRefetching,
+    refetch: refetchParticipation
+  } = useEventParticipation(route.params.eventId);
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
+  const leaveWaitlist = useLeaveEventWaitlist();
   const profile = useAuthStore((state) => state.profile);
-  const [isJoining, setIsJoining] = useState(false);
   const [useRawCover, setUseRawCover] = useState(false);
 
   useEffect(() => {
@@ -42,20 +48,36 @@ export function EventDetailScreen() {
 
   const handleJoin = async () => {
     if (!event) return;
-    setIsJoining(true);
     try {
       const result = await joinEvent.mutateAsync(event.id);
       if (result === 'waitlisted') {
-        Alert.alert('Added to waitlist', 'You will be promoted if a spot opens.');
+        Alert.alert('Added to waitlist', 'You will be promoted automatically if a spot opens.');
       } else {
         Alert.alert('Joined event', 'You are on the attendee list.');
       }
-      await Promise.all([refetch(), refetchAttendance()]);
+      await Promise.all([refetch(), refetchParticipation()]);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
-    } finally {
-      setIsJoining(false);
     }
+  };
+
+  const handleLeaveWaitlist = () => {
+    if (!event) return;
+    Alert.alert('Leave waitlist', 'You will lose your current place in the queue.', [
+      { text: 'Keep Place', style: 'cancel' },
+      {
+        text: 'Leave Waitlist',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await leaveWaitlist.mutateAsync(event.id);
+            Alert.alert('Waitlist left', 'You are no longer waiting for this event.');
+          } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave the waitlist');
+          }
+        }
+      }
+    ]);
   };
 
   const handleLeave = async () => {
@@ -132,9 +154,11 @@ export function EventDetailScreen() {
   }
 
   const isOrganizer = profile?.id === event.organizer.id;
-  const hasJoined = attendanceStatus === 'going';
+  const hasJoined = participationStatus === 'going';
+  const isWaitlisted = participationStatus === 'waitlisted';
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
-  const canJoin = !hasJoined && (event.status === 'open' || event.status === 'full');
+  const canJoin = ['none', 'interested', 'declined'].includes(participationStatus)
+    && (event.status === 'open' || event.status === 'full');
   const optimizedCoverUrl = mediaVariants.eventCover(event.coverUrl);
   const coverImageUrl = useRawCover ? event.coverUrl : optimizedCoverUrl ?? event.coverUrl;
   const feeDescription = event.entryFeeCents > 0
@@ -146,8 +170,8 @@ export function EventDetailScreen() {
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl
-          refreshing={isRefetching || attendanceRefetching}
-          onRefresh={() => void Promise.all([refetch(), refetchAttendance()])}
+          refreshing={isRefetching || participationRefetching}
+          onRefresh={() => void Promise.all([refetch(), refetchParticipation()])}
         />
       }
     >
@@ -183,6 +207,7 @@ export function EventDetailScreen() {
           <Badge tone={event.visibility === 'public' ? 'blue' : 'yellow'}>
             {eventVisibilityLabel(event.visibility)}
           </Badge>
+          {isWaitlisted ? <Badge tone="yellow">WAITLISTED</Badge> : null}
         </View>
         <AppText variant="h1" style={styles.title}>{event.title}</AppText>
         <View style={styles.metaRow}>
@@ -245,10 +270,20 @@ export function EventDetailScreen() {
             <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
               Event Chat
             </Button>
-            <Button full size="lg" variant="dark" onPress={handleLeave}>
+            <Button full size="lg" variant="dark" loading={leaveEvent.isPending} onPress={handleLeave}>
               Leave Event
             </Button>
           </>
+        ) : isWaitlisted ? (
+          <Button
+            full
+            size="lg"
+            variant="dark"
+            loading={leaveWaitlist.isPending}
+            onPress={handleLeaveWaitlist}
+          >
+            Leave Waitlist
+          </Button>
         ) : event.status === 'cancelled' ? (
           <Button full size="lg" variant="dark" disabled>
             Event Cancelled
@@ -257,7 +292,7 @@ export function EventDetailScreen() {
           <Button
             full
             size="lg"
-            loading={isJoining}
+            loading={joinEvent.isPending}
             onPress={handleJoin}
             disabled={!canJoin}
           >

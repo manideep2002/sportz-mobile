@@ -10,9 +10,14 @@ const mockRoute: { params: Record<string, any> } = { params: {} };
 const mockCreateEvent = jest.fn();
 const mockJoinEvent = jest.fn();
 const mockLeaveEvent = jest.fn();
+const mockLeaveWaitlist = jest.fn();
 const mockEventRefetch = jest.fn();
-const mockAttendanceRefetch = jest.fn();
-let mockAttendance: string | undefined;
+const mockParticipationRefetch = jest.fn();
+const mockEventsRefetch = jest.fn();
+const mockBatchParticipationRefetch = jest.fn();
+let mockParticipation: string | undefined;
+let mockParticipationBatch: Record<string, string> = {};
+let mockEventsData: Record<string, any>[] = [];
 let mockEventData: Record<string, any> | undefined;
 
 jest.mock('@/components/ui', () => require('@/test/mockUi'));
@@ -41,11 +46,24 @@ jest.mock('@/hooks/useEvents', () => ({
     refetch: mockEventRefetch
   }),
   useJoinEvent: () => ({ mutateAsync: mockJoinEvent }),
-  useLeaveEvent: () => ({ mutateAsync: mockLeaveEvent }),
-  useCheckAttendance: () => ({
-    data: mockAttendance,
+  useLeaveEvent: () => ({ mutateAsync: mockLeaveEvent, isPending: false }),
+  useLeaveEventWaitlist: () => ({ mutateAsync: mockLeaveWaitlist, isPending: false }),
+  useEventParticipation: () => ({
+    data: mockParticipation,
     isRefetching: false,
-    refetch: mockAttendanceRefetch
+    refetch: mockParticipationRefetch
+  }),
+  useEvents: () => ({
+    data: mockEventsData,
+    isLoading: false,
+    isError: false,
+    isRefetching: false,
+    refetch: mockEventsRefetch
+  }),
+  useEventParticipationBatch: () => ({
+    data: mockParticipationBatch,
+    isRefetching: false,
+    refetch: mockBatchParticipationRefetch
   })
 }));
 jest.mock('@/store/authStore', () => ({
@@ -57,6 +75,8 @@ jest.mock('@/store/authStore', () => ({
 import { CreateEventScreen } from '@/screens/events/CreateEventScreen';
 // eslint-disable-next-line import/first
 import { EventDetailScreen } from '@/screens/events/EventDetailScreen';
+// eslint-disable-next-line import/first
+import { EventsScreen } from '@/screens/events/EventsScreen';
 
 const organizer = {
   id: 'organizer-id',
@@ -107,11 +127,16 @@ describe('event creation and joining', () => {
     alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockRoute.params = {};
     mockEventData = undefined;
-    mockAttendance = undefined;
+    mockParticipation = undefined;
+    mockParticipationBatch = {};
+    mockEventsData = [];
     mockCreateEvent.mockResolvedValue({ id: 'created-event-id' });
     mockJoinEvent.mockResolvedValue('going');
+    mockLeaveWaitlist.mockResolvedValue(undefined);
     mockEventRefetch.mockResolvedValue(undefined);
-    mockAttendanceRefetch.mockResolvedValue(undefined);
+    mockParticipationRefetch.mockResolvedValue(undefined);
+    mockEventsRefetch.mockResolvedValue(undefined);
+    mockBatchParticipationRefetch.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -166,19 +191,57 @@ describe('event creation and joining', () => {
     await waitFor(() => expect(mockJoinEvent).toHaveBeenCalledWith(event.id));
     expect(alertSpy).toHaveBeenCalledWith('Joined event', 'You are on the attendee list.');
     expect(mockEventRefetch).toHaveBeenCalled();
-    expect(mockAttendanceRefetch).toHaveBeenCalled();
+    expect(mockParticipationRefetch).toHaveBeenCalled();
   });
 
   it('opens event chat only for an attendee', async () => {
     mockRoute.params = { eventId: event.id };
     mockEventData = event;
-    mockAttendance = 'going';
+    mockParticipation = 'going';
     await render(<EventDetailScreen />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Event Chat' }));
     expect(mockNavigation.navigate).toHaveBeenCalledWith('EventChat', {
       eventId: event.id
     });
+  });
+
+  it('shows persistent waitlist state on the event list', async () => {
+    mockEventsData = [event];
+    mockParticipationBatch = { [event.id]: 'waitlisted' };
+    await render(<EventsScreen />);
+
+    expect(screen.getByRole('button', { name: 'Leave Waitlist' })).toBeTruthy();
+  });
+
+  it('leaves the waitlist after confirmation', async () => {
+    mockRoute.params = { eventId: event.id };
+    mockEventData = event;
+    mockParticipation = 'waitlisted';
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByText('WAITLISTED')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Leave Waitlist' }));
+    const confirmation = alertSpy.mock.calls.find(([title]) => title === 'Leave waitlist');
+    await confirmation?.[2]?.[1]?.onPress?.();
+
+    await waitFor(() => expect(mockLeaveWaitlist).toHaveBeenCalledWith(event.id));
+    expect(alertSpy).toHaveBeenCalledWith('Waitlist left', 'You are no longer waiting for this event.');
+  });
+
+  it('joins the waitlist when a full event is selected', async () => {
+    mockRoute.params = { eventId: event.id };
+    mockEventData = { ...event, status: 'full', playerCount: event.maxPlayers };
+    mockJoinEvent.mockResolvedValue('waitlisted');
+    await render(<EventDetailScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Join Waitlist' }));
+
+    await waitFor(() => expect(mockJoinEvent).toHaveBeenCalledWith(event.id));
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Added to waitlist',
+      'You will be promoted automatically if a spot opens.'
+    );
   });
 });
 

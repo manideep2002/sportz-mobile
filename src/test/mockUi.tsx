@@ -101,3 +101,16 @@ export function BottomSheet({ children, open, title }: { children: ReactNode; op
 export function StatCard() {
   return <View />;
 }
+
+export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  return (
+    <View>
+      <Text>{title}</Text>
+      {action ? (
+        <Pressable accessibilityRole="button" onPress={onAction}>
+          <Text>{action}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}

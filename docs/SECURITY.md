@@ -16,7 +16,9 @@
 - Restrict message reads to conversation members.
 - Use the `create_direct_conversation`, group conversation, and message RLS paths so blocked users cannot start or continue chats.
 - Restrict event chat to event attendees.
-- Use organizer/admin RPCs for event attendee removal, waitlist promotion, and court booking confirmation.
+- Route all event attendance and waitlist writes through the locked lifecycle RPCs. Direct
+  authenticated inserts, updates, and deletes on `event_attendees` and `event_waitlist` are denied.
+- Use organizer/admin RPCs for event attendee removal, waitlist removal and promotion, and court booking confirmation.
 - Review reports through the admin-only moderation queue before enabling broad public discovery at scale.
 - Account deletion must go through the `delete-account` Edge Function; never expose auth admin APIs in the client.
 - Run security review on OAuth redirect URLs before App Store submission.

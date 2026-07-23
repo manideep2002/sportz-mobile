@@ -87,6 +87,7 @@ export interface Comment {
 export type EventStatus = 'open' | 'full' | 'live' | 'cancelled' | 'completed';
 export type EventType = 'Pickup Game' | 'Tournament' | 'Training' | 'Friendly';
 export type EventVisibility = 'public' | 'followers' | 'group' | 'invite';
+export type EventParticipationStatus = 'none' | 'going' | 'interested' | 'declined' | 'waitlisted';
 
 export interface EventTeaser {
   dateLabel: string;
