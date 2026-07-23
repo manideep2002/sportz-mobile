@@ -1,9 +1,6 @@
 begin;
 
-create extension if not exists pgtap with schema extensions;
-set local search_path = public, extensions;
-
-select plan(7);
+select '1..8';
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -58,6 +55,38 @@ values (
   'group'
 );
 
+create function pg_temp.group_to_public_is_rejected()
+returns boolean
+language plpgsql
+as $$
+begin
+  perform public.update_post_content(
+    '32000000-0000-0000-0000-000000000001', 'Public now', 'Basketball', 'post',
+    null, 'public', null, 'none', null, null, null, 'ready', null, array[]::uuid[]
+  );
+  return false;
+exception
+  when check_violation then
+    return sqlerrm like '%must remain visible only to its community%';
+end;
+$$;
+
+create function pg_temp.unauthorized_update_is_rejected()
+returns boolean
+language plpgsql
+as $$
+begin
+  perform public.update_post_content(
+    '32000000-0000-0000-0000-000000000001', 'Tampered', 'Basketball', 'post',
+    null, 'group', null, 'none', null, null, null, 'ready', null, array[]::uuid[]
+  );
+  return false;
+exception
+  when insufficient_privilege then
+    return sqlerrm like '%not allowed to edit this post%';
+end;
+$$;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -65,36 +94,35 @@ select set_config(
   true
 );
 
-select lives_ok(
-  $$
-    select public.update_post_content(
+with edited_post as (
+  select public.update_post_content(
       '32000000-0000-0000-0000-000000000001', '', 'Basketball', 'highlight',
       null, 'group', 'https://example.test/replacement.mp4', 'video',
       '12000000-0000-0000-0000-000000000001/replacement.mp4', 1280, 720,
       'processing', 'Central Court',
       array['12000000-0000-0000-0000-000000000002'::uuid]
-    )
-  $$,
-  'the author can atomically save a media-only community post'
-);
+  )
+)
+select 'ok 1 - the author can atomically save a media-only community post'
+from edited_post;
 
 reset role;
 
-select is(
-  (select body from public.posts where id = '32000000-0000-0000-0000-000000000001'),
-  '',
-  'media-only edits keep an empty body'
-);
-select is(
-  (select location_label from public.posts where id = '32000000-0000-0000-0000-000000000001'),
-  'Central Court',
-  'location context is persisted'
-);
-select is(
-  (select count(*)::integer from public.post_mentions where post_id = '32000000-0000-0000-0000-000000000001'),
-  1,
-  'mentions are replaced inside the same transaction'
-);
+select case
+  when (select body from public.posts where id = '32000000-0000-0000-0000-000000000001') = ''
+    then 'ok 2 - media-only edits keep an empty body'
+  else 'not ok 2 - media-only edits keep an empty body'
+end;
+select case
+  when (select location_label from public.posts where id = '32000000-0000-0000-0000-000000000001') = 'Central Court'
+    then 'ok 3 - location context is persisted'
+  else 'not ok 3 - location context is persisted'
+end;
+select case
+  when (select count(*) from public.post_mentions where post_id = '32000000-0000-0000-0000-000000000001') = 1
+    then 'ok 4 - mentions are replaced inside the same transaction'
+  else 'not ok 4 - mentions are replaced inside the same transaction'
+end;
 
 set local role authenticated;
 select set_config(
@@ -102,23 +130,18 @@ select set_config(
   '{"sub":"12000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
-select throws_like(
-  $$
-    select public.update_post_content(
-      '32000000-0000-0000-0000-000000000001', 'Public now', 'Basketball', 'post',
-      null, 'public', null, 'none', null, null, null, 'ready', null, array[]::uuid[]
-    )
-  $$,
-  '%must remain visible only to its community%',
-  'a group post cannot transition to public'
-);
+select case
+  when pg_temp.group_to_public_is_rejected()
+    then 'ok 5 - a group post cannot transition to public'
+  else 'not ok 5 - a group post cannot transition to public'
+end;
 reset role;
 
-select is(
-  (select visibility::text from public.posts where id = '32000000-0000-0000-0000-000000000001'),
-  'group',
-  'a rejected visibility edit preserves group visibility'
-);
+select case
+  when (select visibility::text from public.posts where id = '32000000-0000-0000-0000-000000000001') = 'group'
+    then 'ok 6 - a rejected visibility edit preserves group visibility'
+  else 'not ok 6 - a rejected visibility edit preserves group visibility'
+end;
 
 set local role authenticated;
 select set_config(
@@ -126,23 +149,18 @@ select set_config(
   '{"sub":"12000000-0000-0000-0000-000000000002","role":"authenticated"}',
   true
 );
-select throws_like(
-  $$
-    select public.update_post_content(
-      '32000000-0000-0000-0000-000000000001', 'Tampered', 'Basketball', 'post',
-      null, 'group', null, 'none', null, null, null, 'ready', null, array[]::uuid[]
-    )
-  $$,
-  '%not allowed to edit this post%',
-  'a non-author cannot update a post'
-);
+select case
+  when pg_temp.unauthorized_update_is_rejected()
+    then 'ok 7 - a non-author cannot update a post'
+  else 'not ok 7 - a non-author cannot update a post'
+end;
 reset role;
 
-select is(
-  (select media_storage_path from public.posts where id = '32000000-0000-0000-0000-000000000001'),
-  '12000000-0000-0000-0000-000000000001/replacement.mp4',
-  'failed edits preserve the successfully persisted media'
-);
+select case
+  when (select media_storage_path from public.posts where id = '32000000-0000-0000-0000-000000000001')
+       = '12000000-0000-0000-0000-000000000001/replacement.mp4'
+    then 'ok 8 - failed edits preserve the successfully persisted media'
+  else 'not ok 8 - failed edits preserve the successfully persisted media'
+end;
 
-select * from finish();
 rollback;
