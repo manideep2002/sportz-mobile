@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-set local search_path = public, extensions;
+set local search_path = public, extensions, pgtap;
 
 select plan(9);
 
@@ -142,6 +142,7 @@ select throws_ok(
     where id = '13000000-0000-0000-0000-000000000001'
   $$,
   '23514',
+  null,
   'the database rejects sports that omit the primary sport'
 );
 
