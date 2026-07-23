@@ -11,8 +11,6 @@ import {
   type ResumableUploadResult
 } from '@/services/resumableUploadService';
 
-const VIDEO_EXTS = new Set(['mp4', 'mov', 'm4v', 'webm']);
-
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'android') {
     const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -70,7 +68,7 @@ export const storageService = {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       quality: 0.86,
       allowsEditing: false,
       allowsMultipleSelection: true,
@@ -112,12 +110,10 @@ export const storageService = {
 
     const { ext, mime } = resolveAssetExtAndMime(pickerAsset);
     const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const contentType = VIDEO_EXTS.has(ext) ? 'video/mp4' : mime;
-
     const fileData = await readFileAsArrayBuffer(pickerAsset.uri);
 
     const { error } = await supabase.storage.from(bucket).upload(path, fileData, {
-      contentType,
+      contentType: mime,
       upsert: false
     });
     if (error) throw error;
@@ -150,5 +146,56 @@ export const storageService = {
       },
       onProgress
     });
+  },
+  /**
+   * Validate a media asset before uploading.
+   * Throws a descriptive Error if the asset violates any constraint.
+   *
+   * @param asset - The ImagePickerAsset to validate.
+   * @param options.maxSizeMb - Maximum file size in megabytes (default 200).
+   * @param options.maxDurationSecs - Maximum video duration in seconds (default 300 = 5 min).
+   * @param options.allowedMimeTypes - Allowed MIME type prefixes or exact types (default images + common videos).
+   */
+  validateMediaAsset(
+    asset: ImagePicker.ImagePickerAsset,
+    options: {
+      maxSizeMb?: number;
+      maxDurationSecs?: number;
+      allowedMimeTypes?: string[];
+    } = {}
+  ): void {
+    const maxSizeBytes = (options.maxSizeMb ?? 200) * 1024 * 1024;
+    const maxDurationMs = (options.maxDurationSecs ?? 300) * 1000;
+    const allowedTypes = options.allowedMimeTypes ?? [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+      'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'
+    ];
+
+    // Size check (fileSize is available on Android; skip on iOS where it may be absent)
+    if (asset.fileSize !== undefined && asset.fileSize !== null && asset.fileSize > maxSizeBytes) {
+      const sizeMb = (asset.fileSize / 1024 / 1024).toFixed(1);
+      const limitMb = (options.maxSizeMb ?? 200).toFixed(0);
+      throw new Error(`File is too large (${sizeMb} MB). Maximum allowed is ${limitMb} MB.`);
+    }
+
+    // Duration check for videos
+    if (asset.type === 'video' && asset.duration !== undefined && asset.duration !== null) {
+      if (asset.duration > maxDurationMs) {
+        const durationSecs = Math.round(asset.duration / 1000);
+        const limitSecs = options.maxDurationSecs ?? 300;
+        throw new Error(`Video is too long (${durationSecs}s). Maximum allowed is ${limitSecs}s.`);
+      }
+    }
+
+    // MIME type check
+    const mime = asset.mimeType;
+    if (mime) {
+      const isAllowed = allowedTypes.some(
+        (allowed) => mime === allowed || mime.startsWith(allowed.endsWith('/') ? allowed : `${allowed}/`)
+      );
+      if (!isAllowed) {
+        throw new Error(`File type "${mime}" is not supported. Please choose an image or video.`);
+      }
+    }
   }
 };

@@ -63,6 +63,10 @@ export function ProgressBar() {
   return <View />;
 }
 
+export function VideoPlayer({ testID }: Record<string, any>) {
+  return <View testID={testID ?? 'video-player'} />;
+}
+
 export function VerifiedName({ profile }: Record<string, any>) {
   return <Text>{profile.displayName}</Text>;
 }

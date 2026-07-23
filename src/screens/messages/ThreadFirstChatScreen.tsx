@@ -9,10 +9,11 @@ import {
   Edit3,
   Image as ImageIcon,
   MoreVertical,
+  Pause,
+  Play,
   Plus,
   Send,
   Trash2,
-  Video,
   X
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,11 +31,12 @@ import {
 } from 'react-native';
 
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
-import { AppText, BottomSheet, Button, IconButton } from '@/components/ui';
+import { AppText, BottomSheet, Button, IconButton, VideoPlayer } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { messageKeys } from '@/hooks/useMessages';
 import { supabase } from '@/lib/supabase';
 import { messageService } from '@/services/messageService';
+import { storageService } from '@/services/storageService';
 import {
   mergeThreadMessages,
   removeThreadMessage,
@@ -68,17 +70,119 @@ const newestFirst = (a: ThreadChatMessage, b: ThreadChatMessage) =>
 const isAtLeastReadThrough = (messageCreatedAt: string, lastReadAt: string | null | undefined) =>
   Boolean(lastReadAt && new Date(lastReadAt).getTime() >= new Date(messageCreatedAt).getTime());
 
-function MessageMedia({ message }: { message: ThreadChatMessage }) {
+export function MessageMedia({
+  message,
+  isActiveVideo,
+  onActivateVideo
+}: {
+  message: ThreadChatMessage;
+  isActiveVideo: boolean;
+  onActivateVideo: (id: string | null) => void;
+}) {
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [signedVideoUrl, setSignedVideoUrl] = useState<string | null>(null);
+  const [signedUrlLoading, setSignedUrlLoading] = useState(false);
   const bubbleUrl = threadFirstChatService.getBubbleImageUrl(message.mediaPath, message.mediaUrl);
   const fullUrl = threadFirstChatService.getFullImageUrl(message.mediaPath, message.mediaUrl);
 
+  useEffect(() => {
+    let mounted = true;
+    if (message.messageType !== 'video') return () => {
+      mounted = false;
+    };
+    if (!message.mediaPath) {
+      setSignedVideoUrl(message.mediaUrl);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setSignedVideoUrl(null);
+    setSignedUrlLoading(true);
+    threadFirstChatService
+      .getSignedVideoUrl(message.mediaPath)
+      .then((url) => {
+        if (mounted) setSignedVideoUrl(url);
+      })
+      .catch(() => {
+        if (mounted) setSignedVideoUrl(message.mediaUrl);
+      })
+      .finally(() => {
+        if (mounted) setSignedUrlLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [message.messageType, message.mediaPath, message.mediaUrl]);
+
   if (message.messageType === 'video') {
+    const videoUri = signedVideoUrl ?? message.mediaUrl;
+    const closeViewer = () => setViewerOpen(false);
     return (
-      <View style={styles.videoBubble}>
-        <Video size={24} color={colors.light[0]} />
-        <AppText style={styles.videoText}>Video</AppText>
-      </View>
+      <>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Play video"
+          style={styles.videoBubble}
+          onPress={() => {
+            onActivateVideo(null);
+            setViewerOpen(true);
+          }}
+        >
+          {signedUrlLoading ? (
+            <ActivityIndicator color={colors.light[0]} />
+          ) : (
+            <VideoPlayer
+              uri={videoUri}
+              style={styles.videoBubble}
+              autoPlay={isActiveVideo && !viewerOpen}
+              paused={!isActiveVideo || viewerOpen}
+              loop={false}
+              interactive={false}
+              onEnd={() => onActivateVideo(null)}
+              testID={`chat-video-${message.id}`}
+            />
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isActiveVideo ? 'Pause inline video' : 'Play inline video'}
+            style={styles.videoPlaybackButton}
+            onPress={(event) => {
+              event.stopPropagation();
+              onActivateVideo(isActiveVideo ? null : message.id);
+            }}
+          >
+            {isActiveVideo ? (
+              <Pause size={22} color={colors.light[0]} fill={colors.light[0]} />
+            ) : (
+              <Play size={22} color={colors.light[0]} fill={colors.light[0]} />
+            )}
+          </Pressable>
+        </Pressable>
+        <Modal
+          visible={viewerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={closeViewer}
+          statusBarTranslucent
+        >
+          <View style={styles.viewer}>
+            <VideoPlayer
+              uri={videoUri}
+              style={styles.viewerVideo}
+              autoPlay
+              loop={false}
+              controls
+              contentFit="contain"
+              testID={`chat-video-fullscreen-${message.id}`}
+            />
+            <View style={styles.viewerClose}>
+              <IconButton icon={X} accessibilityLabel="Close video" onPress={closeViewer} />
+            </View>
+          </View>
+        </Modal>
+      </>
     );
   }
 
@@ -86,6 +190,7 @@ function MessageMedia({ message }: { message: ThreadChatMessage }) {
     <>
       <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open photo" onPress={() => setViewerOpen(true)}>
         <ExpoImage
+          testID={`chat-image-${message.id}`}
           source={{ uri: bubbleUrl ?? undefined }}
           style={styles.media}
           contentFit="cover"
@@ -111,11 +216,15 @@ function MessageBubble({
   message,
   currentUserId,
   showSeen,
+  activeVideoId,
+  onActivateVideo,
   onLongPress
 }: {
   message: ThreadChatMessage;
   currentUserId: string;
   showSeen: boolean;
+  activeVideoId: string | null;
+  onActivateVideo: (id: string | null) => void;
   onLongPress?: () => void;
 }) {
   const mine = message.senderId === currentUserId;
@@ -143,7 +252,11 @@ function MessageBubble({
           {message.messageType === 'text' ? (
             <AppText style={[styles.messageText, mine ? styles.myMessageText : null]}>{message.body}</AppText>
           ) : (
-            <MessageMedia message={message} />
+            <MessageMedia
+              message={message}
+              isActiveVideo={activeVideoId === message.id}
+              onActivateVideo={onActivateVideo}
+            />
           )}
         </View>
       </Pressable>
@@ -184,6 +297,8 @@ export function ThreadFirstChatScreen({
   const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'remove' | 'leave' | null>(null);
   const [pinned, setPinned] = useState(Boolean(conversation?.pinned));
   const [muted, setMuted] = useState(Boolean(conversation?.muted));
+  /** The message ID of the currently active (playing) video, or null. */
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const listRef = useRef<FlashListRef<ThreadChatMessage>>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -650,6 +765,15 @@ export function ThreadFirstChatScreen({
       if (result.canceled) return;
 
       const asset = result.assets[0];
+
+      // Validate size (200 MB) and video duration (10 min) before uploading
+      try {
+        storageService.validateMediaAsset(asset, { maxSizeMb: 200, maxDurationSecs: 600 });
+      } catch (validationError) {
+        Alert.alert('Invalid media', validationError instanceof Error ? validationError.message : 'This file cannot be sent.');
+        return;
+      }
+
       const messageId = threadFirstChatService.createMessageId();
       const media = await threadFirstChatService.uploadChatMedia(asset, roomId, currentUserId, messageId);
       const messageType = asset.type === 'video' ? 'video' : 'image';
@@ -694,6 +818,8 @@ export function ThreadFirstChatScreen({
         message={item}
         currentUserId={currentUserId}
         showSeen={showSeen}
+        activeVideoId={activeVideoId}
+        onActivateVideo={setActiveVideoId}
         onLongPress={canManage ? () => setSelectedMessage(item) : undefined}
       />
     );
@@ -910,13 +1036,16 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.dark[700],
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs
+    justifyContent: 'center'
   },
-  videoText: {
-    color: colors.light[0],
-    fontFamily: typography.bodyBold,
-    fontSize: 12
+  videoPlaybackButton: {
+    position: 'absolute',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   viewer: {
     flex: 1,
@@ -928,6 +1057,17 @@ const styles = StyleSheet.create({
   viewerImage: {
     width: '100%',
     height: '100%'
+  },
+  viewerVideo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 0
+  },
+  viewerClose: {
+    position: 'absolute',
+    top: 48,
+    right: spacing.md,
+    zIndex: 2
   },
   messageMeta: {
     marginTop: 3,

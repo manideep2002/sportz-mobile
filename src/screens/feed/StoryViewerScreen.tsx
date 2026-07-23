@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Trash2, X } from 'lucide-react-native';
-import { Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Trash2, Volume2, VolumeX, X } from 'lucide-react-native';
+import {
+  Alert,
+  AppState,
+  type AppStateStatus,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Avatar, IconButton, ProgressBar, VerifiedName } from '@/components/ui';
+import { AppText, Avatar, IconButton, ProgressBar, VerifiedName, VideoPlayer } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -20,7 +32,8 @@ import type { Story } from '@/types/domain';
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'StoryViewer'>;
 
-const STORY_DURATION_MS = 5000;
+/** Duration for image stories (ms). Video stories use actual playback duration. */
+const IMAGE_STORY_DURATION_MS = 5000;
 
 export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
@@ -34,16 +47,23 @@ export function StoryViewerScreen() {
 
   const [currentStoryId, setCurrentStoryId] = useState(route.params.storyId);
   const [elapsed, setElapsed] = useState(0);
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
   const [reply, setReply] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+  const [mediaFailed, setMediaFailed] = useState(false);
 
   // Track the displayed media URL in state so it is seeded immediately from
   // route params (set by CreateStoryScreen) and updated when we navigate
   // between stories. This is the key fix for the blank-screen race condition:
-  // we never wait for the React Query cache to settle before showing the image.
+  // we never wait for the React Query cache to settle before showing the media.
   const [displayMediaUrl, setDisplayMediaUrl] = useState<string | null | undefined>(
     route.params.mediaUrl ?? null
+  );
+  const [displayMediaKind, setDisplayMediaKind] = useState<'image' | 'video'>(
+    route.params.mediaKind ?? 'image'
   );
   const [useRawMediaUrl, setUseRawMediaUrl] = useState(false);
 
@@ -63,6 +83,7 @@ export function StoryViewerScreen() {
 
   const currentGroup = groups[currentGroupIndex];
   const story = currentGroup?.stories[currentStoryIndexInGroup] ?? stories.find((s) => s.id === currentStoryId);
+  const storyAvailable = Boolean(story);
 
   let previousStory: Story | undefined;
   let nextStory: Story | undefined;
@@ -89,30 +110,47 @@ export function StoryViewerScreen() {
     }
   }
 
-  const remainingSeconds = Math.max(1, Math.ceil((STORY_DURATION_MS - elapsed) / 1000));
-  const optimizedDisplayMediaUrl = mediaVariants.storyImage(displayMediaUrl);
+  const isVideo = displayMediaKind === 'video';
+  const storyDurationMs = isVideo && !mediaFailed
+    ? (videoDurationMs ?? IMAGE_STORY_DURATION_MS)
+    : IMAGE_STORY_DURATION_MS;
+  const remainingSeconds = Math.max(1, Math.ceil((storyDurationMs - elapsed) / 1000));
+  const optimizedDisplayMediaUrl = isVideo ? displayMediaUrl : mediaVariants.storyImage(displayMediaUrl);
   const storyImageUrl = useRawMediaUrl ? displayMediaUrl : optimizedDisplayMediaUrl ?? displayMediaUrl;
 
-  // Sync displayMediaUrl from the cache once the story is available.
-  // This handles navigating to a story from the feed rail (where no
-  // mediaUrl param is passed), and when the cache settles after create.
+  // Sync displayMediaUrl and mediaKind from cache once the story is available.
   useEffect(() => {
     if (story?.mediaUrl) {
       setDisplayMediaUrl(story.mediaUrl);
     }
-  }, [story?.mediaUrl]);
+    if (story) {
+      setDisplayMediaKind(story.mediaKind ?? 'image');
+    }
+  }, [story]);
 
   useEffect(() => {
     setUseRawMediaUrl(false);
+    setMediaFailed(false);
   }, [displayMediaUrl]);
 
-  // When navigating between stories, immediately switch the displayed image.
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      setIsAppActive(nextState === 'active');
+    };
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, []);
+
+  // When navigating between stories, immediately switch the displayed media.
   const goToStory = useCallback(
     (storyId: string) => {
       const target = stories.find((s) => s.id === storyId);
       setCurrentStoryId(storyId);
       setDisplayMediaUrl(target?.mediaUrl ?? null);
+      setDisplayMediaKind(target?.mediaKind ?? 'image');
+      setVideoDurationMs(null);
       setElapsed(0);
+      setMediaFailed(false);
     },
     [stories]
   );
@@ -120,21 +158,27 @@ export function StoryViewerScreen() {
   // Reset elapsed timer only when the current story ID changes
   useEffect(() => {
     setElapsed(0);
+    setVideoDurationMs(null);
+    setMediaFailed(false);
   }, [currentStoryId]);
 
-  // Progress timer - advances and auto-navigates, supporting pause.
   useEffect(() => {
-    // Start timer even when story metadata isn't in cache yet,
-    // as long as we have a media URL to display.
+    if (!displayMediaUrl && !storyAvailable) return;
+    markStorySeen(currentStoryId);
+  }, [currentStoryId, displayMediaUrl, markStorySeen, storyAvailable]);
+
+  // Progress timer for IMAGE stories only — advances and auto-navigates.
+  // Video stories drive elapsed via onProgress from VideoPlayer.
+  useEffect(() => {
+    if (isVideo && !mediaFailed) return;
     if (!displayMediaUrl && !story) return;
     if (isInputFocused) return;
-
-    markStorySeen(currentStoryId);
+    if (!isAppActive) return;
 
     const timer = setInterval(() => {
       setElapsed((prev) => {
-        const next = Math.min(STORY_DURATION_MS, prev + 100);
-        if (next >= STORY_DURATION_MS) {
+        const next = Math.min(IMAGE_STORY_DURATION_MS, prev + 100);
+        if (next >= IMAGE_STORY_DURATION_MS) {
           clearInterval(timer);
           if (nextStory) {
             goToStory(nextStory.id);
@@ -147,7 +191,44 @@ export function StoryViewerScreen() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [currentStoryId, displayMediaUrl, nextStory, goToStory, story, isInputFocused]);
+  }, [
+    currentStoryId,
+    displayMediaUrl,
+    isVideo,
+    mediaFailed,
+    nextStory,
+    goToStory,
+    story,
+    isInputFocused,
+    isAppActive,
+    navigation
+  ]);
+
+  // Video progress callback: drives elapsed from actual playback position
+  const handleVideoProgress = useCallback(
+    (positionSecs: number, durationSecs: number) => {
+      if (!isVideo) return;
+      const durationMs = durationSecs > 0 ? durationSecs * 1000 : IMAGE_STORY_DURATION_MS;
+      setVideoDurationMs(durationMs);
+      setElapsed(positionSecs * 1000);
+    },
+    [isVideo]
+  );
+
+  // Video ended: advance story
+  const handleVideoEnd = useCallback(() => {
+    if (nextStory) {
+      goToStory(nextStory.id);
+    } else {
+      navigation.goBack();
+    }
+  }, [nextStory, goToStory, navigation]);
+
+  const handleVideoError = useCallback(() => {
+    setMediaFailed(true);
+    setVideoDurationMs(null);
+    setElapsed(0);
+  }, []);
 
   const handleDelete = () => {
     Alert.alert(
@@ -194,24 +275,46 @@ export function StoryViewerScreen() {
     currentProfile?.id !== undefined &&
     story.user.id === currentProfile.id;
 
+  // Whether video should be paused (input focused, app backgrounded, or no media)
+  const videoPaused = isInputFocused || !isAppActive;
+
   return (
     <View style={styles.root}>
-      {/* Full-screen image - rendered immediately from state, no cache wait */}
-      {displayMediaUrl ? (
-        <Image
-          source={{ uri: storyImageUrl ?? displayMediaUrl }}
-          resizeMode="cover"
-          style={StyleSheet.absoluteFill}
-          onError={() => {
-            if (!useRawMediaUrl && optimizedDisplayMediaUrl !== displayMediaUrl) {
-              setUseRawMediaUrl(true);
-            }
-          }}
-        />
+      {/* Full-screen media — rendered immediately from state, no cache wait */}
+      {displayMediaUrl && !mediaFailed ? (
+        isVideo ? (
+          <VideoPlayer
+            uri={displayMediaUrl}
+            style={StyleSheet.absoluteFill}
+            autoPlay={!videoPaused}
+            paused={videoPaused}
+            loop={false}
+            muted={isMuted}
+            onProgress={handleVideoProgress}
+            onEnd={handleVideoEnd}
+            onError={handleVideoError}
+            testID="story-video-player"
+          />
+        ) : (
+          <Image
+            testID="story-image"
+            source={{ uri: storyImageUrl ?? displayMediaUrl }}
+            resizeMode="cover"
+            style={StyleSheet.absoluteFill}
+            onError={() => {
+              if (!useRawMediaUrl && optimizedDisplayMediaUrl !== displayMediaUrl) {
+                setUseRawMediaUrl(true);
+              } else {
+                setMediaFailed(true);
+                setElapsed(0);
+              }
+            }}
+          />
+        )
       ) : null}
 
       {/* Tap zones for prev/next */}
-      <View style={styles.navigationZones}>
+      <View pointerEvents="box-none" style={styles.navigationZones}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous story"
@@ -219,6 +322,7 @@ export function StoryViewerScreen() {
           style={styles.navigationZone}
           onPress={() => previousStory && goToStory(previousStory.id)}
         />
+        <View pointerEvents="none" style={styles.navigationSpacer} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next story"
@@ -234,7 +338,7 @@ export function StoryViewerScreen() {
             let progressValue = 0;
             const currentIdx = currentGroup ? currentStoryIndexInGroup : 0;
             if (index < currentIdx) {
-              progressValue = STORY_DURATION_MS;
+              progressValue = storyDurationMs;
             } else if (index === currentIdx) {
               progressValue = elapsed;
             } else {
@@ -244,7 +348,7 @@ export function StoryViewerScreen() {
               <View key={s.id} style={styles.progressSegment}>
                 <ProgressBar
                   value={progressValue}
-                  max={STORY_DURATION_MS}
+                  max={storyDurationMs}
                   height={3}
                   color={colors.light[0]}
                 />
@@ -270,6 +374,14 @@ export function StoryViewerScreen() {
             ) : null}
           </View>
           <AppText style={styles.timer}>{remainingSeconds}s</AppText>
+          {/* Mute toggle — only visible for video stories */}
+          {isVideo && !mediaFailed ? (
+            <IconButton
+              icon={isMuted ? VolumeX : Volume2}
+              accessibilityLabel={isMuted ? 'Unmute story video' : 'Mute story video'}
+              onPress={() => setIsMuted((m) => !m)}
+            />
+          ) : null}
           {isOwnStory ? (
             <IconButton
               icon={Trash2}
@@ -287,7 +399,7 @@ export function StoryViewerScreen() {
       </View>
 
       {/* Placeholder shown only when there is genuinely no media URL */}
-      {!displayMediaUrl ? (
+      {!displayMediaUrl || mediaFailed ? (
         <View pointerEvents="none" style={styles.placeholder}>
           <Avatar initials={story?.user.initials ?? 'ST'} uri={story?.user.avatarUrl} size={96} />
           {story ? (
@@ -361,6 +473,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row'
   },
   navigationZone: {
+    width: '34%'
+  },
+  navigationSpacer: {
     flex: 1
   },
   header: {

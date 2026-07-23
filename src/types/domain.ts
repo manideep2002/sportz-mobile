@@ -43,6 +43,8 @@ export interface Story {
   id: ID;
   user: Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl' | 'skillLevel'>;
   mediaUrl?: string | null;
+  /** Indicates whether the story media is a video or a static image. Defaults to 'image' when absent. */
+  mediaKind?: 'image' | 'video';
   body?: string | null;
   seen: boolean;
   createdAt: string;

@@ -2,7 +2,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values
   ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
   ('post-media', 'post-media', true, 104857600, array['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime']),
-  ('story-media', 'story-media', true, 52428800, array['image/jpeg', 'image/png', 'image/webp', 'video/mp4']),
+  ('story-media', 'story-media', true, 209715200, array['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v']),
   ('event-covers', 'event-covers', true, 10485760, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 

@@ -25,13 +25,50 @@ const loadSeenStories = async () => {
 
 type StoryAuthor = Pick<UserProfile, 'id' | 'displayName' | 'initials' | 'avatarUrl' | 'skillLevel'>;
 
-/** Shape of a raw story row returned from the DB. */
-interface StoryRow {
+type StoryProfileRow = {
+  id: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  skill_level: string | null;
+};
+
+export interface StoryRow {
   id: string;
   media_url: string | null;
+  media_kind?: 'image' | 'video' | null;
   body: string | null;
   created_at: string;
-  profiles: { id: string | null; display_name: string | null; avatar_url: string | null; skill_level: string | null } | null;
+  profiles: StoryProfileRow | StoryProfileRow[] | null;
+}
+
+export function mapStoryRow(
+  row: StoryRow,
+  seen = false,
+  fallbackAuthor?: StoryAuthor
+): Story {
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const displayName = profile?.display_name ?? fallbackAuthor?.displayName ?? 'Athlete';
+
+  return {
+    id: row.id,
+    user: {
+      id: profile?.id ?? fallbackAuthor?.id ?? '',
+      displayName,
+      initials: profile?.display_name
+        ? initialsForName(profile.display_name)
+        : fallbackAuthor?.initials ?? initialsForName(displayName),
+      avatarUrl: profile?.avatar_url ?? fallbackAuthor?.avatarUrl ?? null,
+      skillLevel:
+        (profile?.skill_level as UserProfile['skillLevel']) ??
+        fallbackAuthor?.skillLevel ??
+        'Intermediate'
+    },
+    mediaUrl: row.media_url,
+    mediaKind: row.media_kind ?? 'image',
+    body: row.body,
+    seen,
+    createdAt: row.created_at
+  };
 }
 
 export const storyService = {
@@ -51,7 +88,7 @@ export const storyService = {
 
     const { data, error } = await supabase
       .from('stories')
-      .select('id, media_url, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level)')
+      .select('id, media_url, media_kind, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level)')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
@@ -59,22 +96,7 @@ export const storyService = {
 
     return (data ?? []).map((row) => {
       const storyRow = row as unknown as StoryRow;
-      const displayName = storyRow.profiles?.display_name ?? 'Athlete';
-
-      return {
-        id: storyRow.id,
-        user: {
-          id: storyRow.profiles?.id ?? '',
-          displayName,
-          initials: initialsForName(displayName),
-          avatarUrl: storyRow.profiles?.avatar_url ?? null,
-          skillLevel: (storyRow.profiles?.skill_level as UserProfile['skillLevel']) ?? 'Intermediate'
-        },
-        mediaUrl: storyRow.media_url,
-        body: storyRow.body,
-        seen: seenStoryIds.has(storyRow.id),
-        createdAt: storyRow.created_at
-      };
+      return mapStoryRow(storyRow, seenStoryIds.has(storyRow.id));
     });
   },
 
@@ -94,29 +116,23 @@ export const storyService = {
         media_kind: asset.type === 'video' ? 'video' : 'image',
         body: body?.trim() || null
       })
-      .select('id, media_url, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level)')
+      .select('id, media_url, media_kind, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level)')
       .single();
 
     if (error) throw error;
 
-    // profiles is returned as an array from the select query
-    const profileResult = data as unknown as { id: string; media_url: string | null; created_at: string; profiles: StoryRow['profiles'] | StoryRow['profiles'][] };
-    const profile = Array.isArray(profileResult.profiles) ? profileResult.profiles[0] : profileResult.profiles;
-    const displayName = profile?.display_name ?? author?.displayName ?? 'Athlete';
+    const fallbackAuthor: StoryAuthor = {
+      id: authData.user.id,
+      displayName: author?.displayName ?? 'Athlete',
+      initials: author?.initials ?? initialsForName(author?.displayName),
+      avatarUrl: author?.avatarUrl ?? null,
+      skillLevel: author?.skillLevel ?? 'Intermediate'
+    };
+    const storyRow = data as unknown as StoryRow;
 
     return {
-      id: data.id,
-      user: {
-        id: profile?.id ?? authData.user.id,
-        displayName,
-        initials: profile?.display_name ? initialsForName(profile.display_name) : author?.initials ?? initialsForName(displayName),
-        avatarUrl: profile?.avatar_url ?? author?.avatarUrl ?? null,
-        skillLevel: (profile?.skill_level as UserProfile['skillLevel']) ?? author?.skillLevel ?? 'Intermediate'
-      },
-      mediaUrl: (data as unknown as StoryRow).media_url,
-      body: (data as unknown as StoryRow).body,
-      seen: false,
-      createdAt: data.created_at
+      ...mapStoryRow(storyRow, false, fallbackAuthor),
+      mediaKind: storyRow.media_kind ?? (asset.type === 'video' ? 'video' : 'image')
     };
   },
 

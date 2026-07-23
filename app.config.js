@@ -16,6 +16,7 @@ module.exports = {
       usesAppleSignIn: true,
       infoPlist: {
         NSCameraUsageDescription: 'SPORTZ uses your camera to add profile photos, stories, posts, and event media.',
+        NSMicrophoneUsageDescription: 'SPORTZ uses your microphone to record audio with camera-captured videos.',
         NSPhotoLibraryUsageDescription: 'SPORTZ lets you choose media for posts, stories, profiles, and event covers.',
         NSLocationWhenInUseUsageDescription: 'SPORTZ uses location to show nearby courts and local events.'
       }

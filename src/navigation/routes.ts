@@ -31,7 +31,7 @@ export type AppStackParamList = {
   ManageEvent: { eventId: string };
   CreateEvent: undefined;
   UserProfile: { userId: string };
-  StoryViewer: { storyId: string; mediaUrl?: string };
+  StoryViewer: { storyId: string; mediaUrl?: string; mediaKind?: 'image' | 'video' };
   CreateStory: undefined;
   NewMessage: { addToConversationId?: string } | undefined;
   Chat: { conversationId: string; targetUserId?: string; openSettings?: boolean };

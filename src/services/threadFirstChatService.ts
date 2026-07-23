@@ -655,5 +655,19 @@ export const threadFirstChatService = {
         height: 1440
       }
     }).data.publicUrl;
+  },
+
+  async getSignedMediaUrl(mediaPath: string, expiresIn = 3600): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from(CHAT_MEDIA_BUCKET)
+      .createSignedUrl(mediaPath, expiresIn);
+
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error('Could not create a signed media URL.');
+    return data.signedUrl;
+  },
+
+  async getSignedVideoUrl(mediaPath: string): Promise<string> {
+    return threadFirstChatService.getSignedMediaUrl(mediaPath, 3600);
   }
 };
