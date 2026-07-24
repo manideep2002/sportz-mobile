@@ -76,7 +76,18 @@ export const useUpdateEvent = () => {
   return useMutation({
     mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateEventInput }) =>
       eventService.updateEvent(eventId, updates),
-    onSuccess: () => refreshEventQueries(queryClient)
+    onSuccess: (event) => {
+      queryClient.setQueryData<SportEvent>(eventKeys.detail(event.id), event);
+      queryClient.setQueryData<SportEvent[]>(eventKeys.all, (old) =>
+        old?.map((item) => (item.id === event.id ? event : item))
+      );
+      if (event.communityId) {
+        queryClient.setQueryData<SportEvent[]>(eventKeys.community(event.communityId), (old) =>
+          old?.map((item) => (item.id === event.id ? event : item))
+        );
+      }
+      void refreshEventQueries(queryClient);
+    }
   });
 };
 

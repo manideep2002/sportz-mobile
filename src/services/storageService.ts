@@ -16,6 +16,11 @@ export interface StoredProfileCover {
   objectName: string;
 }
 
+export interface StoredEventCover {
+  bucket: 'event-covers';
+  objectName: string;
+}
+
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'android') {
     const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -90,6 +95,20 @@ export const storageService = {
         new URL(mediaUrl).pathname.slice(markerIndex + marker.length)
       );
       return objectName.includes('/') ? objectName : null;
+    } catch {
+      return null;
+    }
+  },
+
+  eventCoverObjectFromUrl(value?: string | null): StoredEventCover | null {
+    if (!value) return null;
+    try {
+      const marker = '/storage/v1/object/public/event-covers/';
+      const pathname = new URL(value).pathname;
+      const markerIndex = pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+      const objectName = decodeURIComponent(pathname.slice(markerIndex + marker.length));
+      return objectName.includes('/') ? { bucket: 'event-covers', objectName } : null;
     } catch {
       return null;
     }
@@ -252,6 +271,14 @@ export const storageService = {
   async removePostMedia(objectName: string): Promise<void> {
     if (!objectName) return;
     const { error } = await supabase.storage.from('post-media').remove([objectName]);
+    if (error) throw error;
+  },
+
+  async removeEventCover(value?: string | null): Promise<void> {
+    if (!env.isSupabaseConfigured || !value) return;
+    const storedCover = this.eventCoverObjectFromUrl(value);
+    if (!storedCover) return;
+    const { error } = await supabase.storage.from(storedCover.bucket).remove([storedCover.objectName]);
     if (error) throw error;
   },
   /**

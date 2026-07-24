@@ -23,7 +23,7 @@ export interface CreateEventInput {
   communityId?: string;
 }
 
-export type UpdateEventInput = Partial<Omit<CreateEventInput, 'visibility'>> & {
+export type UpdateEventInput = Partial<Omit<CreateEventInput, 'visibility' | 'communityId'>> & {
   visibility?: EventVisibility;
 };
 
@@ -433,12 +433,25 @@ export const eventService = {
     });
   },
 
-  async updateEvent(eventId: string, updates: UpdateEventInput): Promise<void> {
+
+  async updateEvent(eventId: string, updates: UpdateEventInput): Promise<SportEvent> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to update events.');
+
+    const { data: existing, error: existingError } = await supabase
+      .from('sport_events')
+      .select('cover_url')
+      .eq('id', eventId)
+      .single();
+    if (existingError) throw existingError;
+
+    let uploadedCoverUrl: string | null = null;
+    if (typeof updates.coverImageUri === 'string') {
+      uploadedCoverUrl = await storageService.uploadMedia(updates.coverImageUri, 'event-covers', authData.user.id);
+    }
 
     const updateData: Partial<{
       title: string;
@@ -454,27 +467,52 @@ export const eventService = {
       max_players: number;
       entry_fee_cents: number;
       visibility: EventVisibility;
+      cover_url: string | null;
     }> = {};
-    if (updates.title) updateData.title = updates.title;
-    if (updates.eventType) updateData.event_type = updates.eventType;
-    if (updates.sport) updateData.sport = updates.sport;
-    if (updates.description) updateData.description = updates.description;
-    if (updates.startsAt) updateData.starts_at = updates.startsAt;
-    if (updates.endsAt) updateData.ends_at = updates.endsAt;
-    if (updates.locationName) updateData.location_name = updates.locationName;
-    if (updates.city) updateData.city = updates.city;
+    if (updates.title !== undefined) updateData.title = updates.title;
+    if (updates.eventType !== undefined) updateData.event_type = updates.eventType;
+    if (updates.sport !== undefined) updateData.sport = updates.sport;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.startsAt !== undefined) updateData.starts_at = updates.startsAt;
+    if (updates.endsAt !== undefined) updateData.ends_at = updates.endsAt;
+    if (updates.locationName !== undefined) updateData.location_name = updates.locationName;
+    if (updates.city !== undefined) updateData.city = updates.city;
     if (updates.latitude !== undefined) updateData.latitude = updates.latitude ?? null;
     if (updates.longitude !== undefined) updateData.longitude = updates.longitude ?? null;
-    if (updates.maxPlayers) updateData.max_players = updates.maxPlayers;
+    if (updates.maxPlayers !== undefined) updateData.max_players = updates.maxPlayers;
     if (updates.entryFeeCents !== undefined) updateData.entry_fee_cents = updates.entryFeeCents;
-    if (updates.visibility) updateData.visibility = updates.visibility;
+    if (updates.visibility !== undefined) updateData.visibility = updates.visibility;
+    if (updates.coverImageUri !== undefined) updateData.cover_url = uploadedCoverUrl;
 
-    const { error } = await supabase
-      .from('sport_events')
-      .update(updateData)
-      .eq('id', eventId)
-      .eq('organizer_id', authData.user.id);
-    if (error) throw error;
+    try {
+      const { data: updatedEvent, error } = await supabase
+        .from('sport_events')
+        .update(updateData)
+        .eq('id', eventId)
+        .select('id')
+        .single();
+      if (error) throw error;
+      if (!updatedEvent) throw new Error('You are not authorized to update this event.');
+    } catch (error) {
+      if (uploadedCoverUrl) {
+        try {
+          await storageService.removeEventCover(uploadedCoverUrl);
+        } catch {
+          // The database update remains authoritative. A failed cleanup must not hide its error.
+        }
+      }
+      throw error;
+    }
+
+    if (updates.coverImageUri !== undefined && existing.cover_url && existing.cover_url !== uploadedCoverUrl) {
+      try {
+        await storageService.removeEventCover(existing.cover_url);
+      } catch {
+        // The replacement is persisted; stale storage can be cleaned up later without rolling it back.
+      }
+    }
+
+    return this.getEvent(eventId);
   },
 
   async cancelEvent(eventId: string): Promise<void> {
@@ -484,12 +522,14 @@ export const eventService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to cancel events.');
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('sport_events')
       .update({ status: 'cancelled' })
       .eq('id', eventId)
-      .eq('organizer_id', authData.user.id);
+      .select('id')
+      .single();
     if (error) throw error;
+    if (!data) throw new Error('You are not authorized to cancel this event.');
   },
 
   async checkUserParticipation(eventId: string): Promise<EventParticipationStatus> {

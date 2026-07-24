@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Calendar, Camera, ChevronLeft, Clock } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 
 import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 
-import { eventTypes, eventVisibilityOptions } from '@/constants/events';
+import { eventPaymentNotice, eventTypes, eventVisibilityOptions } from '@/constants/events';
+import { allSports } from '@/constants/sports';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   useCancelEvent,
@@ -23,9 +25,9 @@ import {
 } from '@/hooks/useEvents';
 import { useCommunityMembers } from '@/hooks/useCommunities';
 import { profileService } from '@/services/profileService';
-import type { UserProfile } from '@/types/domain';
+import type { EventType, EventVisibility, Sport, UserProfile } from '@/types/domain';
 import type { AppStackParamList } from '@/navigation/routes';
-import type { EventType, EventVisibility } from '@/types/domain';
+import { formatDateInput, formatTimeInput, getErrorMessage, parseManualStartDate } from '@/utils/eventDateValidation';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'ManageEvent'>;
@@ -51,28 +53,128 @@ export function ManageEventScreen() {
   const revokeInvitation = useRevokeEventInvitation();
   const [title, setTitle] = useState(event?.title ?? '');
   const [eventType, setEventType] = useState<EventType>(event?.eventType ?? eventTypes[0]);
+  const [sport, setSport] = useState<Sport>(event?.sport ?? allSports[0]);
   const [visibility, setVisibility] = useState<EventVisibility>(event?.visibility ?? 'public');
   const [description, setDescription] = useState(event?.description ?? '');
-  const [startsAt, setStartsAt] = useState(event?.startsAt ?? '');
-  const [endsAt, setEndsAt] = useState(event?.endsAt ?? '');
+  const [dateText, setDateText] = useState('');
+  const [timeText, setTimeText] = useState('');
+  const [duration, setDuration] = useState('2');
   const [locationName, setLocationName] = useState(event?.locationName ?? '');
   const [city, setCity] = useState(event?.city ?? '');
   const [maxPlayers, setMaxPlayers] = useState(event?.maxPlayers.toString() ?? '10');
+  const [entryFee, setEntryFee] = useState(event ? String(event.entryFeeCents / 100) : '0');
+  const [coverImage, setCoverImage] = useState<string | null>(event?.coverUrl ?? null);
+  const [coverRemoved, setCoverRemoved] = useState(false);
   const [playerQuery, setPlayerQuery] = useState('');
   const [playerResults, setPlayerResults] = useState<UserProfile[]>([]);
+  const initialForm = useRef<string | null>(null);
+  const initializedEventId = useRef<string | null>(null);
+
+  const formSnapshot = (values: {
+    title: string;
+    eventType: EventType;
+    sport: Sport;
+    visibility: EventVisibility;
+    description: string;
+    dateText: string;
+    timeText: string;
+    duration: string;
+    locationName: string;
+    city: string;
+    maxPlayers: string;
+    entryFee: string;
+    coverImage: string | null;
+    coverRemoved: boolean;
+  }) => JSON.stringify(values);
 
   useEffect(() => {
-    if (!event) return;
+    if (!event || initializedEventId.current === event.id) return;
+    const start = new Date(event.startsAt);
+    const end = new Date(event.endsAt);
+    const durationHours = Math.max(0.25, (end.getTime() - start.getTime()) / (60 * 60 * 1000));
     setTitle(event.title);
     setEventType(event.eventType);
+    setSport(event.sport);
     setVisibility(event.visibility);
     setDescription(event.description);
-    setStartsAt(event.startsAt);
-    setEndsAt(event.endsAt);
+    setDateText(formatDateInput(start));
+    setTimeText(formatTimeInput(start));
+    setDuration(String(durationHours));
     setLocationName(event.locationName);
     setCity(event.city);
     setMaxPlayers(event.maxPlayers.toString());
+    setEntryFee(String(event.entryFeeCents / 100));
+    setCoverImage(event.coverUrl ?? null);
+    setCoverRemoved(false);
+    initialForm.current = formSnapshot({
+      title: event.title,
+      eventType: event.eventType,
+      sport: event.sport,
+      visibility: event.visibility,
+      description: event.description,
+      dateText: formatDateInput(start),
+      timeText: formatTimeInput(start),
+      duration: String(durationHours),
+      locationName: event.locationName,
+      city: event.city,
+      maxPlayers: event.maxPlayers.toString(),
+      entryFee: String(event.entryFeeCents / 100),
+      coverImage: event.coverUrl ?? null,
+      coverRemoved: false
+    });
+    initializedEventId.current = event.id;
   }, [event]);
+
+  const isDirty = initialForm.current !== null && initialForm.current !== formSnapshot({
+    title,
+    eventType,
+    sport,
+    visibility,
+    description,
+    dateText,
+    timeText,
+    duration,
+    locationName,
+    city,
+    maxPlayers,
+    entryFee,
+    coverImage,
+    coverRemoved
+  });
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (action) => {
+      if (!isDirty || updateEvent.isPending) return;
+      action.preventDefault();
+      Alert.alert('Discard changes?', 'Your event edits have not been saved.', [
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(action.data.action) }
+      ]);
+    });
+    return unsubscribe;
+  }, [isDirty, navigation, updateEvent.isPending]);
+
+  const pickCover = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow photo library access to change the event cover.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8
+      });
+      if (!result.canceled && result.assets[0]) {
+        setCoverImage(result.assets[0].uri);
+        setCoverRemoved(false);
+      }
+    } catch (pickError) {
+      Alert.alert('Cover unavailable', getErrorMessage(pickError));
+    }
+  };
 
   const save = async () => {
     if (!event) return;
@@ -84,38 +186,72 @@ export function ManageEventScreen() {
       Alert.alert('Missing information', 'Please enter the location and city.');
       return;
     }
-    const parsedStart = new Date(startsAt);
-    const parsedEnd = new Date(endsAt);
-    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime()) || parsedEnd <= parsedStart) {
-      Alert.alert('Invalid time', 'Enter a valid start and end time.');
+    const parsedStart = parseManualStartDate(dateText, timeText);
+    if ('error' in parsedStart) {
+      Alert.alert('Invalid date or time', parsedStart.error);
+      return;
+    }
+    const durationHours = Number(duration);
+    if (!Number.isFinite(durationHours) || durationHours <= 0 || durationHours > 24) {
+      Alert.alert('Invalid time', 'Duration must be greater than 0 and no more than 24 hours.');
+      return;
+    }
+    const startsAt = parsedStart.date.toISOString();
+    const endsAt = new Date(parsedStart.date.getTime() + durationHours * 60 * 60 * 1000).toISOString();
+    if (new Date(endsAt) <= parsedStart.date) {
+      Alert.alert('Invalid time', 'Event end time must be after the start time.');
       return;
     }
     const capacity = Number(maxPlayers);
-    if (!Number.isInteger(capacity) || capacity < 2) {
-      Alert.alert('Invalid capacity', 'Max players must be at least 2.');
+    if (!Number.isInteger(capacity) || capacity < 2 || capacity < event.playerCount) {
+      Alert.alert('Invalid capacity', `Max players must be at least ${Math.max(2, event.playerCount)}.`);
       return;
     }
-    try {
+    const feeAmount = Number(entryFee);
+    if (!Number.isFinite(feeAmount) || feeAmount < 0) {
+      Alert.alert('Invalid fee', 'Entry fee must be 0 or a positive amount.');
+      return;
+    }
+    const applySave = async () => {
+      try {
       await updateEvent.mutateAsync({
         eventId: event.id,
         updates: {
           title: title.trim(),
           eventType,
+          sport,
           description,
           startsAt,
           endsAt,
           locationName: locationName.trim(),
           city: city.trim(),
           maxPlayers: capacity,
-          visibility
+          entryFeeCents: Math.round(feeAmount * 100),
+          visibility: event.communityId ? 'group' : visibility,
+          coverImageUri: coverRemoved ? null : coverImage !== event.coverUrl ? coverImage : undefined
         }
       });
       Alert.alert('Event saved', 'Your changes are live.', [
         { text: 'Done', onPress: () => navigation.goBack() }
       ]);
-    } catch (error) {
-      Alert.alert('Save failed', error instanceof Error ? error.message : 'Please try again.');
+      } catch (saveError) {
+        Alert.alert('Save failed', getErrorMessage(saveError));
+      }
+    };
+    const isMaterialChange =
+      new Date(event.startsAt).getTime() !== new Date(startsAt).getTime()
+      || new Date(event.endsAt).getTime() !== new Date(endsAt).getTime()
+      || event.locationName !== locationName.trim()
+      || event.city !== city.trim()
+      || event.entryFeeCents !== Math.round(feeAmount * 100);
+    if (isMaterialChange) {
+      Alert.alert('Notify attendees?', 'This change affects attendees. They will be notified.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Save & Notify', onPress: () => void applySave() }
+      ]);
+      return;
     }
+    await applySave();
   };
 
   const cancel = () => {
@@ -225,6 +361,24 @@ export function ManageEventScreen() {
         ) : null}
         {event ? (
           <>
+            <Pressable style={styles.cover} onPress={() => void pickCover()}>
+              {coverImage ? (
+                <Image source={{ uri: coverImage }} resizeMode="cover" style={styles.coverImage} />
+              ) : (
+                <>
+                  <Camera size={28} color={colors.text.tertiary} />
+                  <AppText variant="small">Add cover photo</AppText>
+                </>
+              )}
+              <AppText variant="small" style={styles.coverAction}>
+                {coverImage ? 'Tap to change' : 'Tap to add'}
+              </AppText>
+            </Pressable>
+            {coverImage ? (
+              <Button size="sm" variant="ghost" onPress={() => { setCoverImage(null); setCoverRemoved(true); }}>
+                Remove cover
+              </Button>
+            ) : null}
             <Input label="Title" value={title} onChangeText={setTitle} />
             <View style={styles.group}>
               <AppText style={styles.label}>Event Type</AppText>
@@ -237,25 +391,61 @@ export function ManageEventScreen() {
               </ScrollView>
             </View>
             <View style={styles.group}>
-              <AppText style={styles.label}>Visibility</AppText>
+              <AppText style={styles.label}>Sport</AppText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {eventVisibilityOptions.map((option) => (
+                {allSports.map((item) => (
                   <Chip
-                    key={option.value}
-                    selected={option.value === visibility}
-                    onPress={() => setVisibility(option.value)}
+                    key={item}
+                    selected={item === sport}
+                    disabled={event.playerCount > 0}
+                    onPress={() => setSport(item)}
                   >
-                    {option.label}
+                    {item}
                   </Chip>
                 ))}
               </ScrollView>
+              {event.playerCount > 0 ? <AppText variant="small">Sport is locked after players join.</AppText> : null}
             </View>
+            {event.communityId ? (
+              <View style={styles.group}>
+                <AppText style={styles.label}>Visibility</AppText>
+                <AppText variant="bodyMuted">Group members only. This cannot be changed for a group event.</AppText>
+              </View>
+            ) : (
+              <View style={styles.group}>
+                <AppText style={styles.label}>Visibility</AppText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {eventVisibilityOptions.map((option) => (
+                    <Chip
+                      key={option.value}
+                      selected={option.value === visibility}
+                      onPress={() => setVisibility(option.value)}
+                    >
+                      {option.label}
+                    </Chip>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
             <Input label="Description" value={description} onChangeText={setDescription} multiline />
-            <Input label="Starts at" value={startsAt} onChangeText={setStartsAt} />
-            <Input label="Ends at" value={endsAt} onChangeText={setEndsAt} />
+            <View style={styles.group}>
+              <AppText style={styles.label}>Date & Time</AppText>
+              <View style={styles.manualDateTimeRow}>
+                <View style={styles.manualDateTimeField}>
+                  <Input label="Date" icon={Calendar} value={dateText} onChangeText={setDateText} placeholder="YYYY-MM-DD" />
+                </View>
+                <View style={styles.manualDateTimeField}>
+                  <Input label="Time" icon={Clock} value={timeText} onChangeText={setTimeText} placeholder="HH:mm" keyboardType="numbers-and-punctuation" />
+                </View>
+              </View>
+              <AppText variant="small">Use 24-hour time, e.g. 18:30.</AppText>
+            </View>
+            <Input label="Duration (hours)" value={duration} onChangeText={setDuration} keyboardType="numeric" />
             <Input label="Location" value={locationName} onChangeText={setLocationName} />
             <Input label="City" value={city} onChangeText={setCity} />
-            <Input label="Max players" value={maxPlayers} onChangeText={setMaxPlayers} keyboardType="number-pad" />
+            <Input label="Max players" value={maxPlayers} onChangeText={setMaxPlayers} keyboardType="number-pad" placeholder={String(Math.max(2, event.playerCount))} />
+            <Input label="Entry fee" value={entryFee} onChangeText={setEntryFee} keyboardType="decimal-pad" placeholder="0" />
+            {Number(entryFee) > 0 ? <AppText variant="small">{eventPaymentNotice}</AppText> : null}
             <AppText variant="h4">Attendees</AppText>
             {event.attendees.map((attendee) => (
               <View key={attendee.id} style={styles.attendee}>
@@ -403,6 +593,36 @@ const styles = StyleSheet.create({
   },
   group: {
     gap: 8
+  },
+  cover: {
+    height: 164,
+    borderRadius: 14,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.dark[800],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.dark[700]
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute'
+  },
+  coverAction: {
+    color: colors.light[0],
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 10
+  },
+  manualDateTimeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm
+  },
+  manualDateTimeField: {
+    flex: 1
   },
   label: {
     color: colors.text.tertiary,
