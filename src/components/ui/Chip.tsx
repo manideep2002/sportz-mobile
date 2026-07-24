@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewSt
 
 import { AppText } from './AppText';
 import { colors, radii, spacing, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 interface ChipProps extends Omit<PressableProps, 'style'> {
   selected?: boolean;
@@ -10,17 +11,19 @@ interface ChipProps extends Omit<PressableProps, 'style'> {
 }
 
 export function Chip({ children, selected = false, style, ...props }: PropsWithChildren<ChipProps>) {
+  const theme = useAppTheme();
   return (
     <Pressable
       style={({ pressed }) => [
         styles.chip,
         selected ? styles.selected : null,
+        { backgroundColor: selected ? theme.colors.accent : theme.colors.surface, borderColor: selected ? theme.colors.accent : theme.colors.border },
         pressed ? styles.pressed : null,
         style
       ]}
       {...props}
     >
-      <AppText style={[styles.label, selected ? styles.selectedLabel : null]}>{children}</AppText>
+      <AppText style={[styles.label, { color: selected ? theme.colors.onAccent : theme.colors.textMuted }]}>{children}</AppText>
     </Pressable>
   );
 }

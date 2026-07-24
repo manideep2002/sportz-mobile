@@ -5,6 +5,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 
 import { asyncStoragePersister, queryClient } from '@/lib/queryClient';
+import { ThemeProvider } from '@/design/ThemeProvider';
+import { I18nProvider } from '@/i18n';
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
@@ -17,7 +19,9 @@ export function AppProviders({ children }: PropsWithChildren) {
             maxAge: 1000 * 60 * 60 * 24
           }}
         >
-          {children}
+          <ThemeProvider>
+            <I18nProvider>{children}</I18nProvider>
+          </ThemeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

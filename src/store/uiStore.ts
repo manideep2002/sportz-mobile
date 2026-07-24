@@ -4,18 +4,22 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { ThemeMode } from '@/design/tokens';
 
-type AccentColor = 'orange' | 'green' | 'blue' | 'pink';
+export type AccentColor = 'orange' | 'green' | 'blue' | 'pink';
+export type SupportedLocale = 'en-IN' | 'hi-IN';
+
+export const normalizeLocale = (value: unknown): SupportedLocale =>
+  value === 'hi-IN' || value === 'Hindi' ? 'hi-IN' : 'en-IN';
 
 interface UiState {
   themeMode: ThemeMode;
   accentColor: AccentColor;
-  language: string;
+  language: SupportedLocale;
   createSheetOpen: boolean;
   notificationUnreadCount: number;
   onlineUserIds: Set<string>;
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: AccentColor) => void;
-  setLanguage: (language: string) => void;
+  setLanguage: (language: SupportedLocale) => void;
   setNotificationUnreadCount: (count: number) => void;
   incrementNotificationUnreadCount: (delta?: number) => void;
   setOnlineUserIds: (userIds: string[]) => void;
@@ -29,7 +33,7 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       themeMode: 'dark',
       accentColor: 'orange',
-      language: 'English',
+      language: 'en-IN',
       createSheetOpen: false,
       notificationUnreadCount: 0,
       onlineUserIds: new Set(),
@@ -60,12 +64,16 @@ export const useUiStore = create<UiState>()(
         accentColor: state.accentColor,
         language: state.language
       }),
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted as Partial<UiState>),
-        createSheetOpen: false,
-        onlineUserIds: new Set()
-      })
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<UiState>;
+        return {
+          ...current,
+          ...saved,
+          language: normalizeLocale(saved.language),
+          createSheetOpen: false,
+          onlineUserIds: new Set()
+        };
+      }
     }
   )
 );

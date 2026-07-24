@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { colors, radii, shadows, spacing, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 type ButtonVariant = 'primary' | 'ghost' | 'dark' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -28,6 +29,19 @@ export function Button({
   style,
   ...props
 }: PropsWithChildren<ButtonProps>) {
+  const theme = useAppTheme();
+  const variantStyle = variant === 'primary'
+    ? { backgroundColor: theme.colors.accent, shadowColor: theme.colors.accent }
+    : variant === 'ghost'
+      ? { borderColor: theme.colors.accent, backgroundColor: 'transparent' }
+      : variant === 'danger'
+        ? { backgroundColor: theme.colors.dangerSoft }
+        : { backgroundColor: theme.colors.surfaceMuted };
+  const contentColor = variant === 'primary'
+    ? theme.colors.onAccent
+    : variant === 'danger'
+      ? theme.colors.danger
+      : theme.colors.accent;
   return (
     <Pressable
       accessibilityRole="button"
@@ -35,6 +49,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         styles[variant],
+        variantStyle,
         styles[size],
         full ? styles.full : null,
         pressed ? styles.pressed : null,
@@ -43,9 +58,9 @@ export function Button({
       ]}
       {...props}
     >
-      {loading ? <ActivityIndicator color={variant === 'primary' ? colors.light[0] : colors.orange[400]} /> : null}
-      {!loading && Icon ? <Icon size={17} color={variant === 'primary' ? colors.light[0] : colors.orange[400]} strokeWidth={2.2} /> : null}
-      <AppText style={[styles.label, variant === 'primary' ? styles.primaryLabel : null]}>{children}</AppText>
+      {loading ? <ActivityIndicator color={contentColor} /> : null}
+      {!loading && Icon ? <Icon size={17} color={contentColor} strokeWidth={2.2} /> : null}
+      <AppText style={[styles.label, { color: contentColor }]}>{children}</AppText>
     </Pressable>
   );
 }

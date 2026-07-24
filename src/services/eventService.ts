@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { formatLocalizedCurrency, i18n } from '@/i18n';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
@@ -109,13 +110,10 @@ interface EventMessageRow {
 
 const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) => {
   const feeCents = cents ?? 0;
-  if (feeCents <= 0) return 'Free';
+  if (feeCents <= 0) return i18n.t('common.free');
 
   const amount = feeCents / 100;
-  return `${currency ?? 'INR'} ${amount.toLocaleString('en-IN', {
-    maximumFractionDigits: feeCents % 100 === 0 ? 0 : 2,
-    minimumFractionDigits: feeCents % 100 === 0 ? 0 : 2
-  })}`;
+  return formatLocalizedCurrency(amount, currency ?? 'INR');
 };
 
 const participationStatuses = new Set<EventParticipationStatus>([

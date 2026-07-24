@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { colors, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 type Variant = 'hero' | 'h1' | 'h2' | 'h3' | 'h4' | 'body' | 'bodyMuted' | 'small' | 'caption';
 
@@ -11,8 +12,14 @@ interface AppTextProps extends TextProps {
 }
 
 export function AppText({ variant = 'body', color, style, children, ...props }: PropsWithChildren<AppTextProps>) {
+  const theme = useAppTheme();
+  const semanticColor = variant === 'bodyMuted'
+    ? theme.colors.textMuted
+    : variant === 'small' || variant === 'caption'
+      ? theme.colors.textSubtle
+      : theme.colors.text;
   return (
-    <Text {...props} style={[styles.base, styles[variant], color ? { color } : null, style]}>
+    <Text {...props} style={[styles.base, styles[variant], { color: color ?? semanticColor }, style]}>
       {children}
     </Text>
   );

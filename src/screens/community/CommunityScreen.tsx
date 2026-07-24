@@ -3,11 +3,13 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Plus } from 'lucide-react-native';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { useAppTranslation } from '@/i18n';
 
 import { CommunityCard } from '@/components/community/CommunityCard';
 
 import { AppRefreshControl, AppText, Avatar, Button, Card, IconButton, Screen, SegmentedControl, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCommunities, usePendingCommunityInvites, useRespondCommunityInvite } from '@/hooks/useCommunities';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -17,6 +19,8 @@ type Tab = 'Groups' | 'Pages';
 
 export function CommunityScreen() {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const [tab, setTab] = useState<Tab>('Groups');
   const { data: communities = [], isLoading, isError, isRefetching, refetch } = useCommunities();
   const { data: pendingInvites = [], isLoading: invitesLoading, refetch: refetchInvites } = usePendingCommunityInvites();
@@ -38,32 +42,40 @@ export function CommunityScreen() {
       }
     >
       <View style={styles.header}>
-        <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        <IconButton accessibilityLabel={t('common.back')} icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h2">
-          Community<AppText variant="h2" color={colors.orange[500]}>.</AppText>
+          {t('community.title')}<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
-        <Button size="sm" icon={Plus} onPress={() => navigation.navigate('CreateCommunity')}>New</Button>
+        <Button size="sm" icon={Plus} onPress={() => navigation.navigate('CreateCommunity')}>{t('community.new')}</Button>
       </View>
-      <SegmentedControl value={tab} options={['Groups', 'Pages']} onChange={setTab} />
+      <SegmentedControl
+        value={tab}
+        options={['Groups', 'Pages']}
+        getLabel={(value) => t(value === 'Groups' ? 'community.groups' : 'community.pages')}
+        onChange={setTab}
+      />
       {tab === 'Groups' ? (
         <View style={styles.invites}>
           <View style={styles.sectionHeader}>
-            <AppText variant="h4">Invites</AppText>
-            {invitesLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+            <AppText variant="h4">{t('community.invites')}</AppText>
+            {invitesLoading ? <ActivityIndicator color={theme.accent} /> : null}
           </View>
           {!invitesLoading && pendingInvites.length === 0 ? (
-            <AppText variant="bodyMuted">No pending group invites.</AppText>
+            <AppText variant="bodyMuted">{t('community.noInvites')}</AppText>
           ) : null}
           {pendingInvites.map((invite) => (
             <Card key={invite.id} style={styles.inviteCard}>
               <View style={styles.inviteHeader}>
-                <View style={styles.inviteLogo}>
-                  <AppText style={styles.inviteLogoText}>{invite.community.name.charAt(0).toUpperCase()}</AppText>
+                <View style={[styles.inviteLogo, { backgroundColor: theme.surfaceMuted }]}>
+                  <AppText style={[styles.inviteLogoText, { color: theme.accent }]}>{invite.community.name.charAt(0).toUpperCase()}</AppText>
                 </View>
                 <View style={styles.inviteMeta}>
-                  <AppText style={styles.inviteTitle}>{invite.community.name}</AppText>
+                  <AppText style={[styles.inviteTitle, { color: theme.text }]}>{invite.community.name}</AppText>
                   <AppText variant="small">
-                    {invite.community.sport} - {invite.community.isPrivate ? 'Private' : 'Public'} group
+                    {t('community.groupSummary', {
+                      sport: invite.community.sport,
+                      visibility: t(invite.community.isPrivate ? 'community.private' : 'community.public')
+                    })}
                   </AppText>
                 </View>
               </View>
@@ -87,7 +99,7 @@ export function CommunityScreen() {
                     }
                   )}
                 >
-                  Accept
+                  {t('community.accept')}
                 </Button>
                 <Button
                   size="sm"
@@ -103,7 +115,7 @@ export function CommunityScreen() {
                     }
                   )}
                 >
-                  Decline
+                  {t('community.decline')}
                 </Button>
               </View>
             </Card>
@@ -111,15 +123,17 @@ export function CommunityScreen() {
         </View>
       ) : null}
       <View style={styles.list}>
-        {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
         {isError ? (
           <View style={styles.empty}>
-            <AppText variant="bodyMuted">Could not load communities.</AppText>
-            <Button size="sm" onPress={() => void refetch()}>Retry</Button>
+            <AppText variant="bodyMuted">{t('community.loadError')}</AppText>
+            <Button size="sm" onPress={() => void refetch()}>{t('common.retry')}</Button>
           </View>
         ) : null}
         {!isLoading && !isError && filtered.length === 0 ? (
-          <AppText variant="bodyMuted" style={styles.emptyText}>No {tab.toLowerCase()} yet.</AppText>
+          <AppText variant="bodyMuted" style={styles.emptyText}>
+            {t(tab === 'Groups' ? 'community.noGroups' : 'community.noPages')}
+          </AppText>
         ) : null}
         {filtered.map((community) => (
           <CommunityCard

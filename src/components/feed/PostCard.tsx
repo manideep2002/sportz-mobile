@@ -6,6 +6,7 @@ import { Bookmark, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'l
 import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
@@ -35,6 +36,7 @@ function PostCardComponent({
   onPrimaryAction,
   onMediaPress
 }: PostCardProps) {
+  const { colors: theme } = useAppTheme();
   const [mediaLoading, setMediaLoading] = useState(Boolean(post.mediaUrl));
   const [mediaError, setMediaError] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
@@ -71,7 +73,7 @@ function PostCardComponent({
             <View style={styles.headerActions}>
               {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
               <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
-                <MoreHorizontal size={18} color={colors.text.tertiary} />
+                <MoreHorizontal size={18} color={theme.textSubtle} />
               </Pressable>
             </View>
           </View>
@@ -80,13 +82,13 @@ function PostCardComponent({
           </AppText>
           {post.locationLabel ? (
             <View style={styles.location}>
-              <MapPin size={14} color={colors.text.tertiary} />
+              <MapPin size={14} color={theme.textSubtle} />
               <AppText variant="small">{post.locationLabel}</AppText>
             </View>
           ) : null}
           {post.kind === 'stats' && post.statsLine ? (
-            <View style={styles.statsLine}>
-              <AppText style={styles.statsLineText}>{post.statsLine}</AppText>
+            <View style={[styles.statsLine, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+              <AppText style={[styles.statsLineText, { color: theme.accent }]}>{post.statsLine}</AppText>
             </View>
           ) : null}
           {post.mediaKind === 'image' && post.mediaUrl ? (
@@ -94,16 +96,16 @@ function PostCardComponent({
               accessibilityRole="button"
               accessibilityLabel="Open image"
               disabled={mediaError}
-              style={[styles.media, styles.imageMediaFrame, { aspectRatio: mediaAspectRatio }]}
+              style={[styles.media, styles.imageMediaFrame, { aspectRatio: mediaAspectRatio, backgroundColor: theme.surfaceMuted }]}
               onPress={(event) => runAction(event, () => setImageViewerOpen(true))}
             >
               {mediaLoading ? (
                 <View pointerEvents="none" style={styles.mediaLoader}>
-                  <ActivityIndicator color={colors.orange[500]} />
+                  <ActivityIndicator color={theme.accent} />
                 </View>
               ) : null}
               {mediaError ? (
-                <View style={styles.mediaFallback}>
+                <View style={[styles.mediaFallback, { backgroundColor: theme.surfaceMuted }]}>
                   <AppText variant="small">Media unavailable</AppText>
                 </View>
               ) : (
@@ -138,11 +140,11 @@ function PostCardComponent({
               onPress={(event) => runAction(event, onMediaPress)}
             >
               <View style={styles.mediaVideoContainer}>
-                <View style={styles.videoFallback}>
+                <View style={[styles.videoFallback, { backgroundColor: theme.surfaceMuted }]}>
                   <AppText style={styles.videoLabel}>Video</AppText>
                 </View>
-                <View style={styles.playButtonOverlay}>
-                  <Play size={22} color="#0A0907" fill="#0A0907" />
+                <View style={[styles.playButtonOverlay, { backgroundColor: theme.accent }]}>
+                  <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
                 </View>
               </View>
             </Pressable>
@@ -154,35 +156,35 @@ function PostCardComponent({
           ) : null}
           {post.eventTeaser ? (
             <View style={styles.teaser}>
-              <View style={styles.teaserCell}>
+              <View style={[styles.teaserCell, { backgroundColor: theme.surfaceMuted }]}>
                 <AppText variant="small">Date</AppText>
                 <AppText style={styles.teaserValue}>{post.eventTeaser.dateLabel}</AppText>
               </View>
-              <View style={styles.teaserCell}>
+              <View style={[styles.teaserCell, { backgroundColor: theme.surfaceMuted }]}>
                 <AppText variant="small">Time</AppText>
                 <AppText style={styles.teaserValue}>{post.eventTeaser.timeLabel}</AppText>
               </View>
-              <View style={styles.teaserCell}>
+              <View style={[styles.teaserCell, { backgroundColor: theme.surfaceMuted }]}>
                 <AppText variant="small">Slots</AppText>
-                <AppText style={[styles.teaserValue, { color: colors.orange[500] }]}>{post.eventTeaser.slotsLabel}</AppText>
+                <AppText style={[styles.teaserValue, { color: theme.accent }]}>{post.eventTeaser.slotsLabel}</AppText>
               </View>
             </View>
           ) : null}
           <View style={styles.actions}>
             <LikeButton postId={post.id} liked={post.likedByMe} count={post.likes} />
             <Pressable accessibilityRole="button" accessibilityLabel={post.kind === 'thread' ? 'View replies' : 'View comments'} style={styles.action} onPress={(event) => runAction(event, onComment)}>
-              <MessageCircle size={22} color={colors.text.tertiary} />
-              <AppText style={styles.actionText}>{post.comments}</AppText>
+              <MessageCircle size={22} color={theme.textSubtle} />
+              <AppText style={[styles.actionText, { color: theme.textSubtle }]}>{post.comments}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
-              <Share2 size={22} color={colors.text.tertiary} />
-              <AppText style={styles.actionText}>{post.shares}</AppText>
+              <Share2 size={22} color={theme.textSubtle} />
+              <AppText style={[styles.actionText, { color: theme.textSubtle }]}>{post.shares}</AppText>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={post.savedByMe ? 'Unsave post' : 'Save post'} style={styles.action} onPress={(event) => runAction(event, onSave)}>
               <Bookmark
                 size={22}
-                color={post.savedByMe ? colors.orange[400] : colors.text.tertiary}
-                fill={post.savedByMe ? colors.orange[400] : 'transparent'}
+                color={post.savedByMe ? theme.accent : theme.textSubtle}
+                fill={post.savedByMe ? theme.accent : 'transparent'}
               />
             </Pressable>
             {post.kind === 'stats' ? (

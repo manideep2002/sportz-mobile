@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useAppTranslation } from '@/i18n';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
@@ -14,6 +15,7 @@ import { StoryRail } from '@/components/feed/StoryRail';
 import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
 
 import { sportsFilters } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useDeletePost, useInfiniteFeed, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
 import { useStories } from '@/hooks/useStories';
@@ -30,6 +32,8 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function FeedScreen() {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
@@ -61,10 +65,10 @@ export function FeedScreen() {
   // Dynamic greeting based on time of day
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    if (hour < 21) return 'Good evening';
-    return 'Good night';
+    if (hour < 12) return t('greeting.morning');
+    if (hour < 17) return t('greeting.afternoon');
+    if (hour < 21) return t('greeting.evening');
+    return t('greeting.night');
   };
   const openPost = (postId: string) => navigation.navigate('PostDetail', { postId });
   const openAuthor = (post: Post) => {
@@ -88,7 +92,7 @@ export function FeedScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
       <FlashList
         data={filteredFeed}
         keyExtractor={(item) => item.id}
@@ -114,25 +118,25 @@ export function FeedScreen() {
         <View>
           <AppText variant="caption">{getGreeting()}</AppText>
           <AppText variant="h2">
-            {profile?.displayName.split(' ')[0] ?? 'Athlete'} <AppText variant="h2" color={colors.orange[500]}>.</AppText>
+            {profile?.displayName.split(' ')[0] ?? t('greeting.athlete')} <AppText variant="h2" color={theme.accent}>.</AppText>
           </AppText>
         </View>
         <View style={styles.topActions}>
-          <IconButton icon={Bell} accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
+          <IconButton icon={Bell} accessibilityLabel={t('feed.notifications')} onPress={() => navigation.navigate('Notifications')} />
         </View>
       </View>
 
-      <Pressable accessibilityRole="button" style={styles.search} onPress={() => navigation.navigate('Search')}>
-        <Search size={16} color={colors.text.tertiary} />
-        <AppText style={styles.searchText}>Search players, events, courts...</AppText>
+      <Pressable accessibilityRole="button" style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation.navigate('Search')}>
+        <Search size={16} color={theme.textSubtle} />
+        <AppText style={[styles.searchText, { color: theme.textSubtle }]}>{t('feed.search')}</AppText>
       </Pressable>
 
       <View style={styles.quickRow}>
         <Button variant="dark" size="sm" icon={MapPin} onPress={() => navigation.navigate('Courts')}>
-          Courts
+          {t('feed.courts')}
         </Button>
         <Button variant="dark" size="sm" icon={Users} onPress={() => navigation.navigate('Community')}>
-          Community
+          {t('feed.community')}
         </Button>
       </View>
 
@@ -157,20 +161,20 @@ export function FeedScreen() {
       />
 
       <View style={styles.sectionHeader}>
-        <SectionHeader title={selectedSport === 'All' ? 'For You' : selectedSport} action="Refresh" onAction={refreshFeed} />
+        <SectionHeader title={selectedSport === 'All' ? t('feed.forYou') : selectedSport} action={t('common.refresh')} onAction={refreshFeed} />
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
       {isError ? (
         <View style={styles.empty}>
-          <AppText variant="h4">Could not load posts</AppText>
-          <AppText variant="bodyMuted">{error instanceof Error ? error.message : 'Pull down to retry.'}</AppText>
+          <AppText variant="h4">{t('feed.loadError')}</AppText>
+          <AppText variant="bodyMuted">{error instanceof Error ? error.message : t('feed.pullToRetry')}</AppText>
         </View>
       ) : null}
       {!isLoading && !isError && filteredFeed.length === 0 ? (
         <View style={styles.empty}>
-          <AppText variant="h4">No {selectedSport} posts yet</AppText>
-          <AppText variant="bodyMuted">Try another sport or refresh the feed.</AppText>
+          <AppText variant="h4">{t('feed.emptyTitle', { sport: selectedSport })}</AppText>
+          <AppText variant="bodyMuted">{t('feed.emptyBody')}</AppText>
         </View>
       ) : null}
           </>
@@ -195,7 +199,7 @@ export function FeedScreen() {
           onMore={() => setActiveOptionsPost(post)}
         />
         )}
-        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : <View style={styles.footer} />}
+        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : <View style={styles.footer} />}
       />
       <PostOptionsSheet
         open={activeOptionsPost !== null}

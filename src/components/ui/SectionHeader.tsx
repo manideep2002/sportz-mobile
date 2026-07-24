@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors } from '@/design/tokens';
 
 interface SectionHeaderProps {
@@ -10,12 +11,13 @@ interface SectionHeaderProps {
 }
 
 export function SectionHeader({ title, action, onAction }: SectionHeaderProps) {
+  const { colors: theme } = useAppTheme();
   return (
     <View style={styles.row}>
       <AppText variant="h4">{title}</AppText>
       {action ? (
         <Pressable accessibilityRole={onAction ? 'button' : undefined} disabled={!onAction} onPress={onAction}>
-          <AppText style={styles.action}>{action}</AppText>
+          <AppText style={[styles.action, { color: theme.accent }]}>{action}</AppText>
         </Pressable>
       ) : null}
     </View>

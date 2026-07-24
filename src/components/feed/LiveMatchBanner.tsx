@@ -26,12 +26,12 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
               <View style={styles.liveDot} />
               <AppText style={styles.liveText}>LIVE NOW</AppText>
             </View>
-            <AppText variant="h3">{event.title}</AppText>
-            <AppText variant="small">{event.locationName}{event.city ? ` - ${event.city}` : ''}</AppText>
+            <AppText variant="h3" color={colors.light[0]}>{event.title}</AppText>
+            <AppText variant="small" color={colors.light[100]}>{event.locationName}{event.city ? ` - ${event.city}` : ''}</AppText>
           </View>
           <View style={styles.scoreBox}>
             <AppText style={styles.score}>{attendanceLabel}</AppText>
-            <AppText variant="small">{elapsedMinutes} MIN</AppText>
+            <AppText variant="small" color={colors.light[100]}>{elapsedMinutes} MIN</AppText>
           </View>
         </View>
         <View style={styles.bottom}>
@@ -42,7 +42,7 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
               </View>
             ))}
           </View>
-          <AppText variant="small">{event.playerCount} attending</AppText>
+          <AppText variant="small" color={colors.light[100]}>{event.playerCount} attending</AppText>
           <Button
             size="sm"
             style={styles.watch}

@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type Refr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout, spacing } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 interface ScreenProps {
   scroll?: boolean;
@@ -24,6 +25,7 @@ export function Screen({
   contentContainerStyle,
   refreshControl
 }: PropsWithChildren<ScreenProps>) {
+  const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const bottomPadding = withTabPadding ? layout.tabBarHeight + spacing.md : Math.max(insets.bottom, spacing.lg);
   const contentStyle = [
@@ -34,7 +36,7 @@ export function Screen({
 
   const body = scroll ? (
     <ScrollView
-      style={[styles.root, style]}
+      style={[styles.root, { backgroundColor: theme.colors.background }, style]}
       contentContainerStyle={contentStyle}
       refreshControl={refreshControl}
       alwaysBounceVertical
@@ -45,14 +47,14 @@ export function Screen({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.root, contentStyle, style]}>{children}</View>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }, contentStyle, style]}>{children}</View>
   );
 
   if (!keyboard) return body;
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardOffset}
     >

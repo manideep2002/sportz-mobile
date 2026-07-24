@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
 import { eventVisibilityLabel } from '@/constants/events';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { EventParticipationStatus, SportEvent } from '@/types/domain';
 import { eventDate, formatTime } from '@/utils/format';
@@ -21,7 +22,8 @@ export function EventCard({
   onPress,
   onParticipationAction
 }: EventCardProps) {
-  const color = event.sport === 'Football' ? colors.semantic.success : colors.orange[500];
+  const { colors: theme } = useAppTheme();
+  const color = event.sport === 'Football' ? theme.success : theme.accent;
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
   const canJoin = participationStatus === 'none' && (event.status === 'open' || event.status === 'full');
   const canLeaveWaitlist = participationStatus === 'waitlisted';
@@ -62,7 +64,7 @@ export function EventCard({
                   <Badge tone="blue">{eventVisibilityLabel(event.visibility)}</Badge>
                 ) : null}
               </View>
-              <AppText style={styles.title}>{event.title}</AppText>
+              <AppText style={[styles.title, { color: theme.text }]}>{event.title}</AppText>
               <AppText variant="small">{event.locationName}</AppText>
               <AppText variant="small">
                 {eventDate(event.startsAt)} - {formatTime(event.startsAt)}
@@ -71,7 +73,7 @@ export function EventCard({
             <View style={styles.count}>
               <AppText style={[styles.playerCount, { color }]}>
                 {event.playerCount}
-                <AppText style={styles.max}>/{event.maxPlayers}</AppText>
+                <AppText style={[styles.max, { color: theme.textSubtle }]}>/{event.maxPlayers}</AppText>
               </AppText>
               <AppText variant="small">players</AppText>
             </View>

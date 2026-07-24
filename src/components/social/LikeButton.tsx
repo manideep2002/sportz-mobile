@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, type GestureResponderEvent } from 'react-native'
 import { Heart } from 'lucide-react-native';
 
 import { AppText } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors } from '@/design/tokens';
 import { useOptimisticPostLike } from '@/hooks/useFeed';
 
@@ -15,6 +16,7 @@ interface LikeButtonProps {
 }
 
 function LikeButtonComponent({ postId, liked, count, disabled, stopPropagation = true }: LikeButtonProps) {
+  const { colors: theme } = useAppTheme();
   const likeMutation = useOptimisticPostLike();
   const active = liked || likeMutation.isPending;
 
@@ -36,10 +38,10 @@ function LikeButtonComponent({ postId, liked, count, disabled, stopPropagation =
     >
       <Heart
         size={22}
-        color={liked ? colors.orange[400] : colors.text.tertiary}
-        fill={liked ? colors.orange[400] : 'transparent'}
+        color={liked ? theme.accent : theme.textSubtle}
+        fill={liked ? theme.accent : 'transparent'}
       />
-      <AppText style={[styles.actionText, liked ? styles.actionActive : null, active ? styles.syncing : null]}>
+      <AppText style={[styles.actionText, { color: liked ? theme.accent : theme.textSubtle }, active ? styles.syncing : null]}>
         {count}
       </AppText>
     </Pressable>

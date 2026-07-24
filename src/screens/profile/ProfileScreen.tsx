@@ -5,11 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Bookmark, Heart, MessageCircle, MessageSquare, Settings, Trophy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useAppTranslation } from '@/i18n';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
-
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -23,6 +24,8 @@ type Tab = 'Posts' | 'Stats' | 'Highlights';
 
 export function ProfileScreen() {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
   const setProfile = useAuthStore((state) => state.setProfile);
@@ -52,7 +55,7 @@ export function ProfileScreen() {
         <View style={styles.settings}>
           <IconButton icon={Settings} onPress={() => navigation.navigate('Settings')} />
         </View>
-        <ActivityIndicator color={colors.orange[500]} style={{ marginTop: 120 }} />
+        <ActivityIndicator color={theme.accent} style={{ marginTop: 120 }} />
       </Screen>
     );
   }
@@ -72,7 +75,7 @@ export function ProfileScreen() {
         <IconButton icon={Settings} onPress={() => navigation.navigate('Settings')} />
       </View>
       <ProfileCover uri={profile.coverUrl} style={styles.cover} testID="own-profile-cover" />
-      <View style={styles.avatarWrap}>
+      <View style={[styles.avatarWrap, { borderColor: theme.background }]}>
         <Avatar initials={profile.initials} uri={profile.avatarUrl} size={84} online />
       </View>
       <View style={styles.profileInfo}>
@@ -81,7 +84,7 @@ export function ProfileScreen() {
             <VerifiedName profile={profile} variant="h1" style={styles.name} badgeSize={19} />
             <AppText variant="bodyMuted">@{profile.username} · {profile.city}, {profile.country}</AppText>
           </View>
-          <Button size="sm" onPress={() => navigation.navigate('EditProfile')}>Edit Profile</Button>
+          <Button size="sm" onPress={() => navigation.navigate('EditProfile')}>{t('profile.edit')}</Button>
         </View>
         <AppText variant="bodyMuted">{profile.bio}</AppText>
         <View style={styles.badges}>
@@ -92,24 +95,29 @@ export function ProfileScreen() {
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>
           ))}
-          {profile.isHireable && <Badge tone="green">Hireable</Badge>}
+          {profile.isHireable && <Badge tone="green">{t('profile.hireable')}</Badge>}
         </View>
         <View style={styles.stats}>
           <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'followers' })}>
-            <StatCard value={compactNumber(profile.stats.followers)} label="Followers" tone="orange" />
+            <StatCard value={compactNumber(profile.stats.followers)} label={t('profile.followers')} tone="orange" />
           </Pressable>
           <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'following' })}>
-            <StatCard value={profile.stats.following} label="Following" />
+            <StatCard value={profile.stats.following} label={t('profile.following')} />
           </Pressable>
-          <StatCard value={profile.stats.posts} label="Posts" />
-          <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
+          <StatCard value={profile.stats.posts} label={t('profile.posts')} />
+          <StatCard value={`${profile.stats.winRate}%`} label={t('profile.winRate')} tone="green" />
         </View>
         <Button variant="dark" size="sm" icon={Bookmark} onPress={() => navigation.navigate('SavedPosts')}>
-          Saved Posts
+          {t('profile.savedPosts')}
         </Button>
       </View>
       <View style={styles.tabs}>
-        <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
+        <SegmentedControl
+          value={tab}
+          options={['Posts', 'Stats', 'Highlights']}
+          getLabel={(value) => t(`profile.${value.toLowerCase()}`)}
+          onChange={setTab}
+        />
       </View>
       {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
       {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
@@ -120,25 +128,27 @@ export function ProfileScreen() {
 
 function ProfileGrid({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const { data: postsList = [], isLoading } = useUserPosts(userId);
 
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.orange[500]} size="small" />
+        <ActivityIndicator color={theme.accent} size="small" />
       </View>
     );
   }
 
   if (postsList.length === 0) {
     return (
-      <View style={styles.emptyState}>
-        <MessageSquare size={32} color={colors.text.tertiary} style={{ marginBottom: 8 }} />
+      <View style={[styles.emptyState, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <MessageSquare size={32} color={theme.textSubtle} style={{ marginBottom: 8 }} />
         <AppText variant="bodyMuted" style={{ textAlign: 'center', marginBottom: 12 }}>
-          No posts shared yet.
+          {t('profile.noPosts')}
         </AppText>
         <Button size="sm" onPress={() => navigation.navigate('CreatePost')}>
-          Share Your First Update
+          {t('profile.shareFirst')}
         </Button>
       </View>
     );
@@ -154,43 +164,44 @@ function ProfileGrid({ userId }: { userId: string }) {
             onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
             style={({ pressed }) => [
               styles.gridItem,
+              { backgroundColor: theme.surface, borderColor: isStats ? theme.accent : theme.border },
               isStats ? styles.gridItemStats : null,
               pressed ? styles.gridItemPressed : null,
             ]}
           >
             {isStats ? (
               <LinearGradient
-                colors={['#FF5A1F', '#FF7A45']}
+                colors={[theme.accent, theme.accentPressed]}
                 style={styles.gridGradient}
               >
                 <View style={styles.gridHeader}>
-                  <Trophy size={14} color="#0A0907" />
-                  <AppText style={styles.gridSportTextStats}>{post.sport}</AppText>
+                  <Trophy size={14} color={theme.onAccent} />
+                  <AppText style={[styles.gridSportTextStats, { color: theme.onAccent }]}>{post.sport}</AppText>
                 </View>
-                <AppText style={styles.gridBodyTextStats} numberOfLines={2}>
+                <AppText style={[styles.gridBodyTextStats, { color: theme.onAccent }]} numberOfLines={2}>
                   {post.statsLine || post.body}
                 </AppText>
                 <View style={styles.gridFooter}>
-                  <Heart size={10} color="#0A0907" />
-                  <AppText style={styles.gridStatTextStats}>{post.likes}</AppText>
-                  <MessageCircle size={10} color="#0A0907" style={{ marginLeft: 6 }} />
-                  <AppText style={styles.gridStatTextStats}>{post.comments}</AppText>
+                  <Heart size={10} color={theme.onAccent} />
+                  <AppText style={[styles.gridStatTextStats, { color: theme.onAccent }]}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={theme.onAccent} style={{ marginLeft: 6 }} />
+                  <AppText style={[styles.gridStatTextStats, { color: theme.onAccent }]}>{post.comments}</AppText>
                 </View>
               </LinearGradient>
             ) : (
               <View style={styles.gridInner}>
                 <View style={styles.gridHeader}>
-                  <AppText style={styles.gridSportText}>{post.sport}</AppText>
+                  <AppText style={[styles.gridSportText, { color: theme.accent }]}>{post.sport}</AppText>
                   {post.mediaKind === 'court-card' && <AppText style={styles.courtBadge}>COURT</AppText>}
                 </View>
-                <AppText style={styles.gridBodyText} numberOfLines={3}>
+                <AppText style={[styles.gridBodyText, { color: theme.text }]} numberOfLines={3}>
                   {post.body}
                 </AppText>
                 <View style={styles.gridFooter}>
-                  <Heart size={10} color={colors.text.secondary} />
-                  <AppText style={styles.gridStatText}>{post.likes}</AppText>
-                  <MessageCircle size={10} color={colors.text.secondary} style={{ marginLeft: 6 }} />
-                  <AppText style={styles.gridStatText}>{post.comments}</AppText>
+                  <Heart size={10} color={theme.textMuted} />
+                  <AppText style={[styles.gridStatText, { color: theme.textMuted }]}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={theme.textMuted} style={{ marginLeft: 6 }} />
+                  <AppText style={[styles.gridStatText, { color: theme.textMuted }]}>{post.comments}</AppText>
                 </View>
               </View>
             )}
@@ -202,33 +213,35 @@ function ProfileGrid({ userId }: { userId: string }) {
 }
 
 function StatsPanel({ profile }: { profile: UserProfile }) {
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const statLines = [
-    ['Games Played', profile.stats.games],
-    ['Win Rate', profile.stats.winRate],
-    ['Best Points', profile.stats.bestPoints ?? 0],
-    ['Avg Rebounds', profile.stats.avgRebounds ?? 0]
+    [t('profile.gamesPlayed'), profile.stats.games],
+    [t('profile.winRate'), profile.stats.winRate],
+    [t('profile.bestPoints'), profile.stats.bestPoints ?? 0],
+    [t('profile.avgRebounds'), profile.stats.avgRebounds ?? 0]
   ] as const;
 
   const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
 
   return (
-    <View style={styles.panel}>
-      <AppText variant="h4">Season Stats — 2026</AppText>
+    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <AppText variant="h4">{t('profile.seasonStats', { year: 2026 })}</AppText>
       {statLines.map(([label, value]) => (
         <View key={label} style={styles.statLine}>
           <View style={styles.statLineTop}>
             <AppText variant="small">{label}</AppText>
-            <AppText style={styles.statValue}>{value}</AppText>
+            <AppText style={[styles.statValue, { color: theme.text }]}>{value}</AppText>
           </View>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%` }]} />
+          <View style={[styles.track, { backgroundColor: theme.surfaceMuted }]}>
+            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%`, backgroundColor: theme.accent }]} />
           </View>
         </View>
       ))}
       <View style={styles.threeStats}>
-        <StatCard value={profile.stats.bestPoints?.toString() ?? '—'} label="Best PTS" tone="orange" />
-        <StatCard value={profile.stats.avgRebounds?.toString() ?? '—'} label="Avg REB" />
-        <StatCard value={profile.stats.games.toString()} label="Games" tone="green" />
+        <StatCard value={profile.stats.bestPoints?.toString() ?? '—'} label={t('profile.bestPts')} tone="orange" />
+        <StatCard value={profile.stats.avgRebounds?.toString() ?? '—'} label={t('profile.avgReb')} />
+        <StatCard value={profile.stats.games.toString()} label={t('profile.games')} tone="green" />
       </View>
     </View>
   );
@@ -247,6 +260,8 @@ function currentPostStreak(posts: { createdAt: string }[]) {
 
 function HighlightsPanel({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const { data: postsList = [] } = useUserPosts(userId);
   const [filterKind, setFilterKind] = useState<'stats' | 'highlight' | null>(null);
   const topStats = postsList
@@ -256,22 +271,22 @@ function HighlightsPanel({ userId }: { userId: string }) {
   const filteredPosts = filterKind ? postsList.filter((post) => post.kind === filterKind) : postsList.filter((post) => post.kind === 'highlight');
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {[
-          { label: 'Add', kind: null },
-          { label: 'Season', kind: 'stats' as const },
-          { label: 'Best Plays', kind: 'highlight' as const }
+          { label: t('profile.add'), kind: null },
+          { label: t('profile.season'), kind: 'stats' as const },
+          { label: t('profile.bestPlays'), kind: 'highlight' as const }
         ].map((item, index) => (
           <Pressable
             key={item.label}
             style={styles.highlightPill}
             onPress={() => {
-              if (item.label === 'Add') navigation.navigate('CreatePost', { initialKind: 'highlight' });
+              if (index === 0) navigation.navigate('CreatePost', { initialKind: 'highlight' });
               else setFilterKind(item.kind);
             }}
           >
-            <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null]}>
+            <View style={[styles.highlightCircle, { borderColor: index === 0 ? theme.accent : theme.border }, index === 0 ? styles.highlightAdd : null]}>
               <AppText variant="h3">{index === 0 ? '+' : item.label.slice(0, 1)}</AppText>
             </View>
             <AppText variant="small">{item.label}</AppText>
@@ -279,20 +294,20 @@ function HighlightsPanel({ userId }: { userId: string }) {
         ))}
       </ScrollView>
       <View style={styles.highlightCards}>
-        <LinearGradient colors={['#1A0800', '#2A1200']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.orange[500]}>{topStats ? 'TOP' : 'ADD'}</AppText>
-          <AppText style={styles.highlightTitle}>{topStats?.body || 'Share a stats post'}</AppText>
-          <Badge tone="orange">{topStats?.statsLine ?? 'STATS'}</Badge>
+        <LinearGradient colors={[theme.accentSoft, theme.surfaceMuted]} style={styles.highlightCard}>
+          <AppText variant="h2" color={theme.accent}>{topStats ? t('profile.top') : t('profile.add').toLocaleUpperCase()}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{topStats?.body || t('profile.shareStats')}</AppText>
+          <Badge tone="orange">{topStats?.statsLine ?? t('profile.stats').toLocaleUpperCase()}</Badge>
         </LinearGradient>
         <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
           <AppText variant="h2" color={colors.semantic.success}>{streak}</AppText>
-          <AppText style={styles.highlightTitle}>Day Activity Streak</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{t('profile.activityStreak')}</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
       </View>
       {filteredPosts.slice(0, 4).map((post) => (
-        <Pressable key={post.id} style={styles.highlightListItem} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
-          <AppText style={styles.highlightTitle}>{post.body}</AppText>
+        <Pressable key={post.id} style={[styles.highlightListItem, { borderColor: theme.border }]} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{post.body}</AppText>
           <Badge>{post.kind}</Badge>
         </Pressable>
       ))}

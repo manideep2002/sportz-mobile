@@ -1,4 +1,5 @@
 import type { CourtBooking } from '@/types/domain';
+import { activeLocale } from '@/i18n';
 
 const partsFor = (iso: string, timeZone: string) => {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -20,7 +21,7 @@ export const courtDateKey = (iso: string, timeZone: string) => {
 };
 
 export const formatCourtDate = (iso: string, timeZone: string) =>
-  new Intl.DateTimeFormat('en-IN', {
+  new Intl.DateTimeFormat(activeLocale(), {
     timeZone,
     weekday: 'short',
     day: 'numeric',
@@ -28,7 +29,7 @@ export const formatCourtDate = (iso: string, timeZone: string) =>
   }).format(new Date(iso));
 
 export const formatCourtTime = (iso: string, timeZone: string) =>
-  new Intl.DateTimeFormat('en-IN', {
+  new Intl.DateTimeFormat(activeLocale(), {
     timeZone,
     hour: 'numeric',
     minute: '2-digit',
@@ -49,4 +50,3 @@ export const bookingMatchesFilter = (
   if (filter === 'upcoming') return true;
   return booking.status === filter;
 };
-

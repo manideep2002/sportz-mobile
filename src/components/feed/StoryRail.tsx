@@ -2,6 +2,7 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
 import { AppText, Avatar } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import type { Story } from '@/types/domain';
 import { groupStoriesByUser } from '@/utils/storyUtils';
@@ -13,6 +14,7 @@ interface StoryRailProps {
 }
 
 export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProps) {
+  const { colors: theme } = useAppTheme();
   const groupedStories = groupStoriesByUser(stories);
 
   return (
@@ -24,8 +26,8 @@ export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProp
       contentContainerStyle={styles.list}
       ListHeaderComponent={
         <Pressable accessibilityRole="button" accessibilityLabel="Create story" style={styles.item} onPress={onCreateStory}>
-          <View style={styles.addCircle}>
-            <Plus size={22} color={colors.orange[400]} strokeWidth={2.2} />
+          <View style={[styles.addCircle, { backgroundColor: theme.surface, borderColor: theme.accent }]}>
+            <Plus size={22} color={theme.accent} strokeWidth={2.2} />
           </View>
           <AppText variant="small">Your story</AppText>
         </Pressable>
@@ -41,8 +43,8 @@ export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProp
             style={styles.item}
             onPress={() => onOpenStory(targetId)}
           >
-            <View style={[styles.ring, item.allSeen ? styles.seen : styles.active]}>
-              <View style={styles.inner}>
+            <View style={[styles.ring, { borderColor: item.allSeen ? theme.border : theme.accent }]}>
+              <View style={[styles.inner, { backgroundColor: theme.background }]}>
                 <Avatar initials={item.user.initials} uri={item.user.avatarUrl} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
               </View>
             </View>

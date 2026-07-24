@@ -5,6 +5,7 @@ import { X } from 'lucide-react-native';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 import { colors, radii, spacing } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 interface BottomSheetProps {
   open: boolean;
@@ -13,11 +14,12 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ open, title, onClose, children }: PropsWithChildren<BottomSheetProps>) {
+  const theme = useAppTheme();
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.scrim} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
-          <View style={styles.handle} />
+      <Pressable style={[styles.scrim, { backgroundColor: theme.colors.scrim }]} onPress={onClose}>
+        <Pressable style={[styles.sheet, { backgroundColor: theme.colors.surfaceElevated }]} onPress={(event) => event.stopPropagation()}>
+          <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.header}>
             <AppText variant="h3">{title}</AppText>
             <IconButton icon={X} size={34} iconSize={16} onPress={onClose} />

@@ -23,6 +23,8 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuthStore } from '@/store/authStore';
 import { AppText } from '@/components/ui';
 import { colors } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { useAppTranslation } from '@/i18n';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -30,11 +32,17 @@ function AppContent() {
   usePushNotifications();
   usePresence();
   const { isOffline } = useNetworkStatus();
+  const theme = useAppTheme();
+  const { t } = useAppTranslation();
   return (
-    <View style={styles.appShell}>
+    <View style={[styles.appShell, { backgroundColor: theme.colors.background }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+      />
       {isOffline ? (
-        <View style={styles.offlineBanner}>
-          <AppText style={styles.offlineText}>You&apos;re offline. Some content may be outdated.</AppText>
+        <View style={[styles.offlineBanner, { backgroundColor: theme.colors.accent }]}>
+          <AppText style={[styles.offlineText, { color: theme.colors.onAccent }]}>{t('common.offline')}</AppText>
         </View>
       ) : null}
       <RootNavigator />
@@ -79,7 +87,6 @@ export default function App() {
 
   return (
     <AppProviders>
-      <StatusBar barStyle="light-content" />
       <AppContent />
     </AppProviders>
   );

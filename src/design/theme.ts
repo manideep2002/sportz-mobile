@@ -1,31 +1,17 @@
 import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 
-import { colors } from './tokens';
+import type { AppTheme } from './ThemeProvider';
 
-export const sportzDarkTheme: Theme = {
-  ...DarkTheme,
-  dark: true,
+export const createNavigationTheme = (theme: AppTheme): Theme => ({
+  ...(theme.isDark ? DarkTheme : DefaultTheme),
+  dark: theme.isDark,
   colors: {
-    ...DarkTheme.colors,
-    primary: colors.orange[500],
-    background: colors.dark[950],
-    card: colors.dark[900],
-    text: colors.text.primary,
-    border: colors.dark[700],
-    notification: colors.semantic.danger
+    ...(theme.isDark ? DarkTheme.colors : DefaultTheme.colors),
+    primary: theme.colors.accent,
+    background: theme.colors.background,
+    card: theme.colors.surfaceElevated,
+    text: theme.colors.text,
+    border: theme.colors.border,
+    notification: theme.colors.danger
   }
-};
-
-export const sportzLightTheme: Theme = {
-  ...DefaultTheme,
-  dark: false,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: colors.orange[500],
-    background: colors.light[50],
-    card: colors.light[0],
-    text: colors.text.inverse,
-    border: colors.light[100],
-    notification: colors.semantic.danger
-  }
-};
+});

@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Users } from 'lucide-react-native';
 
 import { AppText, Badge, Button, Card } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Community } from '@/types/domain';
 
@@ -13,6 +14,7 @@ interface CommunityCardProps {
 }
 
 export function CommunityCard({ community, onPress, onViewPosts, onAction }: CommunityCardProps) {
+  const { colors: theme } = useAppTheme();
   const isGroup = community.type === 'group';
   const actionLabel = isGroup
     ? community.isMember
@@ -32,11 +34,11 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
     <Pressable onPress={onPress}>
       <Card style={styles.card}>
         <View style={styles.header}>
-          <View style={styles.logo}>
-            <Users size={22} color={colors.light[0]} />
+          <View style={[styles.logo, { backgroundColor: theme.accent }]}>
+            <Users size={22} color={theme.onAccent} />
           </View>
           <View style={styles.meta}>
-            <AppText style={styles.name}>{community.name}</AppText>
+            <AppText style={[styles.name, { color: theme.text }]}>{community.name}</AppText>
             <AppText variant="small">
               {community.type === 'group' ? `${community.memberCount} members` : `${community.followerCount ?? 0} followers`} - {community.city}
             </AppText>
@@ -51,10 +53,10 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
         {community.latestPost ? (
-          <View style={styles.latest}>
+          <View style={[styles.latest, { backgroundColor: theme.surfaceMuted }]}>
             <View style={styles.liveDot} />
             <View style={{ flex: 1 }}>
-              <AppText style={styles.latestTitle}>Latest update</AppText>
+              <AppText style={[styles.latestTitle, { color: theme.text }]}>Latest update</AppText>
               <AppText variant="small">{community.latestPost}</AppText>
             </View>
           </View>

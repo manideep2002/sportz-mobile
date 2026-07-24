@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, typography } from '@/design/tokens';
 import { mediaVariants } from '@/utils/mediaOptimization';
 
@@ -26,6 +27,7 @@ const gradients: Record<AvatarTone, [string, string]> = {
 };
 
 export function Avatar({ initials, size = 42, tone = 'orange', online = false, uri }: AvatarProps) {
+  const { colors: theme } = useAppTheme();
   const [imageError, setImageError] = useState(false);
   const [useOriginalUri, setUseOriginalUri] = useState(false);
   const optimizedUri = mediaVariants.avatar(uri, size);
@@ -41,7 +43,7 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
   return (
     <View style={{ width: size, height: size }}>
       {showFallback ? (
-        <LinearGradient colors={gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
+        <LinearGradient colors={tone === 'orange' ? [theme.accent, theme.accentPressed] : gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
           <AppText style={[styles.initials, { fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
         </LinearGradient>
       ) : (
@@ -57,7 +59,7 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
           }}
         />
       )}
-      {online ? <View style={[styles.online, { width: size * 0.24, height: size * 0.24, borderRadius: size * 0.12 }]} /> : null}
+      {online ? <View style={[styles.online, { width: size * 0.24, height: size * 0.24, borderRadius: size * 0.12, borderColor: theme.background }]} /> : null}
     </View>
   );
 }

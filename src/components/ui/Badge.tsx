@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { AppText } from './AppText';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 
 type BadgeTone = 'orange' | 'dark' | 'green' | 'blue' | 'red' | 'yellow';
@@ -21,7 +22,13 @@ const toneStyles: Record<BadgeTone, { backgroundColor: string; color: string }> 
 };
 
 export function Badge({ children, tone = 'dark', style }: PropsWithChildren<BadgeProps>) {
-  const toneStyle = toneStyles[tone];
+  const { colors: theme } = useAppTheme();
+  const toneStyle =
+    tone === 'orange'
+      ? { backgroundColor: theme.accent, color: theme.onAccent }
+      : tone === 'dark'
+        ? { backgroundColor: theme.surfaceMuted, color: theme.textMuted }
+        : toneStyles[tone];
   return (
     <View style={[styles.badge, { backgroundColor: toneStyle.backgroundColor }, style]}>
       <AppText style={[styles.label, { color: toneStyle.color }]}>{children}</AppText>

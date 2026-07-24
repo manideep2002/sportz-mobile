@@ -4,27 +4,29 @@ import type { LucideIcon } from 'lucide-react-native';
 
 import { AppText } from './AppText';
 import { colors, radii, spacing, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 
 interface InputProps extends TextInputProps {
   label?: string;
   icon?: LucideIcon;
 }
 
-export const Input = forwardRef<TextInput, InputProps>(({ label, icon: Icon, style, ...props }, ref) => (
-  <View style={styles.group}>
-    {label ? <AppText style={styles.label}>{label}</AppText> : null}
+export const Input = forwardRef<TextInput, InputProps>(({ label, icon: Icon, style, ...props }, ref) => {
+  const theme = useAppTheme();
+  return <View style={styles.group}>
+    {label ? <AppText style={[styles.label, { color: theme.colors.textSubtle }]}>{label}</AppText> : null}
     <View style={styles.wrap}>
-      {Icon ? <Icon size={17} color={colors.text.tertiary} strokeWidth={2} style={styles.icon} /> : null}
+      {Icon ? <Icon size={17} color={theme.colors.textSubtle} strokeWidth={2} style={styles.icon} /> : null}
       <TextInput
         ref={ref}
-        placeholderTextColor={colors.text.tertiary}
-        selectionColor={colors.orange[400]}
-        style={[styles.input, Icon ? styles.withIcon : null, style]}
+        placeholderTextColor={theme.colors.textSubtle}
+        selectionColor={theme.colors.accent}
+        style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface, color: theme.colors.text }, Icon ? styles.withIcon : null, style]}
         {...props}
       />
     </View>
-  </View>
-));
+  </View>;
+});
 
 Input.displayName = 'Input';
 

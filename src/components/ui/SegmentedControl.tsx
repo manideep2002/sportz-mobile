@@ -1,22 +1,29 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, typography } from '@/design/tokens';
 
 interface SegmentedControlProps<T extends string> {
   value: T;
   options: T[];
   onChange: (value: T) => void;
+  getLabel?: (value: T) => string;
 }
 
-export function SegmentedControl<T extends string>({ value, options, onChange }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ value, options, onChange, getLabel }: SegmentedControlProps<T>) {
+  const { colors: theme } = useAppTheme();
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {options.map((option) => {
         const selected = option === value;
         return (
-          <Pressable key={option} onPress={() => onChange(option)} style={[styles.item, selected ? styles.selected : null]}>
-            <AppText style={[styles.label, selected ? styles.selectedLabel : null]}>{option}</AppText>
+          <Pressable
+            key={option}
+            onPress={() => onChange(option)}
+            style={[styles.item, selected ? styles.selected : null, selected ? { backgroundColor: theme.accent } : null]}
+          >
+            <AppText style={[styles.label, { color: selected ? theme.onAccent : theme.textMuted }]}>{getLabel?.(option) ?? option}</AppText>
           </Pressable>
         );
       })}

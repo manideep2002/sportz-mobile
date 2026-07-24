@@ -3,14 +3,16 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { addDays, format, isAfter, isSameDay, startOfDay } from 'date-fns';
+import { addDays, isAfter, isSameDay, startOfDay } from 'date-fns';
 
 import { EventCard } from '@/components/events/EventCard';
 
 import { AppRefreshControl, AppText, Button, Card, SectionHeader, Screen, IconButton } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useEventParticipationBatch, useEvents, useJoinEvent, useLeaveEventWaitlist } from '@/hooks/useEvents';
+import { formatLocalizedDate, useAppTranslation } from '@/i18n';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { EventParticipationStatus, Sport } from '@/types/domain';
 
@@ -24,16 +26,16 @@ function buildWeekDays() {
   return Array.from({ length: 7 }, (_, i) => addDays(today, i));
 }
 
-const participationLabel = (status: EventParticipationStatus) => {
+const participationLabel = (status: EventParticipationStatus, t: (key: string) => string) => {
   switch (status) {
     case 'going':
-      return 'Going';
+      return t('events.going');
     case 'waitlisted':
-      return 'Waitlisted';
+      return t('events.waitlisted');
     case 'interested':
-      return 'Interested';
+      return t('events.interested');
     case 'declined':
-      return 'Declined';
+      return t('events.declined');
     default:
       return null;
   }
@@ -41,6 +43,8 @@ const participationLabel = (status: EventParticipationStatus) => {
 
 export function EventsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const { data: events = [], isLoading, isError, refetch, isRefetching } = useEvents();
   const joinEvent = useJoinEvent();
   const leaveWaitlist = useLeaveEventWaitlist();
@@ -131,16 +135,16 @@ export function EventsScreen() {
     >
       <View style={styles.header}>
         <AppText variant="h2">
-          Events<AppText variant="h2" color={colors.orange[500]}>.</AppText>
+          {t('events.title')}<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
         <View style={styles.headerActions}>
           {isRefetching || participationRefetching ? (
-            <ActivityIndicator size="small" color={colors.orange[500]} style={{ marginRight: 8 }} />
+            <ActivityIndicator size="small" color={theme.accent} style={{ marginRight: 8 }} />
           ) : (
             <IconButton icon={RefreshCw} onPress={handleRefresh} />
           )}
           <Button size="sm" icon={Plus} onPress={() => navigation.navigate('CreateEvent')}>
-            Create
+            {t('common.create')}
           </Button>
         </View>
       </View>
@@ -158,18 +162,22 @@ export function EventsScreen() {
           return (
             <Pressable
               key={day.toISOString()}
-              style={[styles.day, isActive ? styles.dayActive : null]}
+              style={[
+                styles.day,
+                { backgroundColor: isActive ? theme.accent : theme.surface },
+                isActive ? styles.dayActive : null
+              ]}
               onPress={() => setSelectedDay(day)}
               accessible={true}
               accessibilityRole="button"
-              accessibilityLabel={`${isToday ? 'Today' : format(day, 'EEEE, MMMM d')}`}
+              accessibilityLabel={isToday ? t('events.today') : formatLocalizedDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}
               accessibilityState={{ selected: isActive }}
             >
-              <AppText style={[styles.dayName, isActive ? styles.dayActiveText : null]}>
-                {isToday ? 'TODAY' : format(day, 'EEE').toUpperCase()}
+              <AppText style={[styles.dayName, { color: isActive ? theme.onAccent : theme.textSubtle }]}>
+                {isToday ? t('events.today').toLocaleUpperCase() : formatLocalizedDate(day, { weekday: 'short' }).toLocaleUpperCase()}
               </AppText>
-              <AppText style={[styles.dayNumber, isActive ? styles.dayActiveText : null]}>
-                {format(day, 'd')}
+              <AppText style={[styles.dayNumber, { color: isActive ? theme.onAccent : theme.textMuted }]}>
+                {formatLocalizedDate(day, { day: 'numeric' })}
               </AppText>
             </Pressable>
           );
@@ -186,17 +194,23 @@ export function EventsScreen() {
         {SPORT_FILTERS.map((sport) => (
           <Pressable
             key={sport}
-            style={[styles.filterChip, selectedSport === sport ? styles.filterChipActive : null]}
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor: selectedSport === sport ? theme.accentSoft : theme.surface,
+                borderColor: selectedSport === sport ? theme.accent : theme.border
+              }
+            ]}
             onPress={() => setSelectedSport(sport)}
             accessible={true}
             accessibilityRole="button"
-            accessibilityLabel={`Filter by ${sport}`}
+            accessibilityLabel={t('events.filterBy', { sport })}
             accessibilityState={{ selected: selectedSport === sport }}
           >
             <AppText
               style={[
                 styles.filterChipText,
-                selectedSport === sport ? styles.filterChipTextActive : null
+                { color: selectedSport === sport ? theme.accent : theme.textMuted }
               ]}
             >
               {sport}
@@ -206,16 +220,16 @@ export function EventsScreen() {
       </ScrollView>
 
       <View style={styles.section}>
-        <SectionHeader title={isSameDay(selectedDay, new Date()) ? 'Today' : format(selectedDay, 'EEE, MMM d')} />
-        {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        <SectionHeader title={isSameDay(selectedDay, new Date()) ? t('events.today') : formatLocalizedDate(selectedDay, { weekday: 'short', month: 'short', day: 'numeric' })} />
+        {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
         {isError ? (
           <AppText variant="bodyMuted" style={styles.empty}>
-            Could not load events. Pull down to retry.
+            {t('events.loadError')}
           </AppText>
         ) : null}
         {!isLoading && !isError && todayEvents.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>
-            No events on this day. Try another day or sport.
+            {t('events.empty')}
           </AppText>
         ) : null}
         {todayEvents.map((event) => (
@@ -233,8 +247,8 @@ export function EventsScreen() {
       {upcomingEvents.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader
-            title="Upcoming"
-            action={showAllUpcoming ? 'Show less' : 'View all'}
+            title={t('events.upcoming')}
+            action={showAllUpcoming ? t('events.showLess') : t('events.viewAll')}
             onAction={() => setShowAllUpcoming(!showAllUpcoming)}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -247,7 +261,7 @@ export function EventsScreen() {
                   <View
                     style={[
                       styles.upcomingIcon,
-                      { backgroundColor: event.sport === 'Football' ? '#0D2E18' : '#1A0D00' }
+                      { backgroundColor: event.sport === 'Football' ? theme.success : theme.accentSoft }
                     ]}
                   >
                     <AppText variant="h2" style={styles.upcomingEmoji}>
@@ -255,15 +269,15 @@ export function EventsScreen() {
                     </AppText>
                   </View>
                   <View style={styles.upcomingBody}>
-                    <AppText style={styles.upcomingTitle} numberOfLines={2}>
+                    <AppText style={[styles.upcomingTitle, { color: theme.text }]} numberOfLines={2}>
                       {event.title}
                     </AppText>
                     <AppText variant="small">{event.eventType}</AppText>
                     <AppText variant="small">{event.locationName}</AppText>
-                    <AppText style={styles.upcomingDate}>{format(new Date(event.startsAt), 'EEE, MMM d')}</AppText>
-                    {participationLabel(participationByEvent[event.id] ?? 'none') ? (
-                      <AppText style={styles.participationStatus}>
-                        {participationLabel(participationByEvent[event.id] ?? 'none')}
+                    <AppText style={[styles.upcomingDate, { color: theme.textSubtle }]}>{formatLocalizedDate(event.startsAt, { weekday: 'short', month: 'short', day: 'numeric' })}</AppText>
+                    {participationLabel(participationByEvent[event.id] ?? 'none', t) ? (
+                      <AppText style={[styles.participationStatus, { color: theme.success }]}>
+                        {participationLabel(participationByEvent[event.id] ?? 'none', t)}
                       </AppText>
                     ) : null}
                     {participationByEvent[event.id] === 'waitlisted' ? (
@@ -276,10 +290,10 @@ export function EventsScreen() {
                           void handleParticipationAction(event.id);
                         }}
                       >
-                        Leave Waitlist
+                        {t('events.leaveWaitlist')}
                       </Button>
                     ) : null}
-                    <AppText style={styles.slots}>{Math.max(0, event.maxPlayers - event.playerCount)} slots left</AppText>
+                    <AppText style={[styles.slots, { color: theme.accent }]}>{t('events.slotsLeft', { count: Math.max(0, event.maxPlayers - event.playerCount) })}</AppText>
                   </View>
                 </Card>
               </Pressable>

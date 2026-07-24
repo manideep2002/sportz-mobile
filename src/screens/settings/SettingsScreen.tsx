@@ -2,8 +2,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Bell, CalendarCheck, ChevronLeft, Globe, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useAppTranslation } from '@/i18n';
 
 import { AppText, IconButton, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
@@ -19,45 +21,60 @@ type SettingsItemConfig = {
   adminBookings?: boolean;
 };
 
-const accountItems: SettingsItemConfig[] = [
-  { label: 'Profile Settings', detail: 'Edit name, bio, sport, position', icon: UserRound, route: 'EditProfile' as const },
-  { label: 'Privacy & Security', detail: 'Account visibility, block list', icon: Lock, route: 'Privacy' },
-  { label: 'Notifications', detail: 'Push, email, activity alerts', icon: Bell, route: 'NotificationSettings' }
-];
-
-const preferenceItems: SettingsItemConfig[] = [
-  { label: 'Language & Region', detail: 'English - India', icon: Globe, route: 'Language' },
-  { label: 'Appearance', detail: 'Dark mode - Orange accent', icon: Moon, route: 'Appearance' },
-  { label: 'Sports Interests', detail: 'Basketball, Football, Tennis', icon: Heart, route: 'SportsInterests' }
-];
-
 export function SettingsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const signOut = useAuthStore((state) => state.signOut);
   const deleteAccount = useAuthStore((state) => state.deleteAccount);
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
-  const setThemeMode = useUiStore((state) => state.setThemeMode);
+  const accentColor = useUiStore((state) => state.accentColor);
+  const language = useUiStore((state) => state.language);
+  const accountItems: SettingsItemConfig[] = [
+    { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
+    { label: t('settings.privacy'), detail: t('settings.privacyDetail'), icon: Lock, route: 'Privacy' },
+    { label: t('settings.notifications'), detail: t('settings.notificationsDetail'), icon: Bell, route: 'NotificationSettings' }
+  ];
+  const languageName = t(language === 'hi-IN' ? 'language.hindi' : 'language.english');
+  const preferenceItems: SettingsItemConfig[] = [
+    { label: t('settings.languageRegion'), detail: t('language.region', { language: languageName }), icon: Globe, route: 'Language' },
+    {
+      label: t('settings.appearance'),
+      detail: t('appearance.summary', {
+        theme: t(`appearance.${themeMode}`),
+        accent: t(`appearance.${accentColor}`)
+      }),
+      icon: Moon,
+      route: 'Appearance'
+    },
+    {
+      label: t('settings.sports'),
+      detail: profile?.sports.length ? profile.sports.join(', ') : t('settings.sportsFallback'),
+      icon: Heart,
+      route: 'SportsInterests'
+    }
+  ];
 
   const handleSignOut = async () => {
     try {
       await signOut();
     } catch (error) {
-      Alert.alert('Sign out failed', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert(t('settings.signOutFailed'), error instanceof Error ? error.message : t('common.retry'));
     }
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert('Delete account?', 'This permanently deletes your SPORTZ account and profile data.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.deleteConfirmTitle'), t('settings.deleteConfirmBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteAccount();
           } catch (error) {
-            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Please try again.');
+            Alert.alert(t('settings.deleteFailed'), error instanceof Error ? error.message : t('common.retry'));
           }
         }
       }
@@ -67,25 +84,25 @@ export function SettingsScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <AppText variant="h3">Settings</AppText>
+        <IconButton accessibilityLabel={t('common.back')} icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        <AppText variant="h3">{t('settings.title')}</AppText>
         <View style={{ width: 40 }} />
       </View>
-      <Section title="Account" items={accountItems} navigation={navigation} />
+      <Section title={t('settings.account')} items={accountItems} navigation={navigation} />
       <SettingsItem
-        label="My Bookings"
-        detail="Track, view, or cancel court bookings"
+        label={t('settings.bookings')}
+        detail={t('settings.bookingsDetail')}
         icon={CalendarCheck}
         onPress={() => navigation.navigate('CourtBookings')}
       />
       {profile?.isAdmin ? (
         <Section
-          title="Admin"
+          title={t('settings.admin')}
           items={[
-            { label: 'Moderation Queue', detail: 'Review reports and actions', icon: ShieldCheck, route: 'Moderation' },
+            { label: t('settings.moderation'), detail: t('settings.moderationDetail'), icon: ShieldCheck, route: 'Moderation' },
             {
-              label: 'Court Bookings',
-              detail: 'Confirm or cancel booking requests',
+              label: t('settings.courtBookings'),
+              detail: t('settings.courtBookingsDetail'),
               icon: CalendarCheck,
               route: 'CourtBookings',
               adminBookings: true
@@ -94,29 +111,19 @@ export function SettingsScreen() {
           navigation={navigation}
         />
       ) : null}
-      <Section title="Preferences" items={preferenceItems} navigation={navigation} />
-      <Pressable style={styles.item} onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}>
-        <View style={styles.itemIcon}><Moon size={18} color={colors.text.secondary} /></View>
-        <View style={{ flex: 1 }}>
-          <AppText style={styles.itemLabel}>Toggle Theme</AppText>
-          <AppText variant="small">Current: {themeMode}</AppText>
-        </View>
-        <View style={[styles.switch, themeMode === 'dark' ? styles.switchActive : null]}>
-          <View style={[styles.knob, themeMode === 'dark' ? styles.knobActive : null]} />
-        </View>
-      </Pressable>
-      <AppText variant="caption" style={styles.sectionTitle}>Support</AppText>
-      <SettingsItem label="Help & Support" icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
-      <Pressable style={styles.item} onPress={handleDeleteAccount}>
+      <Section title={t('settings.preferences')} items={preferenceItems} navigation={navigation} />
+      <AppText variant="caption" style={styles.sectionTitle}>{t('settings.support')}</AppText>
+      <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
+      <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleDeleteAccount}>
         <View style={[styles.itemIcon, styles.dangerIcon]}><Trash2 size={18} color={colors.semantic.danger} /></View>
         <View style={{ flex: 1 }}>
-          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>Delete Account</AppText>
+          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>{t('settings.deleteAccount')}</AppText>
         </View>
       </Pressable>
-      <Pressable style={styles.item} onPress={handleSignOut}>
+      <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleSignOut}>
         <View style={[styles.itemIcon, styles.dangerIcon]}><LogOut size={18} color={colors.semantic.danger} /></View>
         <View style={{ flex: 1 }}>
-          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>Sign Out</AppText>
+          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>{t('settings.signOut')}</AppText>
         </View>
       </Pressable>
     </Screen>
@@ -147,11 +154,12 @@ function Section({ title, items, navigation }: { title: string; items: SettingsI
 }
 
 function SettingsItem({ label, detail, icon: Icon, onPress }: { label: string; detail?: string; icon: LucideIcon; onPress?: () => void }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <Pressable style={styles.item} onPress={onPress}>
-      <View style={styles.itemIcon}><Icon size={18} color={colors.orange[500]} /></View>
+    <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={onPress}>
+      <View style={[styles.itemIcon, { backgroundColor: theme.accentSoft }]}><Icon size={18} color={theme.accent} /></View>
       <View style={{ flex: 1 }}>
-        <AppText style={styles.itemLabel}>{label}</AppText>
+        <AppText style={[styles.itemLabel, { color: theme.text }]}>{label}</AppText>
         {detail ? <AppText variant="small">{detail}</AppText> : null}
       </View>
       <AppText variant="bodyMuted">{'>'}</AppText>
@@ -199,24 +207,5 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyFamily,
     fontSize: 14
-  },
-  switch: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    padding: 3,
-    backgroundColor: colors.dark[700]
-  },
-  switchActive: {
-    backgroundColor: colors.orange[500]
-  },
-  knob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.light[0]
-  },
-  knobActive: {
-    marginLeft: 'auto'
   }
 });

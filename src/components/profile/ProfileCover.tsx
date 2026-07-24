@@ -9,7 +9,7 @@ import {
   type ViewStyle
 } from 'react-native';
 
-import { colors } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { mediaVariants } from '@/utils/mediaOptimization';
 
 interface ProfileCoverProps {
@@ -21,10 +21,11 @@ interface ProfileCoverProps {
 
 export function ProfileCover({
   uri,
-  fallbackColors = ['#0A0D1A', '#101629'],
+  fallbackColors,
   style,
   testID = 'profile-cover'
 }: ProfileCoverProps) {
+  const { colors: theme } = useAppTheme();
   const [loading, setLoading] = useState(Boolean(uri));
   const [imageError, setImageError] = useState(false);
   const [useOriginalUri, setUseOriginalUri] = useState(false);
@@ -41,7 +42,10 @@ export function ProfileCover({
 
   return (
     <View style={[styles.root, style]} testID={testID}>
-      <LinearGradient colors={[...fallbackColors]} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        colors={fallbackColors ? [...fallbackColors] : [theme.surfaceMuted, theme.background]}
+        style={StyleSheet.absoluteFill}
+      />
       {showImage ? (
         <ExpoImage
           accessibilityLabel="Profile cover image"
@@ -65,10 +69,10 @@ export function ProfileCover({
       ) : null}
       {loading && showImage ? (
         <View pointerEvents="none" style={styles.loading} testID={`${testID}-loading`}>
-          <ActivityIndicator color={colors.light[0]} />
+          <ActivityIndicator color={theme.inverseText} />
         </View>
       ) : null}
-      <View pointerEvents="none" style={styles.border} />
+      <View pointerEvents="none" style={[styles.border, { borderColor: theme.accentBorder }]} />
     </View>
   );
 }

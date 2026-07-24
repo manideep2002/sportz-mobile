@@ -2,6 +2,7 @@ import { BellOff, MoreVertical, Pin } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, VerifiedName } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Conversation } from '@/types/domain';
 import { getOtherParticipant } from '@/utils/conversation';
@@ -15,12 +16,13 @@ interface ConversationRowProps {
 }
 
 export function ConversationRow({ conversation, currentUserId, onPress, onMenuPress }: ConversationRowProps) {
+  const { colors: theme } = useAppTheme();
   const other = getOtherParticipant(conversation, currentUserId) ?? conversation.participants[0];
   const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other?.initials ?? '??';
   const title = conversation.isGroup ? conversation.title : other?.displayName ?? conversation.title;
 
   return (
-    <Pressable onPress={onPress} onLongPress={onMenuPress} style={styles.row}>
+    <Pressable onPress={onPress} onLongPress={onMenuPress} style={[styles.row, { borderBottomColor: theme.border }]}>
       <Avatar
         initials={avatarInitials}
         uri={conversation.isGroup ? undefined : other?.avatarUrl}
@@ -32,7 +34,7 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
           {!conversation.isGroup && other ? (
             <VerifiedName profile={other} style={styles.title} containerStyle={styles.titleName} numberOfLines={1} />
           ) : (
-            <AppText style={styles.title} numberOfLines={1}>{title}</AppText>
+            <AppText style={[styles.title, { color: theme.text }]} numberOfLines={1}>{title}</AppText>
           )}
           <AppText variant="small">{timeAgo(conversation.lastMessageAt).replace(' ago', '')}</AppText>
         </View>
@@ -42,12 +44,12 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
       </View>
       <View style={styles.trailing}>
         <View style={styles.indicators}>
-          {conversation.pinned ? <Pin size={12} color={colors.orange[400]} fill={colors.orange[400]} /> : null}
-          {conversation.muted ? <BellOff size={13} color={colors.text.tertiary} /> : null}
+          {conversation.pinned ? <Pin size={12} color={theme.accent} fill={theme.accent} /> : null}
+          {conversation.muted ? <BellOff size={13} color={theme.textSubtle} /> : null}
         </View>
         {conversation.unreadCount > 0 ? (
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{conversation.unreadCount}</AppText>
+          <View style={[styles.badge, { backgroundColor: theme.accent }]}>
+            <AppText style={[styles.badgeText, { color: theme.onAccent }]}>{conversation.unreadCount}</AppText>
           </View>
         ) : null}
         {onMenuPress ? (
@@ -61,7 +63,7 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
             }}
             style={styles.menuButton}
           >
-            <MoreVertical size={17} color={colors.text.secondary} />
+            <MoreVertical size={17} color={theme.textMuted} />
           </Pressable>
         ) : null}
       </View>

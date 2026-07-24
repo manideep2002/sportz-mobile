@@ -4,8 +4,10 @@ import { CalendarDays, Grid2X2, MessageCircle, Plus, type LucideIcon } from 'luc
 import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppTranslation } from '@/i18n';
 
 import { Avatar } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import { EventsScreen } from '@/screens/events/EventsScreen';
@@ -32,6 +34,8 @@ const FALLBACK_INDICATOR_WIDTH = TAB_ICON_SIZE + INDICATOR_HORIZONTAL_PADDING * 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabs() {
+  const { t } = useAppTranslation();
+  const { colors: theme } = useAppTheme();
   const profile = useAuthStore((state) => state.profile);
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
   const createSheetOpen = useUiStore((state) => state.createSheetOpen);
@@ -40,7 +44,7 @@ export function MainTabs() {
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
   const notificationBadge =
     notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
-  const profileLabel = profile?.displayName.trim().split(/\s+/)[0] || 'Profile';
+  const profileLabel = profile?.displayName.trim().split(/\s+/)[0] || t('tabs.profile');
 
   return (
     <>
@@ -49,20 +53,20 @@ export function MainTabs() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
-          tabBarActiveTintColor: colors.orange[500],
-          tabBarInactiveTintColor: colors.text.tertiary,
+          tabBarActiveTintColor: theme.accent,
+          tabBarInactiveTintColor: theme.textSubtle,
           tabBarLabelStyle: styles.label
         }}
       >
         <Tab.Screen
           name="FeedTab"
           component={FeedScreen}
-          options={{ title: 'Feed', tabBarIcon: TabIcon(Grid2X2) }}
+          options={{ title: t('tabs.feed'), tabBarIcon: TabIcon(Grid2X2) }}
         />
         <Tab.Screen
           name="EventsTab"
           component={EventsScreen}
-          options={{ title: 'Events', tabBarIcon: TabIcon(CalendarDays) }}
+          options={{ title: t('tabs.events'), tabBarIcon: TabIcon(CalendarDays) }}
         />
         <Tab.Screen
           name="CreateTab"
@@ -74,7 +78,7 @@ export function MainTabs() {
             }
           }}
           options={{
-            title: 'Create',
+            title: t('tabs.create'),
             tabBarIcon: () => <CreateTabIcon highlighted={createSheetOpen} />
           }}
         />
@@ -82,7 +86,7 @@ export function MainTabs() {
           name="MessagesTab"
           component={MessagesScreen}
           options={{
-            title: 'Messages',
+            title: t('tabs.messages'),
             tabBarIcon: TabIcon(MessageCircle),
             tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined,
             tabBarBadgeStyle: styles.badge
@@ -93,7 +97,7 @@ export function MainTabs() {
           component={ProfileScreen}
           options={{
             title: profileLabel,
-            tabBarAccessibilityLabel: `${profile?.displayName ?? 'Profile'} profile`,
+            tabBarAccessibilityLabel: t('tabs.profileAccessibility', { name: profile?.displayName ?? t('tabs.profile') }),
             tabBarIcon: ({ focused }) => (
               <ProfileTabIcon
                 focused={focused}
@@ -112,6 +116,7 @@ export function MainTabs() {
 }
 
 function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const [barWidth, setBarWidth] = useState(0);
   const [indicatorWidths, setIndicatorWidths] = useState<number[]>([]);
@@ -180,21 +185,21 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
   return (
     <View
       onLayout={handleBarLayout}
-      style={[styles.tabBar, { bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) }]}
+      style={[styles.tabBar, { bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP), backgroundColor: theme.colors.nav }]}
     >
       <View pointerEvents="none" style={styles.glassClip}>
         <BlurView
           intensity={Platform.OS === 'ios' ? 60 : 90}
-          tint={Platform.OS === 'ios' ? 'systemUltraThinMaterialDark' : 'dark'}
-          style={styles.blurContainer}
+          tint={theme.isDark ? 'dark' : 'light'}
+          style={[styles.blurContainer, { backgroundColor: theme.colors.nav }]}
         />
       </View>
-      <View pointerEvents="none" style={styles.barHighlight} />
+      <View pointerEvents="none" style={[styles.barHighlight, { borderColor: theme.colors.border }]} />
 
       {barWidth > 0 ? (
         <Animated.View
           pointerEvents="none"
-          style={[styles.activeIndicator, { left: indicatorLeft, width: indicatorWidth }]}
+          style={[styles.activeIndicator, { left: indicatorLeft, width: indicatorWidth, backgroundColor: theme.colors.accentSoft }]}
         />
       ) : null}
 
@@ -203,7 +208,7 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
           const { options } = descriptors[route.key];
           const focused = state.routes[state.index].key === route.key;
           const isCreate = route.name === 'CreateTab';
-          const color = isCreate || focused ? colors.orange[500] : colors.text.tertiary;
+          const color = isCreate || focused ? theme.colors.accent : theme.colors.textSubtle;
           const label =
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
@@ -270,9 +275,10 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
 }
 
 function CreateTabIcon({ highlighted }: { highlighted: boolean }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <View style={[styles.createIcon, highlighted ? styles.createIconHighlighted : null]}>
-      <Plus size={18} color={colors.light[0]} strokeWidth={2.6} />
+    <View style={[styles.createIcon, { backgroundColor: theme.accent, shadowColor: theme.accent }, highlighted ? styles.createIconHighlighted : null]}>
+      <Plus size={18} color={theme.onAccent} strokeWidth={2.6} />
     </View>
   );
 }
@@ -286,8 +292,9 @@ function ProfileTabIcon({
   initials: string;
   avatarUrl?: string | null;
 }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <View style={[styles.profileAvatarRing, focused ? styles.profileAvatarRingFocused : null]}>
+    <View style={[styles.profileAvatarRing, focused ? styles.profileAvatarRingFocused : null, focused ? { shadowColor: theme.accent } : null]}>
       <Avatar initials={initials} uri={avatarUrl} size={22} />
     </View>
   );

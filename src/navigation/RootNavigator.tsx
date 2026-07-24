@@ -2,9 +2,9 @@ import { NavigationContainer, type LinkingOptions } from '@react-navigation/nati
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { sportzDarkTheme, sportzLightTheme } from '@/design/theme';
+import { createNavigationTheme } from '@/design/theme';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { useAuthStore } from '@/store/authStore';
-import { useUiStore } from '@/store/uiStore';
 import { MainTabs } from './MainTabs';
 import { navigationRef } from './navigationRef';
 import type { AppStackParamList, AuthStackParamList, RootStackParamList } from './routes';
@@ -51,6 +51,7 @@ import { HelpScreen } from '@/screens/settings/HelpScreen';
 import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/AuthProfileGateScreens';
 import { AppText } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
+import { useAppTranslation } from '@/i18n';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -149,15 +150,16 @@ export function RootNavigator() {
   const profile = useAuthStore((state) => state.profile);
   const session = useAuthStore((state) => state.session);
   const authStatus = useAuthStore((state) => state.authStatus);
-  const themeMode = useUiStore((state) => state.themeMode);
-  const theme = themeMode === 'light' ? sportzLightTheme : sportzDarkTheme;
+  const appTheme = useAppTheme();
+  const theme = createNavigationTheme(appTheme);
+  const { t } = useAppTranslation();
   const authenticated = authStatus === 'signedIn' && Boolean(session && profile);
 
   if (authStatus === 'initializing' || authStatus === 'loadingProfile') {
     return (
-      <View style={styles.authLoading}>
-        <ActivityIndicator color={colors.orange[500]} />
-        <AppText variant="bodyMuted">Loading your athlete profile...</AppText>
+      <View style={[styles.authLoading, { backgroundColor: appTheme.colors.background }]}>
+        <ActivityIndicator color={appTheme.colors.accent} />
+        <AppText variant="bodyMuted">{t('common.loadingProfile')}</AppText>
       </View>
     );
   }
