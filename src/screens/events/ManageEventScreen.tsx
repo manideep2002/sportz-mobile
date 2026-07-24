@@ -231,6 +231,22 @@ export function ManageEventScreen() {
           coverImageUri: coverRemoved ? null : coverImage !== event.coverUrl ? coverImage : undefined
         }
       });
+      initialForm.current = formSnapshot({
+        title,
+        eventType,
+        sport,
+        visibility,
+        description,
+        dateText,
+        timeText,
+        duration,
+        locationName,
+        city,
+        maxPlayers,
+        entryFee,
+        coverImage,
+        coverRemoved
+      });
       Alert.alert('Event saved', 'Your changes are live.', [
         { text: 'Done', onPress: () => navigation.goBack() }
       ]);
