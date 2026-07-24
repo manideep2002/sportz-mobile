@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
+import { AppText, Avatar, Badge, Button, Card, ProgressBar, SportBadge } from '@/components/ui';
 import { eventVisibilityLabel } from '@/constants/events';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -58,7 +58,7 @@ export function EventCard({
           <View style={styles.top}>
             <View style={styles.meta}>
               <View style={styles.badges}>
-                <Badge tone={event.sport === 'Football' ? 'green' : 'orange'}>{event.sport}</Badge>
+                <SportBadge sport={event.sport} />
                 <Badge tone="dark">{event.eventType}</Badge>
                 {event.visibility !== 'public' ? (
                   <Badge tone="blue">{eventVisibilityLabel(event.visibility)}</Badge>

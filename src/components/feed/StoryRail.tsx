@@ -43,7 +43,10 @@ export function StoryRail({ stories, onCreateStory, onOpenStory }: StoryRailProp
             style={styles.item}
             onPress={() => onOpenStory(targetId)}
           >
-            <View style={[styles.ring, { borderColor: item.allSeen ? theme.border : theme.accent }]}>
+            <View
+              testID={`story-ring-${item.userId}`}
+              style={[styles.ring, { borderColor: item.allSeen ? theme.border : theme.accent }]}
+            >
               <View style={[styles.inner, { backgroundColor: theme.background }]}>
                 <Avatar initials={item.user.initials} uri={item.user.avatarUrl} size={58} tone={index % 2 === 0 ? 'orange' : 'green'} />
               </View>
@@ -85,15 +88,8 @@ const styles = StyleSheet.create({
     width: 66,
     height: 66,
     borderRadius: 33,
+    borderWidth: 2,
     padding: 3
-  },
-  active: {
-    borderWidth: 2,
-    borderColor: colors.orange[500]
-  },
-  seen: {
-    borderWidth: 2,
-    borderColor: colors.dark[700]
   },
   inner: {
     flex: 1,

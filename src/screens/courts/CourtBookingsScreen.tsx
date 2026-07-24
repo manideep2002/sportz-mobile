@@ -139,8 +139,19 @@ export function CourtBookingsScreen() {
           </View>
           {adminMode ? (
             <View style={styles.userRow}>
-              <Avatar initials={booking.user.initials} uri={booking.user.avatarUrl} size={36} />
-              <VerifiedName profile={booking.user} style={styles.userName} numberOfLines={1} />
+              <Avatar
+                initials={booking.user.initials}
+                uri={booking.user.avatarUrl}
+                size={36}
+                accessibilityLabel={`View ${booking.user.displayName}'s profile`}
+                onPress={() => navigation.navigate('UserProfile', { userId: booking.user.id })}
+              />
+              <VerifiedName
+                profile={booking.user}
+                style={styles.userName}
+                numberOfLines={1}
+                onPress={() => navigation.navigate('UserProfile', { userId: booking.user.id })}
+              />
             </View>
           ) : null}
           <AppText variant="small">

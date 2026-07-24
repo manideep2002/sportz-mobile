@@ -12,13 +12,14 @@ export function CourtMapPreview({ court }: { court?: Court }) {
   const [opening, setOpening] = useState(false);
 
   const openMaps = async () => {
-    if (!court || opening) return;
-    const coordinates = `${court.latitude},${court.longitude}`;
-    const label = encodeURIComponent(court.name);
-    const webUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
+    if (opening) return;
+    const coordinates = court ? `${court.latitude},${court.longitude}` : null;
+    const query = court ? coordinates : 'sports courts near me';
+    const label = encodeURIComponent(court?.name ?? 'Sports courts near me');
+    const webUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query ?? '')}`;
     const nativeUrl = Platform.select({
-      ios: `maps://?q=${label}&ll=${coordinates}`,
-      android: `geo:${coordinates}?q=${coordinates}(${label})`,
+      ios: court ? `maps://?q=${label}&ll=${coordinates}` : `maps://?q=${label}`,
+      android: court ? `geo:${coordinates}?q=${coordinates}(${label})` : `geo:0,0?q=${label}`,
       default: webUrl
     }) ?? webUrl;
 
@@ -54,11 +55,12 @@ export function CourtMapPreview({ court }: { court?: Court }) {
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={court ? `Open ${court.name} in Maps` : 'Open court in Maps'}
-        accessibilityState={{ busy: opening, disabled: !court || opening }}
-        style={[styles.button, { backgroundColor: theme.accent }, !court || opening ? styles.disabled : null]}
+        accessibilityLabel={court ? `Open ${court.name} in Maps` : 'Find sports courts in Maps'}
+        accessibilityState={{ busy: opening, disabled: opening }}
+        hitSlop={10}
+        style={[styles.button, { backgroundColor: theme.accent }, opening ? styles.disabled : null]}
         onPress={() => void openMaps()}
-        disabled={!court || opening}
+        disabled={opening}
       >
         <AppText style={[styles.buttonText, { color: theme.onAccent }]}>{opening ? 'Opening…' : 'Maps'}</AppText>
       </Pressable>
@@ -104,8 +106,12 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 10,
     backgroundColor: colors.orange[500],
+    minHeight: 44,
+    minWidth: 58,
     paddingHorizontal: 14,
-    paddingVertical: 8
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   disabled: {
     opacity: 0.45

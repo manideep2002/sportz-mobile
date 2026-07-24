@@ -156,4 +156,15 @@ describe('EditProfileScreen', () => {
       )
     );
   });
+
+  it('closes the cover sheet without leaving a loading button when the native picker is open', async () => {
+    mockPickImage.mockReturnValue(new Promise(() => undefined));
+    await render(<EditProfileScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Change profile cover' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose New Cover' }));
+
+    expect(screen.queryByRole('button', { name: 'Choose New Cover' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(false);
+  });
 });

@@ -28,6 +28,12 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 const sports: Sport[] = allSports;
 const levels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
+const waitForSheetDismissal = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, Platform.OS === 'ios' ? 350 : 250);
+    });
+  });
 
 export function EditProfileScreen() {
   const navigation = useNavigation<Navigation>();
@@ -68,7 +74,6 @@ export function EditProfileScreen() {
 
   const uploadProfileMedia = async (kind: 'avatar' | 'cover') => {
     if (!profile) return;
-    setPickingMedia(true);
     setError(null);
     try {
       const picked = await storageService.pickImage();
@@ -79,6 +84,7 @@ export function EditProfileScreen() {
         return;
       }
 
+      setPickingMedia(true);
       const url = await storageService.uploadMedia(picked, 'avatars', profile.id);
       if (kind === 'avatar') {
         const updatedProfile = await profileService.updateProfile(profile.id, { avatarUrl: url });
@@ -116,13 +122,13 @@ export function EditProfileScreen() {
 
   const chooseNewProfilePhoto = async () => {
     setProfilePhotoSheetOpen(false);
-    await new Promise<void>((resolve) => setTimeout(resolve, Platform.OS === 'ios' ? 350 : 50));
+    await waitForSheetDismissal();
     await uploadProfileMedia('avatar');
   };
 
   const chooseNewCover = async () => {
     setCoverSheetOpen(false);
-    await new Promise<void>((resolve) => setTimeout(resolve, Platform.OS === 'ios' ? 350 : 50));
+    await waitForSheetDismissal();
     await uploadProfileMedia('cover');
   };
 

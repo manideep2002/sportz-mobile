@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from './AppText';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -15,6 +15,8 @@ interface AvatarProps {
   tone?: AvatarTone;
   online?: boolean;
   uri?: string | null;
+  onPress?: () => void;
+  accessibilityLabel?: string;
 }
 
 const gradients: Record<AvatarTone, [string, string]> = {
@@ -26,7 +28,15 @@ const gradients: Record<AvatarTone, [string, string]> = {
   dark: [colors.dark[700], colors.dark[600]]
 };
 
-export function Avatar({ initials, size = 42, tone = 'orange', online = false, uri }: AvatarProps) {
+export function Avatar({
+  initials,
+  size = 42,
+  tone = 'orange',
+  online = false,
+  uri,
+  onPress,
+  accessibilityLabel
+}: AvatarProps) {
   const { colors: theme } = useAppTheme();
   const [imageError, setImageError] = useState(false);
   const [useOriginalUri, setUseOriginalUri] = useState(false);
@@ -40,8 +50,8 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
 
   const showFallback = !imageUri || imageError;
 
-  return (
-    <View style={{ width: size, height: size }}>
+  const content = (
+    <>
       {showFallback ? (
         <LinearGradient colors={tone === 'orange' ? [theme.accent, theme.accentPressed] : gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
           <AppText style={[styles.initials, { color: tone === 'orange' ? theme.onAccent : colors.light[0], fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
@@ -60,7 +70,24 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
         />
       )}
       {online ? <View style={[styles.online, { width: size * 0.24, height: size * 0.24, borderRadius: size * 0.12, borderColor: theme.background }]} /> : null}
-    </View>
+    </>
+  );
+
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={8}
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+      style={{ width: size, height: size }}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View style={{ width: size, height: size }}>{content}</View>
   );
 }
 

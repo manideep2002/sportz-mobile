@@ -111,6 +111,14 @@ export function StatCard() {
   return <View />;
 }
 
+export function SportIcon() {
+  return <View />;
+}
+
+export function SportBadge({ sport }: { sport: string }) {
+  return <Text>{sport}</Text>;
+}
+
 export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   return (
     <View>

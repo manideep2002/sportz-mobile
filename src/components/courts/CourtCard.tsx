@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Badge, Button, Card } from '@/components/ui';
+import { AppText, Badge, Button, Card, SportIcon } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Court } from '@/types/domain';
@@ -19,7 +19,7 @@ export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
       <Card style={[styles.card, !court.futureBookable ? styles.disabled : null]}>
         <View style={[styles.sportIcon, { backgroundColor: theme.accentSoft }]}>
-          <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
+          <SportIcon sport={court.sport} size={25} />
         </View>
         <View style={styles.meta}>
           <AppText style={[styles.name, { color: theme.text }]}>{court.name}</AppText>

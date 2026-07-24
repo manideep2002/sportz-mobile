@@ -8,7 +8,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } fro
 import { useAppTranslation } from '@/i18n';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -89,7 +89,9 @@ export function ProfileScreen() {
         <AppText variant="bodyMuted">{profile.bio}</AppText>
         <View style={styles.badges}>
           {profile.sports.map((sport) => (
-            <Badge key={sport}>{sport}</Badge>
+            sport === profile.primarySport
+              ? <SportBadge key={sport} sport={sport} />
+              : <Badge key={sport}>{sport}</Badge>
           ))}
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (

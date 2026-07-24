@@ -165,11 +165,21 @@ export function PostDetailScreen() {
             ], { cancelable: true });
           }}
         >
-          <Pressable onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}>
-            <Avatar initials={comment.author.initials} uri={comment.author.avatarUrl} size={36} tone="green" />
-          </Pressable>
+          <Avatar
+            initials={comment.author.initials}
+            uri={comment.author.avatarUrl}
+            size={36}
+            tone="green"
+            accessibilityLabel={`View ${comment.author.displayName}'s profile`}
+            onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
+          />
           <View style={[styles.commentBody, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <VerifiedName profile={comment.author} style={styles.commentAuthor} numberOfLines={1} />
+            <VerifiedName
+              profile={comment.author}
+              style={styles.commentAuthor}
+              numberOfLines={1}
+              onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
+            />
             <AppText variant="bodyMuted">{comment.body}</AppText>
             <Pressable
               style={styles.commentLike}

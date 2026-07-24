@@ -81,8 +81,19 @@ export function CommunityScreen() {
               </View>
               {invite.inviter ? (
                 <View style={styles.inviterRow}>
-                  <Avatar initials={invite.inviter.initials} uri={invite.inviter.avatarUrl} size={28} />
-                  <VerifiedName profile={invite.inviter} style={styles.inviterName} numberOfLines={1} />
+                  <Avatar
+                    initials={invite.inviter.initials}
+                    uri={invite.inviter.avatarUrl}
+                    size={28}
+                    accessibilityLabel={`View ${invite.inviter.displayName}'s profile`}
+                    onPress={() => navigation.navigate('UserProfile', { userId: invite.inviter!.id })}
+                  />
+                  <VerifiedName
+                    profile={invite.inviter}
+                    style={styles.inviterName}
+                    numberOfLines={1}
+                    onPress={() => navigation.navigate('UserProfile', { userId: invite.inviter!.id })}
+                  />
                 </View>
               ) : null}
               <View style={styles.inviteActions}>

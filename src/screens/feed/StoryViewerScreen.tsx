@@ -117,6 +117,10 @@ export function StoryViewerScreen() {
     ? (videoDurationMs ?? IMAGE_STORY_DURATION_MS)
     : IMAGE_STORY_DURATION_MS;
   const remainingSeconds = Math.max(1, Math.ceil((storyDurationMs - elapsed) / 1000));
+  const openStoryAuthor = () => {
+    if (!story) return;
+    navigation.navigate('UserProfile', { userId: story.user.id });
+  };
   const optimizedDisplayMediaUrl = isVideo ? displayMediaUrl : mediaVariants.storyImage(displayMediaUrl);
   const storyImageUrl = useRawMediaUrl ? displayMediaUrl : optimizedDisplayMediaUrl ?? displayMediaUrl;
 
@@ -359,7 +363,13 @@ export function StoryViewerScreen() {
           })}
         </View>
         <View style={styles.authorRow}>
-          <Avatar initials={story?.user.initials ?? 'ME'} uri={story?.user.avatarUrl} size={38} />
+          <Avatar
+            initials={story?.user.initials ?? 'ME'}
+            uri={story?.user.avatarUrl}
+            size={38}
+            accessibilityLabel={story ? `View ${story.user.displayName}'s profile` : undefined}
+            onPress={story ? openStoryAuthor : undefined}
+          />
           <View style={styles.authorMeta}>
             {story ? (
               <VerifiedName
@@ -367,6 +377,7 @@ export function StoryViewerScreen() {
                 style={styles.authorName}
                 color={colors.light[0]}
                 numberOfLines={1}
+                onPress={openStoryAuthor}
               />
             ) : (
               <AppText style={styles.authorName}>My Story</AppText>

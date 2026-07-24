@@ -67,7 +67,7 @@ export function createAppTheme(mode: ThemeMode): AppTheme {
         textMuted: '#B6ADA4',
         textSubtle: '#91877E',
         inverseText: '#17130F',
-        nav: 'transparent',
+        nav: 'rgba(14,12,9,0.62)',
         mediaGradientEnd: colors.dark[950]
       } : {
         background: '#F7F3EE',
@@ -79,7 +79,7 @@ export function createAppTheme(mode: ThemeMode): AppTheme {
         textMuted: '#5F574F',
         textSubtle: '#776E66',
         inverseText: '#FFFFFF',
-        nav: 'transparent',
+        nav: 'rgba(255,255,255,0.64)',
         mediaGradientEnd: 'rgba(10,9,7,0.88)'
       }),
       ...accent,

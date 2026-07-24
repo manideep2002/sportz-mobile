@@ -14,5 +14,6 @@ export * from './Screen';
 export * from './SectionHeader';
 export * from './SegmentedControl';
 export * from './StatCard';
+export * from './SportIcon';
 export * from './VerifiedName';
 export * from './VideoPlayer';

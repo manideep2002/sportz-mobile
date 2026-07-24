@@ -3,7 +3,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Bookmark, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
-import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, VerifiedName } from '@/components/ui';
+import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, SportIcon, VerifiedName } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -66,13 +66,20 @@ function PostCardComponent({
             </Pressable>
             <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
               <VerifiedName profile={post.author} style={styles.authorName} numberOfLines={1} />
-              <AppText variant="small">
-                {post.sport} - {timeAgo(post.createdAt)}
-              </AppText>
+              <View style={styles.sportMeta}>
+                <SportIcon sport={post.sport} size={12} color={theme.textSubtle} />
+                <AppText variant="small">{post.sport} - {timeAgo(post.createdAt)}</AppText>
+              </View>
             </Pressable>
             <View style={styles.headerActions}>
               {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
-              <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={(event) => runAction(event, onMore)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Post options"
+                hitSlop={12}
+                style={styles.moreButton}
+                onPress={(event) => runAction(event, onMore)}
+              >
                 <MoreHorizontal size={18} color={theme.textSubtle} />
               </Pressable>
             </View>
@@ -227,10 +234,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm
   },
+  moreButton: {
+    width: 44,
+    height: 44,
+    marginRight: -10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   authorName: {
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 14
+  },
+  sportMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
   },
   body: {
     paddingHorizontal: 14,

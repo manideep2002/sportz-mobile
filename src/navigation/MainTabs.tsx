@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BlurView } from 'expo-blur';
 import { CalendarDays, Grid2X2, MessageCircle, Plus, type LucideIcon } from 'lucide-react-native';
 import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -186,6 +187,14 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
       onLayout={handleBarLayout}
       style={[styles.tabBar, { bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) }]}
     >
+      <BlurView
+        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+        intensity={Platform.OS === 'android' ? 38 : 55}
+        tint={theme.isDark ? 'dark' : 'light'}
+        pointerEvents="none"
+        style={styles.barBlur}
+      />
+      <View pointerEvents="none" style={[styles.barTint, { backgroundColor: theme.colors.nav }]} />
       <View pointerEvents="none" style={[styles.barHighlight, { borderColor: theme.colors.border }]} />
 
       {barWidth > 0 ? (
@@ -324,6 +333,15 @@ const styles = StyleSheet.create({
     borderRadius: TAB_BAR_RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.12)'
+  },
+  barBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: TAB_BAR_RADIUS,
+    overflow: 'hidden'
+  },
+  barTint: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: TAB_BAR_RADIUS
   },
   activeIndicator: {
     position: 'absolute',

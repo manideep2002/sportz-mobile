@@ -5,7 +5,7 @@ import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, SportIcon, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -135,10 +135,25 @@ export function FindPlayersScreen() {
       {players.map((player) => (
         <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.playerTop}>
-            <Avatar initials={player.initials} uri={player.avatarUrl} size={54} online={player.isOnline} />
+            <Avatar
+              initials={player.initials}
+              uri={player.avatarUrl}
+              size={54}
+              online={player.isOnline}
+              accessibilityLabel={`View ${player.displayName}'s profile`}
+              onPress={() => navigation.navigate('UserProfile', { userId: player.id })}
+            />
             <View style={{ flex: 1 }}>
-              <VerifiedName profile={player} style={styles.playerName} numberOfLines={1} />
-              <AppText variant="small">{player.primarySport} - {player.position}</AppText>
+              <VerifiedName
+                profile={player}
+                style={styles.playerName}
+                numberOfLines={1}
+                onPress={() => navigation.navigate('UserProfile', { userId: player.id })}
+              />
+              <View style={styles.sportLine}>
+                <SportIcon sport={player.primarySport} size={12} color={theme.textSubtle} />
+                <AppText variant="small">{player.primarySport} - {player.position}</AppText>
+              </View>
               <View style={styles.badges}>
                 <Badge tone={player.skillLevel === 'Pro' ? 'orange' : 'dark'}>{player.skillLevel}</Badge>
                 {player.isHireable ? <Badge tone="green">Available</Badge> : null}
@@ -231,6 +246,11 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 15
+  },
+  sportLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
   },
   badges: {
     flexDirection: 'row',

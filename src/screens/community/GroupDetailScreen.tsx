@@ -514,12 +514,24 @@ function MemberRow({
   onToggleAdmin: () => void;
   onRemove: () => void;
 }) {
+  const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   return (
     <View style={[styles.memberRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <Avatar initials={member.profile.initials} uri={member.profile.avatarUrl} size={40} />
+      <Avatar
+        initials={member.profile.initials}
+        uri={member.profile.avatarUrl}
+        size={40}
+        accessibilityLabel={`View ${member.profile.displayName}'s profile`}
+        onPress={() => navigation.navigate('UserProfile', { userId: member.profile.id })}
+      />
       <View style={styles.memberMeta}>
-        <VerifiedName profile={member.profile} style={styles.memberName} numberOfLines={1} />
+        <VerifiedName
+          profile={member.profile}
+          style={styles.memberName}
+          numberOfLines={1}
+          onPress={() => navigation.navigate('UserProfile', { userId: member.profile.id })}
+        />
         <AppText variant="small">@{member.profile.username}</AppText>
       </View>
       <Badge tone={member.role === 'owner' || member.role === 'admin' ? 'orange' : 'dark'}>{roleLabel(member.role)}</Badge>

@@ -1,10 +1,11 @@
+import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, CalendarCheck, ChevronLeft, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Bell, CalendarCheck, ChevronDown, ChevronLeft, ChevronUp, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
-import { AppText, IconButton, Screen } from '@/components/ui';
+import { AppText, Chip, IconButton, Screen } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -29,18 +30,14 @@ export function SettingsScreen() {
   const deleteAccount = useAuthStore((state) => state.deleteAccount);
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
+  const setThemeMode = useUiStore((state) => state.setThemeMode);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const accountItems: SettingsItemConfig[] = [
     { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
     { label: t('settings.privacy'), detail: t('settings.privacyDetail'), icon: Lock, route: 'Privacy' },
     { label: t('settings.notifications'), detail: t('settings.notificationsDetail'), icon: Bell, route: 'NotificationSettings' }
   ];
   const preferenceItems: SettingsItemConfig[] = [
-    {
-      label: t('settings.appearance'),
-      detail: t('appearance.summary', { theme: t(`appearance.${themeMode}`) }),
-      icon: Moon,
-      route: 'Appearance'
-    },
     {
       label: t('settings.sports'),
       detail: profile?.sports.length ? profile.sports.join(', ') : t('settings.sportsFallback'),
@@ -104,7 +101,40 @@ export function SettingsScreen() {
           navigation={navigation}
         />
       ) : null}
-      <Section title={t('settings.preferences')} items={preferenceItems} navigation={navigation} />
+      <View>
+        <AppText variant="caption" style={styles.sectionTitle}>{t('settings.preferences')}</AppText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t('settings.appearance')}, ${t(`appearance.${themeMode}`)}`}
+          accessibilityState={{ expanded: appearanceOpen }}
+          style={[styles.item, { borderBottomColor: theme.border }]}
+          onPress={() => setAppearanceOpen((open) => !open)}
+        >
+          <View style={[styles.itemIcon, { backgroundColor: theme.accentSoft }]}>
+            <Moon size={18} color={theme.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText style={[styles.itemLabel, { color: theme.text }]}>{t('settings.appearance')}</AppText>
+            <AppText variant="small">{t('appearance.summary', { theme: t(`appearance.${themeMode}`) })}</AppText>
+          </View>
+          {appearanceOpen
+            ? <ChevronUp size={18} color={theme.textSubtle} />
+            : <ChevronDown size={18} color={theme.textSubtle} />}
+        </Pressable>
+        {appearanceOpen ? (
+          <View
+            accessibilityLabel="Appearance options"
+            style={[styles.appearanceOptions, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}
+          >
+            {(['dark', 'light'] as const).map((mode) => (
+              <Chip key={mode} selected={themeMode === mode} onPress={() => setThemeMode(mode)}>
+                {t(`appearance.${mode}`)}
+              </Chip>
+            ))}
+          </View>
+        ) : null}
+        <Section title="" items={preferenceItems} navigation={navigation} hideTitle />
+      </View>
       <AppText variant="caption" style={styles.sectionTitle}>{t('settings.support')}</AppText>
       <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
       <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleDeleteAccount}>
@@ -123,10 +153,20 @@ export function SettingsScreen() {
   );
 }
 
-function Section({ title, items, navigation }: { title: string; items: SettingsItemConfig[]; navigation: Navigation }) {
+function Section({
+  title,
+  items,
+  navigation,
+  hideTitle = false
+}: {
+  title: string;
+  items: SettingsItemConfig[];
+  navigation: Navigation;
+  hideTitle?: boolean;
+}) {
   return (
     <View>
-      <AppText variant="caption" style={styles.sectionTitle}>{title}</AppText>
+      {!hideTitle ? <AppText variant="caption" style={styles.sectionTitle}>{title}</AppText> : null}
       {items.map((item) => (
         <SettingsItem
           key={item.label}
@@ -192,6 +232,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.overlays.orangeSoft,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  appearanceOptions: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.screen + 50,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth
   },
   dangerIcon: {
     backgroundColor: colors.overlays.dangerSoft

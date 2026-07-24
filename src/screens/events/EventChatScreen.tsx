@@ -103,7 +103,15 @@ export function EventChatScreen() {
           const mine = message.sender.id === currentUserId;
           return (
             <View key={message.id} style={[styles.messageRow, mine ? styles.mineRow : null]}>
-              {!mine ? <Avatar initials={message.sender.initials} uri={message.sender.avatarUrl} size={32} /> : null}
+              {!mine ? (
+                <Avatar
+                  initials={message.sender.initials}
+                  uri={message.sender.avatarUrl}
+                  size={32}
+                  accessibilityLabel={`View ${message.sender.displayName}'s profile`}
+                  onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
+                />
+              ) : null}
               <View
                 style={[
                   styles.bubble,
@@ -112,7 +120,14 @@ export function EventChatScreen() {
                     : [styles.them, { backgroundColor: theme.surface }]
                 ]}
               >
-                {!mine ? <VerifiedName profile={message.sender} style={styles.sender} numberOfLines={1} /> : null}
+                {!mine ? (
+                  <VerifiedName
+                    profile={message.sender}
+                    style={styles.sender}
+                    numberOfLines={1}
+                    onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
+                  />
+                ) : null}
                 <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
                 <AppText style={[styles.time, { color: mine ? theme.onAccent : theme.textSubtle }]}>{formatTime(message.createdAt)}</AppText>
               </View>

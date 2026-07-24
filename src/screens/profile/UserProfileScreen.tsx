@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -249,7 +249,7 @@ export function UserProfileScreen() {
         </View>
 
         <View style={styles.badges}>
-          <Badge>{profile.primarySport}</Badge>
+          <SportBadge sport={profile.primarySport} />
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>

@@ -51,4 +51,19 @@ describe('CourtMapPreview', () => {
       'https://www.google.com/maps/search/?api=1&query=12.9%2C77.6'
     ));
   });
+
+  it('opens a nearby-courts search when discovery has no selected court', async () => {
+    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    await render(<CourtMapPreview />);
+
+    const mapsButton = screen.getByRole('button', { name: 'Find sports courts in Maps' });
+    expect(mapsButton.props.accessibilityState.disabled).toBe(false);
+    await fireEvent.press(mapsButton);
+
+    await waitFor(() => expect(openUrl).toHaveBeenCalledWith(
+      Platform.OS === 'ios'
+        ? 'maps://?q=Sports%20courts%20near%20me'
+        : 'geo:0,0?q=Sports%20courts%20near%20me'
+    ));
+  });
 });

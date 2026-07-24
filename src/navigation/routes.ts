@@ -51,7 +51,6 @@ export type AppStackParamList = {
   Privacy: undefined;
   NotificationSettings: undefined;
   Moderation: undefined;
-  Appearance: undefined;
   SportsInterests: undefined;
   Help: undefined;
 };

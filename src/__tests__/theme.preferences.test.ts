@@ -38,7 +38,7 @@ describe('semantic themes', () => {
     expect(contrastRatio(light.colors.onAccent, light.colors.accent)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(['dark', 'light'] as const)('keeps the %s bottom navigation transparent', (mode) => {
-    expect(createAppTheme(mode).colors.nav).toBe('transparent');
+  it.each(['dark', 'light'] as const)('keeps the %s bottom navigation translucent', (mode) => {
+    expect(createAppTheme(mode).colors.nav).toMatch(/^rgba\(.+,(0\.[1-9]\d*)\)$/);
   });
 });

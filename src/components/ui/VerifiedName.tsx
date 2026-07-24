@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
 import { AppText } from './AppText';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -17,6 +17,8 @@ interface VerifiedNameProps {
   color?: string;
   numberOfLines?: number;
   badgeSize?: number;
+  onPress?: () => void;
+  accessibilityLabel?: string;
 }
 
 export const shouldShowProVerifiedBadge = (profile: Pick<UserProfile, 'skillLevel'> | null | undefined) =>
@@ -29,7 +31,9 @@ export function VerifiedName({
   containerStyle,
   color,
   numberOfLines,
-  badgeSize = 15
+  badgeSize = 15,
+  onPress,
+  accessibilityLabel
 }: VerifiedNameProps) {
   const { colors: theme } = useAppTheme();
   const showBadge = shouldShowProVerifiedBadge(profile);
@@ -37,7 +41,7 @@ export function VerifiedName({
   const badgeFontSize = Math.max(8, Math.round(badgeHeight * 0.5));
   const badgePadding = Math.max(5, Math.round(badgeHeight * 0.34));
 
-  return (
+  const content = (
     <View style={[styles.root, containerStyle]}>
       <AppText
         variant={variant}
@@ -70,6 +74,20 @@ export function VerifiedName({
       ) : null}
     </View>
   );
+
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? `View ${profile.displayName}'s profile`}
+      hitSlop={6}
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+    >
+      {content}
+    </Pressable>
+  ) : content;
 }
 
 const styles = StyleSheet.create({

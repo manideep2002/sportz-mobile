@@ -31,7 +31,6 @@ export function CourtsScreen() {
   const [appliedCity, setAppliedCity] = useState('');
   const [manualCoordinates, setManualCoordinates] = useState<CourtCoordinates | null>(null);
   const [resolvingCity, setResolvingCity] = useState(false);
-  const [surface, setSurface] = useState<string | undefined>();
   const [maxPrice, setMaxPrice] = useState('');
   const [maxDistance, setMaxDistance] = useState('25');
   const [openNowOnly, setOpenNowOnly] = useState(false);
@@ -42,7 +41,6 @@ export function CourtsScreen() {
   const { data: courts = [], isLoading, isError, isRefetching, refetch } = useCourts({
     sport: filter === 'All Sports' ? undefined : filter,
     city: fallbackCity,
-    surface,
     maxHourlyPrice: maxPrice ? Number(maxPrice) : undefined,
     maxDistanceKm: maxDistance ? Number(maxDistance) : undefined,
     openNowOnly,
@@ -149,12 +147,6 @@ export function CourtsScreen() {
       <BottomSheet open={filterSheetOpen} title="Court filters" onClose={() => setFilterSheetOpen(false)}>
         <View style={styles.sheetContent}>
           <Input label="City" value={city} onChangeText={setCity} placeholder="Bengaluru" />
-          <AppText style={[styles.label, { color: theme.textSubtle }]}>Surface</AppText>
-          <View style={styles.wrapRow}>
-            {['Hardwood', 'Synthetic floor', 'Clay surface', 'Astroturf'].map((item) => (
-              <Chip key={item} selected={surface === item} onPress={() => setSurface(surface === item ? undefined : item)}>{item}</Chip>
-            ))}
-          </View>
           <Input label="Max price per hour" value={maxPrice} onChangeText={setMaxPrice} keyboardType="numeric" placeholder="500" />
           <Input
             label="Maximum distance (km)"
