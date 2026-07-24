@@ -164,8 +164,7 @@ export function EventsScreen() {
               key={day.toISOString()}
               style={[
                 styles.day,
-                { backgroundColor: isActive ? theme.accent : theme.surface },
-                isActive ? styles.dayActive : null
+                { backgroundColor: isActive ? theme.accent : theme.surface }
               ]}
               onPress={() => setSelectedDay(day)}
               accessible={true}
@@ -348,9 +347,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.dark[800]
   },
-  dayActive: {
-    backgroundColor: colors.orange[500]
-  },
   dayName: {
     color: colors.text.tertiary,
     fontSize: 9,
@@ -362,9 +358,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
     fontSize: 15
-  },
-  dayActiveText: {
-    color: colors.light[0]
   },
   filters: {
     paddingHorizontal: spacing.screen,
@@ -379,17 +372,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.dark[700]
   },
-  filterChipActive: {
-    backgroundColor: colors.overlays.orangeSoft,
-    borderColor: colors.orange[500]
-  },
   filterChipText: {
     color: colors.text.secondary,
     fontSize: 12,
     fontFamily: typography.bodyMedium
-  },
-  filterChipTextActive: {
-    color: colors.orange[400]
   },
   section: {
     paddingHorizontal: spacing.screen,

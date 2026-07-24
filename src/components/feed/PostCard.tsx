@@ -359,9 +359,6 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     fontSize: 13
   },
-  actionActive: {
-    color: colors.orange[400]
-  },
   join: {
     marginLeft: 'auto'
   },

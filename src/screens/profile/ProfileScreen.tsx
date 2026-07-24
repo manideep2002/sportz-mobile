@@ -164,8 +164,11 @@ function ProfileGrid({ userId }: { userId: string }) {
             onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
             style={({ pressed }) => [
               styles.gridItem,
-              { backgroundColor: theme.surface, borderColor: isStats ? theme.accent : theme.border },
-              isStats ? styles.gridItemStats : null,
+              {
+                backgroundColor: theme.surface,
+                borderColor: isStats ? theme.accent : theme.border,
+                borderWidth: isStats ? 1 : StyleSheet.hairlineWidth
+              },
               pressed ? styles.gridItemPressed : null,
             ]}
           >
@@ -286,7 +289,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
               else setFilterKind(item.kind);
             }}
           >
-            <View style={[styles.highlightCircle, { borderColor: index === 0 ? theme.accent : theme.border }, index === 0 ? styles.highlightAdd : null]}>
+            <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null, { borderColor: index === 0 ? theme.accent : theme.border }]}>
               <AppText variant="h3">{index === 0 ? '+' : item.label.slice(0, 1)}</AppText>
             </View>
             <AppText variant="small">{item.label}</AppText>
@@ -397,10 +400,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.dark[700],
     overflow: 'hidden'
-  },
-  gridItemStats: {
-    borderColor: colors.orange[500],
-    borderWidth: 1
   },
   gridItemPressed: {
     opacity: 0.85,
