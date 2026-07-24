@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react-native';
 import { View } from 'react-native';
 
+import { AppText } from '@/components/ui/AppText';
 import { Chip } from '@/components/ui/Chip';
 import { Screen } from '@/components/ui/Screen';
 import { VerifiedName } from '@/components/ui/VerifiedName';
 import { ThemeProvider, useAppTheme } from '@/design/ThemeProvider';
+import { colors } from '@/design/tokens';
 import { useUiStore } from '@/store/uiStore';
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -19,6 +21,8 @@ function CoreScreenProbe() {
         testID="theme-probe"
         style={{ backgroundColor: theme.colors.surface, borderColor: theme.colors.border }}
       />
+      <AppText testID="legacy-primary-text" style={{ color: colors.text.primary }}>Primary text</AppText>
+      <AppText testID="muted-text" variant="bodyMuted">Muted text</AppText>
       <Chip>All Sports</Chip>
       <VerifiedName profile={{ displayName: 'Asha Singh', skillLevel: 'Pro' }} />
     </Screen>
@@ -42,6 +46,12 @@ describe('core screen theme smoke states', () => {
     expect(screen.getByRole('button', { name: 'All Sports' })).toHaveStyle({
       alignSelf: 'flex-start',
       flexShrink: 0
+    });
+    expect(screen.getByTestId('legacy-primary-text')).toHaveStyle({
+      color: mode === 'dark' ? '#F4EFE9' : '#17130F'
+    });
+    expect(screen.getByTestId('muted-text')).toHaveStyle({
+      color: mode === 'dark' ? '#B6ADA4' : '#5F574F'
     });
     expect(screen.getByLabelText('Verified pro player')).toHaveStyle({
       backgroundColor: mode === 'dark' ? 'rgba(245,158,11,0.15)' : '#FEF3C7',

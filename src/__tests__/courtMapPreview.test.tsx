@@ -17,6 +17,10 @@ const court = {
 } as Court;
 
 describe('CourtMapPreview', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
