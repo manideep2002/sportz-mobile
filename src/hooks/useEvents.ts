@@ -6,6 +6,9 @@ import type { EventParticipationStatus, SportEvent } from '@/types/domain';
 export const eventKeys = {
   all: ['events'] as const,
   detail: (id: string) => ['events', id] as const,
+  community: (id: string) => ['events', 'community', id] as const,
+  invitation: (id: string) => ['events', id, 'invitation'] as const,
+  invitations: (id: string) => ['events', id, 'invitations'] as const,
   waitlist: (id: string) => ['events', id, 'waitlist'] as const,
   participation: (id: string) => ['events', id, 'participation'] as const,
   participationBatch: (ids: string[]) => ['events', 'participation', 'batch', ids] as const
@@ -26,12 +29,20 @@ export const useEvent = (eventId: string) =>
     queryFn: () => eventService.getEvent(eventId)
   });
 
+export const useCommunityEvents = (communityId: string, enabled = true) =>
+  useQuery({
+    queryKey: eventKeys.community(communityId),
+    queryFn: () => eventService.listCommunityEvents(communityId),
+    enabled: Boolean(communityId) && enabled
+  });
+
 export const useCreateEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateEventInput) => eventService.createEvent(input),
     onSuccess: (event) => {
       queryClient.setQueryData<SportEvent[]>(eventKeys.all, (old = []) => [event, ...old]);
+      if (event.communityId) void queryClient.invalidateQueries({ queryKey: eventKeys.community(event.communityId) });
     }
   });
 };
@@ -127,3 +138,45 @@ export const useEventWaitlist = (eventId: string) =>
     queryFn: () => eventService.listWaitlist(eventId),
     enabled: Boolean(eventId)
   });
+
+export const useMyEventInvitation = (eventId: string) =>
+  useQuery({
+    queryKey: eventKeys.invitation(eventId),
+    queryFn: () => eventService.getMyEventInvitation(eventId),
+    enabled: Boolean(eventId)
+  });
+
+export const useInviteToEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, userId }: { eventId: string; userId: string }) => eventService.inviteToEvent(eventId, userId),
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: eventKeys.detail(variables.eventId) })
+  });
+};
+
+export const useRespondEventInvitation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invitationId, accept }: { invitationId: string; accept: boolean }) =>
+      eventService.respondToEventInvitation(invitationId, accept),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+  });
+};
+
+export const useEventInvitations = (eventId: string, enabled = true) =>
+  useQuery({
+    queryKey: eventKeys.invitations(eventId),
+    queryFn: () => eventService.listEventInvitations(eventId),
+    enabled: Boolean(eventId) && enabled
+  });
+
+export const useRevokeEventInvitation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invitationId: string) => eventService.revokeEventInvitation(invitationId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['events'] })
+  });
+};

@@ -16,7 +16,9 @@ import {
   useEventParticipation,
   useJoinEvent,
   useLeaveEvent,
-  useLeaveEventWaitlist
+  useLeaveEventWaitlist,
+  useMyEventInvitation,
+  useRespondEventInvitation
 } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventDate, formatTime } from '@/utils/format';
@@ -39,6 +41,8 @@ export function EventDetailScreen() {
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
   const leaveWaitlist = useLeaveEventWaitlist();
+  const { data: invitation, refetch: refetchInvitation } = useMyEventInvitation(route.params.eventId);
+  const respondInvitation = useRespondEventInvitation();
   const profile = useAuthStore((state) => state.profile);
   const [useRawCover, setUseRawCover] = useState(false);
 
@@ -101,6 +105,17 @@ export function EventDetailScreen() {
   const handleShare = () => {
     if (event) {
       shareEvent(event);
+    }
+  };
+
+  const respondToInvitation = async (accept: boolean) => {
+    if (!invitation) return;
+    try {
+      const result = await respondInvitation.mutateAsync({ invitationId: invitation.id, accept });
+      await Promise.all([refetch(), refetchParticipation(), refetchInvitation()]);
+      if (accept) Alert.alert(result === 'waitlisted' ? 'Added to waitlist' : 'Invitation accepted', result === 'waitlisted' ? 'The event is full, so you have been added to the waitlist.' : 'You are on the attendee list.');
+    } catch (error) {
+      Alert.alert('Invitation update failed', error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
@@ -208,6 +223,7 @@ export function EventDetailScreen() {
             {eventVisibilityLabel(event.visibility)}
           </Badge>
           {isWaitlisted ? <Badge tone="yellow">WAITLISTED</Badge> : null}
+          {invitation?.status === 'pending' ? <Badge tone="blue">INVITED</Badge> : null}
         </View>
         <AppText variant="h1" style={styles.title}>{event.title}</AppText>
         <View style={styles.metaRow}>
@@ -264,6 +280,15 @@ export function EventDetailScreen() {
                 Event Chat
               </Button>
             ) : null}
+          </>
+        ) : invitation?.status === 'pending' ? (
+          <>
+            <Button full size="lg" loading={respondInvitation.isPending} onPress={() => void respondToInvitation(true)}>
+              Accept Invitation
+            </Button>
+            <Button full size="lg" variant="dark" loading={respondInvitation.isPending} onPress={() => void respondToInvitation(false)}>
+              Decline Invitation
+            </Button>
           </>
         ) : hasJoined ? (
           <>

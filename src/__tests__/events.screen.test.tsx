@@ -11,6 +11,7 @@ const mockCreateEvent = jest.fn();
 const mockJoinEvent = jest.fn();
 const mockLeaveEvent = jest.fn();
 const mockLeaveWaitlist = jest.fn();
+const mockRespondEventInvitation = jest.fn();
 const mockEventRefetch = jest.fn();
 const mockParticipationRefetch = jest.fn();
 const mockEventsRefetch = jest.fn();
@@ -48,6 +49,8 @@ jest.mock('@/hooks/useEvents', () => ({
   useJoinEvent: () => ({ mutateAsync: mockJoinEvent }),
   useLeaveEvent: () => ({ mutateAsync: mockLeaveEvent, isPending: false }),
   useLeaveEventWaitlist: () => ({ mutateAsync: mockLeaveWaitlist, isPending: false }),
+  useMyEventInvitation: () => ({ data: null, refetch: jest.fn() }),
+  useRespondEventInvitation: () => ({ mutateAsync: mockRespondEventInvitation, isPending: false }),
   useEventParticipation: () => ({
     data: mockParticipation,
     isRefetching: false,

@@ -123,6 +123,17 @@ export interface SportEvent {
   entryFeeLabel: string;
   organizer: UserProfile;
   attendees: UserProfile[];
+  communityId?: ID | null;
+}
+
+export type EventInvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
+
+export interface EventInvitation {
+  id: ID;
+  eventId: ID;
+  status: EventInvitationStatus;
+  expiresAt: string;
+  invitee?: UserProfile;
 }
 
 export interface Court {

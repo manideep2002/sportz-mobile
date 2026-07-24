@@ -19,6 +19,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleShe
 import { useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
+import { EventCard } from '@/components/events/EventCard';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
@@ -34,6 +35,7 @@ import {
   useUpdateCommunityMemberRole
 } from '@/hooks/useCommunities';
 import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
+import { useCommunityEvents } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { useAuthStore } from '@/store/authStore';
@@ -68,6 +70,8 @@ export function GroupDetailScreen() {
     isFetchingNextPage,
     isFetchNextPageError
   } = useCommunityPosts(route.params.communityId, canViewContent);
+  const { data: groupEvents = [], isLoading: groupEventsLoading, isError: groupEventsIsError, refetch: refetchGroupEvents } =
+    useCommunityEvents(route.params.communityId, canViewContent);
   const posts = flattenCommunityPostPages(postsData);
   const {
     data: members = [],
@@ -95,7 +99,7 @@ export function GroupDetailScreen() {
 
   const refreshAll = async () => {
     const tasks: Promise<unknown>[] = [refetch()];
-    if (canViewContent) tasks.push(refetchPosts(), refetchMembers());
+    if (canViewContent) tasks.push(refetchPosts(), refetchMembers(), refetchGroupEvents());
     if (canManageMembers) tasks.push(refetchRequests());
     await Promise.all(tasks);
   };
@@ -250,7 +254,7 @@ export function GroupDetailScreen() {
 
         {community.isMember ? (
           <View style={styles.quickActions}>
-            <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent')} />
+            <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent', { communityId: community.id })} />
             <Action icon={Plus} label="New Post" primary onPress={() => navigation.navigate('CreatePost', { communityId: community.id })} />
             {community.isAdmin ? <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} /> : null}
             <Action icon={LogOut} label="Leave" danger onPress={handleLeave} />
@@ -335,6 +339,24 @@ export function GroupDetailScreen() {
               ))}
             </View>
 
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <AppText variant="h4">Group Events</AppText>
+                {groupEventsLoading ? <ActivityIndicator color={colors.orange[500]} /> : <Badge>{groupEvents.length}</Badge>}
+              </View>
+              {groupEventsIsError ? (
+                <View style={styles.fallbackInline}>
+                  <AppText variant="bodyMuted">Could not load group events.</AppText>
+                  <Button size="sm" onPress={() => void refetchGroupEvents()}>Retry</Button>
+                </View>
+              ) : null}
+              {!groupEventsLoading && !groupEventsIsError && groupEvents.length === 0 ? (
+                <AppText variant="bodyMuted">No upcoming group events yet.</AppText>
+              ) : null}
+              {groupEvents.map((event) => (
+                <EventCard key={event.id} event={event} onPress={() => navigation.navigate('EventDetail', { eventId: event.id })} />
+              ))}
+            </View>
             <View style={styles.section}>
               <AppText variant="h4">Recent Posts</AppText>
             </View>

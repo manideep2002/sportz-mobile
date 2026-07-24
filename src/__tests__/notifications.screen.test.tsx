@@ -9,6 +9,7 @@ const mockRefetch = jest.fn();
 const mockMarkAllRead = jest.fn();
 const mockMarkAsRead = jest.fn();
 const mockRespondInvite = jest.fn();
+const mockRespondEventInvitation = jest.fn();
 let mockFetchingNext = false;
 let mockHasNextPage = true;
 
@@ -50,6 +51,9 @@ jest.mock('@/hooks/useNotifications', () => ({
 }));
 jest.mock('@/hooks/useCommunities', () => ({
   useRespondCommunityInvite: () => ({ mutate: mockRespondInvite, isPending: false })
+}));
+jest.mock('@/hooks/useEvents', () => ({
+  useRespondEventInvitation: () => ({ mutate: mockRespondEventInvitation, isPending: false })
 }));
 
 // eslint-disable-next-line import/first

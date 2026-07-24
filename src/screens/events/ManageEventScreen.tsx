@@ -12,12 +12,18 @@ import { colors, spacing, typography } from '@/design/tokens';
 import {
   useCancelEvent,
   useEvent,
+  useEventInvitations,
   useEventWaitlist,
+  useInviteToEvent,
   usePromoteEventWaitlistUser,
   useRemoveEventAttendee,
   useRemoveEventWaitlistUser,
+  useRevokeEventInvitation,
   useUpdateEvent
 } from '@/hooks/useEvents';
+import { useCommunityMembers } from '@/hooks/useCommunities';
+import { profileService } from '@/services/profileService';
+import type { UserProfile } from '@/types/domain';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { EventType, EventVisibility } from '@/types/domain';
 
@@ -34,11 +40,15 @@ export function ManageEventScreen() {
     isRefetching: waitlistRefetching,
     refetch: refetchWaitlist
   } = useEventWaitlist(route.params.eventId);
+  const { data: communityMembers = [] } = useCommunityMembers(event?.communityId ?? '', Boolean(event?.communityId));
+  const { data: invitations = [], refetch: refetchInvitations } = useEventInvitations(route.params.eventId, Boolean(event));
   const updateEvent = useUpdateEvent();
   const cancelEvent = useCancelEvent();
   const removeAttendee = useRemoveEventAttendee();
   const removeWaitlistUser = useRemoveEventWaitlistUser();
   const promoteWaitlistUser = usePromoteEventWaitlistUser();
+  const inviteToEvent = useInviteToEvent();
+  const revokeInvitation = useRevokeEventInvitation();
   const [title, setTitle] = useState(event?.title ?? '');
   const [eventType, setEventType] = useState<EventType>(event?.eventType ?? eventTypes[0]);
   const [visibility, setVisibility] = useState<EventVisibility>(event?.visibility ?? 'public');
@@ -48,6 +58,8 @@ export function ManageEventScreen() {
   const [locationName, setLocationName] = useState(event?.locationName ?? '');
   const [city, setCity] = useState(event?.city ?? '');
   const [maxPlayers, setMaxPlayers] = useState(event?.maxPlayers.toString() ?? '10');
+  const [playerQuery, setPlayerQuery] = useState('');
+  const [playerResults, setPlayerResults] = useState<UserProfile[]>([]);
 
   useEffect(() => {
     if (!event) return;
@@ -310,6 +322,41 @@ export function ManageEventScreen() {
                 </View>
               </View>
             ))}
+            {event.visibility === 'invite' ? (
+              <>
+                <AppText variant="h4">Invite Players</AppText>
+                {event.communityId ? <AppText variant="bodyMuted">Only current group members can be invited to this group event.</AppText> : (
+                  <Input
+                    label="Find players"
+                    value={playerQuery}
+                    onChangeText={async (value) => {
+                      setPlayerQuery(value);
+                      setPlayerResults(value.trim() ? await profileService.listPlayers(value) : []);
+                    }}
+                    placeholder="Search players"
+                  />
+                )}
+                {(event.communityId ? communityMembers.map((member) => member.profile) : playerResults)
+                  .filter((player) => player.id !== event.organizer.id && !event.attendees.some((attendee) => attendee.id === player.id))
+                  .map((player) => {
+                    const existing = invitations.find((invitation) => invitation.invitee?.id === player.id);
+                    return (
+                      <View key={player.id} style={styles.attendee}>
+                        <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
+                        <View style={{ flex: 1 }}>
+                          <VerifiedName profile={player} style={styles.attendeeName} numberOfLines={1} />
+                          <AppText variant="small">{existing ? existing.status : 'Not invited'}</AppText>
+                        </View>
+                        {existing?.status === 'pending' ? (
+                          <Button size="sm" variant="ghost" loading={revokeInvitation.isPending} onPress={() => revokeInvitation.mutate(existing.id, { onSuccess: () => void refetchInvitations() })}>Revoke</Button>
+                        ) : (
+                          <Button size="sm" loading={inviteToEvent.isPending} onPress={() => inviteToEvent.mutate({ eventId: event.id, userId: player.id }, { onSuccess: () => void refetchInvitations() })}>Invite</Button>
+                        )}
+                      </View>
+                    );
+                  })}
+              </>
+            ) : null}
             <Button full variant="danger" loading={cancelEvent.isPending} onPress={cancel}>
               Cancel Event
             </Button>

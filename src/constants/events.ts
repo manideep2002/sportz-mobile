@@ -1,6 +1,6 @@
 import type { EventType, EventVisibility } from '@/types/domain';
 
-export type EventCreateVisibility = Extract<EventVisibility, 'public' | 'followers' | 'invite'>;
+export type EventCreateVisibility = EventVisibility;
 
 export const eventTypes: EventType[] = ['Pickup Game', 'Tournament', 'Training', 'Friendly'];
 

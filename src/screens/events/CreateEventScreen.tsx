@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Camera, ChevronLeft, Calendar, Clock } from 'lucide-react-native';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
-import { eventPaymentNotice, eventTypes, eventVisibilityOptions } from '@/constants/events';
+import { eventPaymentNotice, eventTypes, eventVisibilityOptions, type EventCreateVisibility } from '@/constants/events';
 import { allSports } from '@/constants/sports';
 import { colors, radii, spacing } from '@/design/tokens';
 import { useCreateEvent } from '@/hooks/useEvents';
@@ -16,6 +16,7 @@ import type { AppStackParamList } from '@/navigation/routes';
 import type { Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
+type Route = RouteProp<AppStackParamList, 'CreateEvent'>;
 
 const sports: Sport[] = allSports;
 
@@ -66,6 +67,8 @@ const getErrorMessage = (error: unknown) => {
 
 export function CreateEventScreen() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute<Route>();
+  const communityId = route.params?.communityId;
   const [sport, setSport] = useState<Sport>('Basketball');
   const [title, setTitle] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -73,7 +76,7 @@ export function CreateEventScreen() {
   const [description, setDescription] = useState('');
   const [maxPlayers, setMaxPlayers] = useState('10');
   const [eventType, setEventType] = useState(eventTypes[0]);
-  const [visibility, setVisibility] = useState(eventVisibilityOptions[0].value);
+  const [visibility, setVisibility] = useState<EventCreateVisibility>(communityId ? 'group' : eventVisibilityOptions[0].value);
   const [entryFee, setEntryFee] = useState('0');
   const [coverImage, setCoverImage] = useState<string | null>(null);
 
@@ -186,7 +189,8 @@ export function CreateEventScreen() {
         coverImageUri: coverImage,
         maxPlayers: capacity,
         entryFeeCents: Math.round(feeAmount * 100),
-        visibility
+        visibility,
+        communityId
       });
       Alert.alert('Event created', 'Your event is ready.', [
         { text: 'View event', onPress: () => navigation.replace('EventDetail', { eventId: created.id }) }
@@ -217,7 +221,7 @@ export function CreateEventScreen() {
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <AppText variant="h3">Create Event</AppText>
+        <AppText variant="h3">{communityId ? 'Schedule Group Event' : 'Create Event'}</AppText>
         <Button size="sm" loading={createEvent.isPending} onPress={handleCreate}>Create</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -242,6 +246,16 @@ export function CreateEventScreen() {
           placeholder="e.g., Weekend 5v5 Basketball"
         />
 
+        {communityId ? (
+          <View style={styles.group}>
+            <AppText style={styles.label}>Visibility</AppText>
+            <View style={styles.dateAdjust}>
+              <Chip selected={visibility === 'group'} onPress={() => setVisibility('group')}>Group members</Chip>
+              <Chip selected={visibility === 'invite'} onPress={() => setVisibility('invite')}>Invite-only</Chip>
+            </View>
+            <AppText variant="bodyMuted">Invite-only group events can only invite current group members.</AppText>
+          </View>
+        ) : (
         <View style={styles.group}>
           <AppText style={styles.label}>Sport</AppText>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -252,6 +266,7 @@ export function CreateEventScreen() {
             ))}
           </ScrollView>
         </View>
+        )}
 
         <View style={styles.group}>
           <AppText style={styles.label}>Date & Time</AppText>

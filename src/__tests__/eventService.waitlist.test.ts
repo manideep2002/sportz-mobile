@@ -102,4 +102,28 @@ describe('eventService waitlist lifecycle', () => {
       target_status: 'interested'
     });
   });
+
+  it('uses atomic invitation RPCs for invite, accept, decline, and revoke', async () => {
+    mockRpc
+      .mockResolvedValueOnce({ data: 'invite-1', error: null })
+      .mockResolvedValueOnce({ data: 'going', error: null })
+      .mockResolvedValueOnce({ data: 'declined', error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(eventService.inviteToEvent('event-1', 'player-2')).resolves.toBe('invite-1');
+    await expect(eventService.respondToEventInvitation('invite-1', true)).resolves.toBe('going');
+    await expect(eventService.respondToEventInvitation('invite-1', false)).resolves.toBe('declined');
+    await expect(eventService.revokeEventInvitation('invite-1')).resolves.toBeUndefined();
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, 'create_event_invitation', {
+      target_event_id: 'event-1', target_invitee_id: 'player-2', target_expires_at: null
+    });
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'respond_to_event_invitation', {
+      target_invitation_id: 'invite-1', accept_invitation: true
+    });
+    expect(mockRpc).toHaveBeenNthCalledWith(3, 'respond_to_event_invitation', {
+      target_invitation_id: 'invite-1', accept_invitation: false
+    });
+    expect(mockRpc).toHaveBeenNthCalledWith(4, 'revoke_event_invitation', { target_invitation_id: 'invite-1' });
+  });
 });

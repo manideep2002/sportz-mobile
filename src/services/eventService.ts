@@ -3,7 +3,7 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import type { EventCreateVisibility } from '@/constants/events';
-import type { EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
+import type { EventInvitation, EventInvitationStatus, EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
 
 export interface CreateEventInput {
   title: string;
@@ -20,6 +20,7 @@ export interface CreateEventInput {
   maxPlayers: number;
   entryFeeCents: number;
   visibility: EventCreateVisibility;
+  communityId?: string;
 }
 
 export type UpdateEventInput = Partial<Omit<CreateEventInput, 'visibility'>> & {
@@ -30,6 +31,7 @@ export type UpdateEventInput = Partial<Omit<CreateEventInput, 'visibility'>> & {
 interface SportEventRow {
   id: string;
   organizer_id: string;
+  community_id?: string | null;
   title: string;
   event_type: string | null;
   sport: string;
@@ -150,7 +152,8 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
   currency: row.currency ?? 'INR',
   entryFeeLabel: entryFeeLabel(row.currency, row.entry_fee_cents),
   organizer: mapProfileRow(row.profiles ?? { id: row.organizer_id, display_name: 'Organizer' }),
-  attendees
+  attendees,
+  communityId: row.community_id ?? null
 });
 
 export const eventService = {
@@ -195,6 +198,16 @@ export const eventService = {
     if (error) throw error;
 
     return (data ?? []).map((row) => mapEventRow(row as unknown as SportEventRow));
+  },
+
+  async listCommunityEvents(communityId: string): Promise<SportEvent[]> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('list_community_sport_events', {
+      target_community_id: communityId
+    });
+    if (error) throw error;
+    const rows = (data ?? []) as SportEventRow[];
+    return rows.map((row) => mapEventRow(row));
   },
 
   async getEvent(eventId: string): Promise<SportEvent> {
@@ -246,13 +259,72 @@ export const eventService = {
       target_longitude: input.longitude ?? null,
       target_max_players: input.maxPlayers,
       target_entry_fee_cents: input.entryFeeCents,
-      target_visibility: input.visibility
+      target_visibility: input.visibility,
+      target_community_id: input.communityId ?? null
     });
 
     if (error) throw error;
     if (!eventId || typeof eventId !== 'string') throw new Error('Event was not created.');
 
     return eventService.getEvent(eventId);
+  },
+
+  async inviteToEvent(eventId: string, userId: string, expiresAt?: string): Promise<string> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('create_event_invitation', {
+      target_event_id: eventId,
+      target_invitee_id: userId,
+      target_expires_at: expiresAt ?? null
+    });
+    if (error) throw error;
+    if (typeof data !== 'string') throw new Error('Invitation was not created.');
+    return data;
+  },
+
+  async respondToEventInvitation(invitationId: string, accept: boolean): Promise<'going' | 'waitlisted' | 'declined' | 'expired' | 'accepted'> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('respond_to_event_invitation', {
+      target_invitation_id: invitationId,
+      accept_invitation: accept
+    });
+    if (error) throw error;
+    if (data === 'waitlisted' || data === 'declined' || data === 'expired' || data === 'accepted') return data;
+    return 'going';
+  },
+
+  async revokeEventInvitation(invitationId: string): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('revoke_event_invitation', { target_invitation_id: invitationId });
+    if (error) throw error;
+  },
+
+  async getMyEventInvitation(eventId: string): Promise<EventInvitation | null> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('get_my_event_invitation', { target_event_id: eventId });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row || typeof row.id !== 'string' || typeof row.status !== 'string' || typeof row.expires_at !== 'string') return null;
+    return { id: row.id, eventId, status: row.status as EventInvitationStatus, expiresAt: row.expires_at };
+  },
+
+  async listEventInvitations(eventId: string): Promise<EventInvitation[]> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase
+      .from('event_invitations')
+      .select('id, event_id, status, expires_at, invitee:invitee_id(*)')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+      const invitee = row.invitee as unknown as AttendeeRow['profiles'];
+      return {
+        id: row.id as string,
+        eventId: row.event_id as string,
+        status: row.status as EventInvitationStatus,
+        expiresAt: row.expires_at as string,
+        invitee: invitee ? mapProfileRow(invitee) : undefined
+      };
+    });
   },
 
   async joinEvent(eventId: string): Promise<'going' | 'waitlisted'> {

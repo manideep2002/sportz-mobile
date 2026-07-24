@@ -16,6 +16,7 @@ import {
   useMarkNotificationsRead
 } from '@/hooks/useNotifications';
 import { useRespondCommunityInvite } from '@/hooks/useCommunities';
+import { useRespondEventInvitation } from '@/hooks/useEvents';
 import { navigateFromNotificationData, notificationToRouteData } from '@/navigation/notificationRouting';
 import { navigationRef } from '@/navigation/navigationRef';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -111,6 +112,7 @@ export function NotificationsScreen() {
   const markAllRead = useMarkNotificationsRead();
   const markAsRead = useMarkNotificationRead();
   const respondInvite = useRespondCommunityInvite();
+  const respondEventInvitation = useRespondEventInvitation();
 
   const filteredNotifications = filterNotifications(notifications, filter);
 
@@ -143,6 +145,13 @@ export function NotificationsScreen() {
 
     if (!notification.read) {
       markAsRead.mutate(notification.id);
+    }
+    if (notification.data?.inviteType === 'event') {
+      respondEventInvitation.mutate(
+        { invitationId: inviteId, accept: approve },
+        { onError: (error) => Alert.alert(approve ? 'Accept failed' : 'Decline failed', error instanceof Error ? error.message : 'Please try again.') }
+      );
+      return;
     }
     respondInvite.mutate(
       { inviteId, communityId: notification.entityId, approve },
@@ -250,7 +259,7 @@ export function NotificationsScreen() {
             notification={item}
             onPress={() => handleNotificationPress(item)}
             onCtaPress={() => handleCtaPress(item)}
-            inviteActionLoading={respondInvite.isPending}
+            inviteActionLoading={respondInvite.isPending || respondEventInvitation.isPending}
             onInviteAccept={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, true) : undefined}
             onInviteDecline={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, false) : undefined}
           />

@@ -29,7 +29,7 @@ export type AppStackParamList = {
   EventDetail: { eventId: string };
   EventChat: { eventId: string };
   ManageEvent: { eventId: string };
-  CreateEvent: undefined;
+  CreateEvent: { communityId?: string } | undefined;
   UserProfile: { userId: string };
   StoryViewer: { storyId: string; mediaUrl?: string; mediaKind?: 'image' | 'video' };
   CreateStory: undefined;
