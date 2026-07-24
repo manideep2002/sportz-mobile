@@ -36,7 +36,7 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
           ) : (
             <AppText style={[styles.title, { color: theme.text }]} numberOfLines={1}>{title}</AppText>
           )}
-          <AppText variant="small">{timeAgo(conversation.lastMessageAt).replace(' ago', '')}</AppText>
+          <AppText variant="small">{timeAgo(conversation.lastMessageAt, { addSuffix: false })}</AppText>
         </View>
         <AppText variant="bodyMuted" numberOfLines={1}>
           {conversation.lastMessage}

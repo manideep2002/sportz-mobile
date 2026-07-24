@@ -1,4 +1,5 @@
-import { compactNumber, currency, eventDate, formatTime } from '@/utils/format';
+import { i18n } from '@/i18n';
+import { compactNumber, currency, eventDate, formatTime, timeAgo } from '@/utils/format';
 
 describe('compactNumber', () => {
   it('formats numbers below 1 000 as plain strings', () => {
@@ -48,5 +49,48 @@ describe('formatTime', () => {
     // Use a fixed UTC time and accept either 12h format variation
     const result = formatTime('2026-06-15T14:30:00.000Z');
     expect(result).toMatch(/\d+:\d{2} [ap]m/i);
+  });
+});
+
+describe('timeAgo', () => {
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-24T12:00:00.000Z'));
+    await i18n.changeLanguage('en-IN');
+  });
+
+  afterEach(async () => {
+    jest.useRealTimers();
+    await i18n.changeLanguage('en-IN');
+  });
+
+  it('formats feed timestamps when Hermes does not provide Intl.RelativeTimeFormat', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Intl, 'RelativeTimeFormat');
+    Object.defineProperty(Intl, 'RelativeTimeFormat', {
+      configurable: true,
+      value: undefined
+    });
+
+    try {
+      expect(timeAgo('2026-07-24T11:58:00.000Z')).toBe('2 minutes ago');
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Intl, 'RelativeTimeFormat', originalDescriptor);
+      } else {
+        delete (Intl as typeof Intl & { RelativeTimeFormat?: unknown }).RelativeTimeFormat;
+      }
+    }
+  });
+
+  it('supports suffix-free timestamps without English-only string manipulation', () => {
+    expect(timeAgo('2026-07-24T11:58:00.000Z', { addSuffix: false })).toBe('2 minutes');
+  });
+
+  it('uses the active Hindi locale', async () => {
+    await i18n.changeLanguage('hi-IN');
+
+    const result = timeAgo('2026-07-24T11:58:00.000Z');
+    expect(result).toContain('मिनट');
+    expect(result).toContain('पहले');
   });
 });
