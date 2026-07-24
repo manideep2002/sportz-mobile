@@ -44,7 +44,6 @@ import { CreateCommunityScreen } from '@/screens/community/CreateCommunityScreen
 import { PrivacyScreen } from '@/screens/settings/PrivacyScreen';
 import { NotificationSettingsScreen } from '@/screens/settings/NotificationSettingsScreen';
 import { ModerationScreen } from '@/screens/settings/ModerationScreen';
-import { LanguageScreen } from '@/screens/settings/LanguageScreen';
 import { AppearanceScreen } from '@/screens/settings/AppearanceScreen';
 import { SportsInterestsScreen } from '@/screens/settings/SportsInterestsScreen';
 import { HelpScreen } from '@/screens/settings/HelpScreen';
@@ -138,7 +137,6 @@ function AppNavigator() {
       <App.Screen name="Privacy" component={PrivacyScreen} />
       <App.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <App.Screen name="Moderation" component={ModerationScreen} />
-      <App.Screen name="Language" component={LanguageScreen} />
       <App.Screen name="Appearance" component={AppearanceScreen} />
       <App.Screen name="SportsInterests" component={SportsInterestsScreen} />
       <App.Screen name="Help" component={HelpScreen} />

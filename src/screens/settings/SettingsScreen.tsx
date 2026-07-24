@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, CalendarCheck, ChevronLeft, Globe, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Bell, CalendarCheck, ChevronLeft, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
@@ -30,15 +30,12 @@ export function SettingsScreen() {
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
   const accentColor = useUiStore((state) => state.accentColor);
-  const language = useUiStore((state) => state.language);
   const accountItems: SettingsItemConfig[] = [
     { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
     { label: t('settings.privacy'), detail: t('settings.privacyDetail'), icon: Lock, route: 'Privacy' },
     { label: t('settings.notifications'), detail: t('settings.notificationsDetail'), icon: Bell, route: 'NotificationSettings' }
   ];
-  const languageName = t(language === 'hi-IN' ? 'language.hindi' : 'language.english');
   const preferenceItems: SettingsItemConfig[] = [
-    { label: t('settings.languageRegion'), detail: t('language.region', { language: languageName }), icon: Globe, route: 'Language' },
     {
       label: t('settings.appearance'),
       detail: t('appearance.summary', {

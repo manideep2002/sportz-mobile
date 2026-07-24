@@ -85,12 +85,4 @@ describe('timeAgo', () => {
   it('supports suffix-free timestamps without English-only string manipulation', () => {
     expect(timeAgo('2026-07-24T11:58:00.000Z', { addSuffix: false })).toBe('2 minutes');
   });
-
-  it('uses the active Hindi locale', async () => {
-    await i18n.changeLanguage('hi-IN');
-
-    const result = timeAgo('2026-07-24T11:58:00.000Z');
-    expect(result).toContain('मिनट');
-    expect(result).toContain('पहले');
-  });
 });

@@ -114,6 +114,15 @@ describe('usePushNotifications', () => {
       mockNativePlatform = false;
     });
 
+    it('produces no console.error on mount (web smoke test)', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
+      expect(consoleSpy).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
     it('does NOT register native received listener', async () => {
       await act(async () => {
         await renderHook(() => usePushNotifications());

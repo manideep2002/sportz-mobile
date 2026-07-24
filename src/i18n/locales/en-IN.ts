@@ -118,7 +118,6 @@ export const enIN = {
     privacyDetail: 'Account visibility, block list',
     notifications: 'Notifications',
     notificationsDetail: 'Push, email, activity alerts',
-    languageRegion: 'Language & Region',
     appearance: 'Appearance',
     sports: 'Sports Interests',
     bookings: 'My Bookings',
@@ -149,11 +148,4 @@ export const enIN = {
     pink: 'Pink',
     summary: '{{theme}} mode · {{accent}} accent'
   },
-  language: {
-    title: 'Language',
-    english: 'English',
-    hindi: 'Hindi',
-    region: '{{language}} · India',
-    coverageNote: 'More languages will appear when their translations are complete.'
-  }
 } as const;

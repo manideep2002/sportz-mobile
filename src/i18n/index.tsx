@@ -1,15 +1,8 @@
-import { useEffect, type PropsWithChildren } from 'react';
+import { type PropsWithChildren } from 'react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next, useTranslation } from 'react-i18next';
 
 import { enIN } from './locales/en-IN';
-import { hiIN } from './locales/hi-IN';
-import { useUiStore } from '@/store/uiStore';
-
-export const supportedLanguages = [
-  { locale: 'en-IN' as const, translationKey: 'language.english' },
-  { locale: 'hi-IN' as const, translationKey: 'language.hindi' }
-];
 
 if (!i18n.isInitialized) {
   // The default instance also lets isolated screens and tests resolve translations
@@ -18,31 +11,22 @@ if (!i18n.isInitialized) {
   void i18n.use(initReactI18next).init({
     compatibilityJSON: 'v4',
     resources: {
-      'en-IN': { translation: enIN },
-      'hi-IN': { translation: hiIN }
+      'en-IN': { translation: enIN }
     },
     lng: 'en-IN',
     fallbackLng: 'en-IN',
-    supportedLngs: ['en-IN', 'hi-IN'],
-    nonExplicitSupportedLngs: false,
     interpolation: { escapeValue: false },
     returnNull: false
   });
 }
 
 export function I18nProvider({ children }: PropsWithChildren) {
-  const language = useUiStore((state) => state.language);
-  useEffect(() => {
-    // eslint-disable-next-line import/no-named-as-default-member
-    if (i18n.resolvedLanguage !== language) void i18n.changeLanguage(language);
-  }, [language]);
   return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
 }
 
 export const useAppTranslation = () => useTranslation(undefined, { i18n });
 
-export const activeLocale = (): 'en-IN' | 'hi-IN' =>
-  i18n.resolvedLanguage === 'hi-IN' ? 'hi-IN' : 'en-IN';
+export const activeLocale = () => 'en-IN' as const;
 
 export const formatLocalizedDate = (
   value: Date | string | number,

@@ -1,9 +1,7 @@
 import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
 import { enIN } from 'date-fns/locale/en-IN';
-import { hi } from 'date-fns/locale/hi';
 
 import {
-  activeLocale,
   formatLocalizedCurrency,
   formatLocalizedDate,
   formatLocalizedNumber
@@ -23,7 +21,7 @@ interface TimeAgoOptions {
 export const timeAgo = (iso: string, options: TimeAgoOptions = {}) =>
   formatDistanceToNowStrict(new Date(iso), {
     addSuffix: options.addSuffix ?? true,
-    locale: activeLocale() === 'hi-IN' ? hi : enIN
+    locale: enIN
   });
 
 export const eventDate = (iso: string) =>
