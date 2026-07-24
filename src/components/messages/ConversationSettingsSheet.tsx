@@ -11,6 +11,7 @@ import {
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, BottomSheet, IconButton, VerifiedName } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { ChatParticipantRole, UserProfile } from '@/types/domain';
 
@@ -50,6 +51,7 @@ function SettingsAction({
   loading?: boolean;
   onPress: () => void;
 }) {
+  const { colors: theme } = useAppTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,15 +60,21 @@ function SettingsAction({
       onPress={onPress}
       style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}
     >
-      <View style={[styles.actionIcon, danger ? styles.dangerIcon : null]}>
+      <View
+        style={[
+          styles.actionIcon,
+          { backgroundColor: danger ? theme.dangerSoft : theme.accentSoft },
+          danger ? styles.dangerIcon : null
+        ]}
+      >
         {loading ? (
-          <ActivityIndicator color={danger ? colors.semantic.danger : colors.orange[400]} />
+          <ActivityIndicator color={danger ? theme.danger : theme.accent} />
         ) : (
-          <Icon size={18} color={danger ? colors.semantic.danger : colors.orange[400]} />
+          <Icon size={18} color={danger ? theme.danger : theme.accent} />
         )}
       </View>
       <View style={styles.actionCopy}>
-        <AppText style={[styles.actionLabel, danger ? styles.dangerText : null]}>{label}</AppText>
+        <AppText style={[styles.actionLabel, { color: danger ? theme.danger : theme.text }]}>{label}</AppText>
         <AppText variant="small">{detail}</AppText>
       </View>
     </Pressable>
@@ -91,6 +99,7 @@ export function ConversationSettingsSheet({
   onRemoveMember,
   onLeave
 }: ConversationSettingsSheetProps) {
+  const { colors: theme } = useAppTheme();
   const canManageMembers = isGroup && (currentUserRole === 'owner' || currentUserRole === 'admin');
   const canRemoveMember = (memberId: string) => {
     if (!canManageMembers || memberId === currentUserId) return false;
@@ -108,7 +117,7 @@ export function ConversationSettingsSheet({
           </AppText>
         </View>
 
-        <View style={styles.group}>
+        <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingsAction
             icon={pinned ? PinOff : Pin}
             label={pinned ? 'Unpin conversation' : 'Pin conversation'}
@@ -136,11 +145,11 @@ export function ConversationSettingsSheet({
         {isGroup ? (
           <View style={styles.memberSection}>
             <AppText variant="caption">Members</AppText>
-            <View style={styles.memberList}>
+            <View style={[styles.memberList, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               {members.map((member) => {
                 const role = participantRoles[member.id] ?? 'member';
                 return (
-                  <View key={member.id} style={styles.memberRow}>
+                  <View key={member.id} style={[styles.memberRow, { borderBottomColor: theme.border }]}>
                     <Avatar initials={member.initials} uri={member.avatarUrl} size={40} />
                     <View style={styles.memberCopy}>
                       <VerifiedName profile={member} style={styles.memberName} numberOfLines={1} />
@@ -151,7 +160,7 @@ export function ConversationSettingsSheet({
                         icon={UserMinus}
                         size={36}
                         iconSize={16}
-                        color={colors.semantic.danger}
+                        color={theme.danger}
                         accessibilityLabel={`Remove ${member.displayName}`}
                         disabled={busyAction === 'remove'}
                         onPress={() => onRemoveMember(member)}
@@ -164,7 +173,7 @@ export function ConversationSettingsSheet({
           </View>
         ) : null}
 
-        <View style={styles.group}>
+        <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingsAction
             icon={LogOut}
             label="Leave conversation"

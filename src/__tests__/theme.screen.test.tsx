@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react-native';
 import { View } from 'react-native';
 
+import { Chip } from '@/components/ui/Chip';
 import { Screen } from '@/components/ui/Screen';
+import { VerifiedName } from '@/components/ui/VerifiedName';
 import { ThemeProvider, useAppTheme } from '@/design/ThemeProvider';
 import { useUiStore } from '@/store/uiStore';
 
@@ -17,13 +19,15 @@ function CoreScreenProbe() {
         testID="theme-probe"
         style={{ backgroundColor: theme.colors.surface, borderColor: theme.colors.border }}
       />
+      <Chip>All Sports</Chip>
+      <VerifiedName profile={{ displayName: 'Asha Singh', skillLevel: 'Pro' }} />
     </Screen>
   );
 }
 
 describe('core screen theme smoke states', () => {
   it.each(['dark', 'light'] as const)('renders a readable %s screen state', async (mode) => {
-    useUiStore.setState({ themeMode: mode, accentColor: 'green' });
+    useUiStore.setState({ themeMode: mode });
     await render(
       <ThemeProvider>
         <CoreScreenProbe />
@@ -34,6 +38,14 @@ describe('core screen theme smoke states', () => {
     expect(screen.getByTestId('theme-probe')).toHaveStyle({
       backgroundColor: theme.surface,
       borderColor: theme.border
+    });
+    expect(screen.getByRole('button', { name: 'All Sports' })).toHaveStyle({
+      alignSelf: 'flex-start',
+      flexShrink: 0
+    });
+    expect(screen.getByLabelText('Verified pro player')).toHaveStyle({
+      backgroundColor: mode === 'dark' ? 'rgba(245,158,11,0.15)' : '#FEF3C7',
+      borderColor: mode === 'dark' ? 'rgba(245,158,11,0.46)' : '#D97706'
     });
   });
 });

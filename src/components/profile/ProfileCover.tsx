@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { useAppTheme } from '@/design/ThemeProvider';
+import { colors } from '@/design/tokens';
 import { mediaVariants } from '@/utils/mediaOptimization';
 
 interface ProfileCoverProps {
@@ -69,7 +70,7 @@ export function ProfileCover({
       ) : null}
       {loading && showImage ? (
         <View pointerEvents="none" style={styles.loading} testID={`${testID}-loading`}>
-          <ActivityIndicator color={theme.inverseText} />
+          <ActivityIndicator color={colors.light[0]} />
         </View>
       ) : null}
       <View pointerEvents="none" style={[styles.border, { borderColor: theme.accentBorder }]} />

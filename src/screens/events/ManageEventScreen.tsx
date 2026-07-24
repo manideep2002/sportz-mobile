@@ -10,6 +10,7 @@ import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, Input, Ve
 
 import { eventPaymentNotice, eventTypes, eventVisibilityOptions } from '@/constants/events';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   useCancelEvent,
@@ -34,6 +35,7 @@ type Route = RouteProp<AppStackParamList, 'ManageEvent'>;
 
 export function ManageEventScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
   const {
@@ -337,7 +339,7 @@ export function ManageEventScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
@@ -360,9 +362,9 @@ export function ManageEventScreen() {
           />
         }
       >
-        {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
         {isError ? (
-          <View style={styles.state}>
+          <View style={[styles.state, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <AppText variant="bodyMuted" style={styles.stateText}>
               {error instanceof Error ? error.message : 'Could not load this event.'}
             </AppText>
@@ -370,19 +372,19 @@ export function ManageEventScreen() {
           </View>
         ) : null}
         {!isLoading && !isError && !event ? (
-          <View style={styles.state}>
+          <View style={[styles.state, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <AppText variant="h4">Event not found</AppText>
             <Button size="sm" onPress={() => navigation.goBack()}>Go Back</Button>
           </View>
         ) : null}
         {event ? (
           <>
-            <Pressable style={styles.cover} onPress={() => void pickCover()}>
+            <Pressable style={[styles.cover, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => void pickCover()}>
               {coverImage ? (
                 <Image source={{ uri: coverImage }} resizeMode="cover" style={styles.coverImage} />
               ) : (
                 <>
-                  <Camera size={28} color={colors.text.tertiary} />
+                  <Camera size={28} color={theme.textSubtle} />
                   <AppText variant="small">Add cover photo</AppText>
                 </>
               )}
@@ -397,8 +399,8 @@ export function ManageEventScreen() {
             ) : null}
             <Input label="Title" value={title} onChangeText={setTitle} />
             <View style={styles.group}>
-              <AppText style={styles.label}>Event Type</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <AppText style={[styles.label, { color: theme.textSubtle }]}>Event Type</AppText>
+              <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
                 {eventTypes.map((item) => (
                   <Chip key={item} selected={item === eventType} onPress={() => setEventType(item)}>
                     {item}
@@ -407,8 +409,8 @@ export function ManageEventScreen() {
               </ScrollView>
             </View>
             <View style={styles.group}>
-              <AppText style={styles.label}>Sport</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <AppText style={[styles.label, { color: theme.textSubtle }]}>Sport</AppText>
+              <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
                 {allSports.map((item) => (
                   <Chip
                     key={item}
@@ -424,13 +426,13 @@ export function ManageEventScreen() {
             </View>
             {event.communityId ? (
               <View style={styles.group}>
-                <AppText style={styles.label}>Visibility</AppText>
+                <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
                 <AppText variant="bodyMuted">Group members only. This cannot be changed for a group event.</AppText>
               </View>
             ) : (
               <View style={styles.group}>
-                <AppText style={styles.label}>Visibility</AppText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
+                <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
                   {eventVisibilityOptions.map((option) => (
                     <Chip
                       key={option.value}
@@ -445,7 +447,7 @@ export function ManageEventScreen() {
             )}
             <Input label="Description" value={description} onChangeText={setDescription} multiline />
             <View style={styles.group}>
-              <AppText style={styles.label}>Date & Time</AppText>
+              <AppText style={[styles.label, { color: theme.textSubtle }]}>Date & Time</AppText>
               <View style={styles.manualDateTimeRow}>
                 <View style={styles.manualDateTimeField}>
                   <Input label="Date" icon={Calendar} value={dateText} onChangeText={setDateText} placeholder="YYYY-MM-DD" />
@@ -464,7 +466,7 @@ export function ManageEventScreen() {
             {Number(entryFee) > 0 ? <AppText variant="small">{eventPaymentNotice}</AppText> : null}
             <AppText variant="h4">Attendees</AppText>
             {event.attendees.map((attendee) => (
-              <View key={attendee.id} style={styles.attendee}>
+              <View key={attendee.id} style={[styles.attendee, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Avatar initials={attendee.initials} uri={attendee.avatarUrl} size={38} />
                 <View style={{ flex: 1 }}>
                   <VerifiedName profile={attendee} style={styles.attendeeName} numberOfLines={1} />
@@ -487,7 +489,7 @@ export function ManageEventScreen() {
               Departures promote the longest-waiting eligible player automatically. Manual promotion is available only when a space is open.
             </AppText>
             {waitlistIsError ? (
-              <View style={styles.state}>
+              <View style={[styles.state, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <AppText variant="bodyMuted">Could not load the waitlist.</AppText>
                 <Button size="sm" onPress={() => void refetchWaitlist()}>Retry</Button>
               </View>
@@ -496,7 +498,7 @@ export function ManageEventScreen() {
               <AppText variant="bodyMuted">No players are waiting for a spot.</AppText>
             ) : null}
             {waitlist.map((entry) => (
-              <View key={entry.id} style={styles.attendee}>
+              <View key={entry.id} style={[styles.attendee, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Avatar initials={entry.user.initials} uri={entry.user.avatarUrl} size={38} />
                 <View style={{ flex: 1 }}>
                   <VerifiedName profile={entry.user} style={styles.attendeeName} numberOfLines={1} />
@@ -547,7 +549,7 @@ export function ManageEventScreen() {
                   .map((player) => {
                     const existing = invitations.find((invitation) => invitation.invitee?.id === player.id);
                     return (
-                      <View key={player.id} style={styles.attendee}>
+                      <View key={player.id} style={[styles.attendee, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                         <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
                         <View style={{ flex: 1 }}>
                           <VerifiedName profile={player} style={styles.attendeeName} numberOfLines={1} />
@@ -609,6 +611,12 @@ const styles = StyleSheet.create({
   },
   group: {
     gap: 8
+  },
+  chipScroller: {
+    flexGrow: 0
+  },
+  chipContent: {
+    alignItems: 'flex-start'
   },
   cover: {
     height: 164,

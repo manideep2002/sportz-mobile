@@ -13,13 +13,23 @@ interface AppTextProps extends TextProps {
 
 export function AppText({ variant = 'body', color, style, children, ...props }: PropsWithChildren<AppTextProps>) {
   const theme = useAppTheme();
+  const requestedColor = StyleSheet.flatten(style)?.color;
   const semanticColor = variant === 'bodyMuted'
     ? theme.colors.textMuted
     : variant === 'small' || variant === 'caption'
       ? theme.colors.textSubtle
       : theme.colors.text;
+  const resolvedColor = color
+    ?? (requestedColor === colors.text.primary
+      ? theme.colors.text
+      : requestedColor === colors.text.secondary
+        ? theme.colors.textMuted
+        : requestedColor === colors.text.tertiary
+          ? theme.colors.textSubtle
+          : requestedColor)
+    ?? semanticColor;
   return (
-    <Text {...props} style={[styles.base, styles[variant], { color: color ?? semanticColor }, style]}>
+    <Text {...props} style={[styles.base, styles[variant], style, { color: resolvedColor }]}>
       {children}
     </Text>
   );

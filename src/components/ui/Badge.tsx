@@ -12,23 +12,20 @@ interface BadgeProps {
   style?: ViewStyle;
 }
 
-const toneStyles: Record<BadgeTone, { backgroundColor: string; color: string }> = {
-  orange: { backgroundColor: colors.orange[500], color: colors.light[0] },
-  dark: { backgroundColor: colors.dark[700], color: colors.text.secondary },
-  green: { backgroundColor: colors.overlays.successSoft, color: colors.semantic.success },
-  blue: { backgroundColor: colors.overlays.infoSoft, color: colors.semantic.info },
-  red: { backgroundColor: colors.overlays.dangerSoft, color: colors.semantic.danger },
-  yellow: { backgroundColor: 'rgba(245,158,11,0.15)', color: colors.semantic.warning }
-};
-
 export function Badge({ children, tone = 'dark', style }: PropsWithChildren<BadgeProps>) {
-  const { colors: theme } = useAppTheme();
+  const { colors: theme, isDark } = useAppTheme();
   const toneStyle =
     tone === 'orange'
       ? { backgroundColor: theme.accent, color: theme.onAccent }
       : tone === 'dark'
         ? { backgroundColor: theme.surfaceMuted, color: theme.textMuted }
-        : toneStyles[tone];
+        : tone === 'green'
+          ? { backgroundColor: isDark ? colors.overlays.successSoft : '#DCFCE7', color: theme.success }
+          : tone === 'blue'
+            ? { backgroundColor: isDark ? colors.overlays.infoSoft : '#DBEAFE', color: theme.info }
+            : tone === 'red'
+              ? { backgroundColor: theme.dangerSoft, color: theme.danger }
+              : { backgroundColor: theme.warningSoft, color: theme.warning };
   return (
     <View style={[styles.badge, { backgroundColor: toneStyle.backgroundColor }, style]}>
       <AppText style={[styles.label, { color: toneStyle.color }]}>{children}</AppText>

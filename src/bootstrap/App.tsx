@@ -51,10 +51,11 @@ function AppContent() {
 }
 
 function LoadingSplash() {
+  const theme = useAppTheme();
   return (
-    <View style={styles.loadingContainer}>
+    <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
       <AppText variant="hero">
-        SPORTZ<AppText variant="hero" color={colors.orange[500]}>.</AppText>
+        SPORTZ<AppText variant="hero" color={theme.colors.accent}>.</AppText>
       </AppText>
     </View>
   );
@@ -81,13 +82,9 @@ export default function App() {
     }
   }, [ready]);
 
-  if (!ready) {
-    return <LoadingSplash />;
-  }
-
   return (
     <AppProviders>
-      <AppContent />
+      {ready ? <AppContent /> : <LoadingSplash />}
     </AppProviders>
   );
 }

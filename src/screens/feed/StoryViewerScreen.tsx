@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Avatar, IconButton, ProgressBar, VerifiedName, VideoPlayer } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -38,6 +39,7 @@ const IMAGE_STORY_DURATION_MS = 5000;
 export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const { colors: theme } = useAppTheme();
   const currentProfile = useAuthStore((state) => state.profile);
   const insets = useSafeAreaInsets();
 
@@ -450,11 +452,15 @@ export function StoryViewerScreen() {
               onSubmitEditing={() => void sendReply(reply)}
             />
             <Pressable
-              style={[styles.sendReply, !reply.trim() || sendingReply ? styles.sendReplyDisabled : null]}
+              style={[
+                styles.sendReply,
+                { backgroundColor: theme.accent },
+                !reply.trim() || sendingReply ? styles.sendReplyDisabled : null
+              ]}
               disabled={!reply.trim() || sendingReply}
               onPress={() => void sendReply(reply)}
             >
-              <AppText style={styles.sendReplyText}>Send</AppText>
+              <AppText style={[styles.sendReplyText, { color: theme.onAccent }]}>Send</AppText>
             </Pressable>
           </View>
         </KeyboardAvoidingView>

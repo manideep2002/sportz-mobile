@@ -10,6 +10,7 @@ import { CommentInput } from '@/components/social/CommentInput';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostSave, usePost, usePostRealtimeUpdates, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -23,6 +24,7 @@ type Route = RouteProp<AppStackParamList, 'PostDetail'>;
 
 export function PostDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const {
     data: post,
@@ -88,7 +90,7 @@ export function PostDetailScreen() {
         <AppText variant="h3">Post</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {postLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {postLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
       {postIsError ? (
         <View style={styles.state}>
           <AppText variant="h4">Could not load post</AppText>
@@ -126,7 +128,7 @@ export function PostDetailScreen() {
       <View style={styles.commentsHeader}>
         <AppText variant="h4">Comments ({comments.length})</AppText>
       </View>
-      {commentsLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {commentsLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
       {commentsIsError ? (
         <View style={styles.state}>
           <AppText variant="bodyMuted" style={styles.stateText}>
@@ -147,7 +149,9 @@ export function PostDetailScreen() {
           style={[
             styles.commentRow,
             comment.parentCommentId ? styles.commentReplyRow : null,
-            highlightedCommentId === comment.id ? styles.commentHighlighted : null
+            highlightedCommentId === comment.id
+              ? [styles.commentHighlighted, { borderLeftColor: theme.accent }]
+              : null
           ]}
           onPress={() => {
             setReplyingTo(comment);
@@ -164,7 +168,7 @@ export function PostDetailScreen() {
           <Pressable onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}>
             <Avatar initials={comment.author.initials} uri={comment.author.avatarUrl} size={36} tone="green" />
           </Pressable>
-          <View style={styles.commentBody}>
+          <View style={[styles.commentBody, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <VerifiedName profile={comment.author} style={styles.commentAuthor} numberOfLines={1} />
             <AppText variant="bodyMuted">{comment.body}</AppText>
             <Pressable
@@ -173,8 +177,8 @@ export function PostDetailScreen() {
             >
               <Heart
                 size={14}
-                color={comment.likedByMe ? colors.orange[400] : colors.text.tertiary}
-                fill={comment.likedByMe ? colors.orange[400] : 'transparent'}
+                color={comment.likedByMe ? theme.accent : theme.textSubtle}
+                fill={comment.likedByMe ? theme.accent : 'transparent'}
               />
               <AppText variant="small">{comment.likes}</AppText>
             </Pressable>

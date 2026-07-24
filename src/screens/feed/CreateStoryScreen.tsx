@@ -6,6 +6,7 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Button, IconButton, VideoPlayer } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing } from '@/design/tokens';
 import { useCreateStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -22,6 +23,7 @@ const MAX_STORY_SIZE_MB = 50;
 
 export function CreateStoryScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const profile = useAuthStore((state) => state.profile);
   const [mediaAssets, setMediaAssets] = useState<ImagePickerAsset[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -106,7 +108,7 @@ export function CreateStoryScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
@@ -117,7 +119,7 @@ export function CreateStoryScreen() {
           {mediaAssets.length > 1 ? `Share ${mediaAssets.length}` : 'Share'}
         </Button>
       </View>
-      <Pressable accessibilityRole="button" style={styles.canvas} onPress={handlePickMedia}>
+      <Pressable accessibilityRole="button" style={[styles.canvas, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={handlePickMedia}>
         {selectedAsset ? (
           <>
             {isSelectedVideo ? (
@@ -140,8 +142,8 @@ export function CreateStoryScreen() {
           </>
         ) : (
           <View style={styles.empty}>
-            <View style={styles.icon}>
-              <ImagePlus size={30} color={colors.orange[400]} />
+            <View style={[styles.icon, { backgroundColor: theme.accentSoft }]}>
+              <ImagePlus size={30} color={theme.accent} />
             </View>
             <AppText variant="h3">Choose a photo or video</AppText>
             <AppText variant="bodyMuted">Share a moment from your game or training.</AppText>
@@ -152,8 +154,8 @@ export function CreateStoryScreen() {
         value={caption}
         onChangeText={setCaption}
         placeholder="Add caption"
-        placeholderTextColor={colors.text.tertiary}
-        style={styles.captionInput}
+        placeholderTextColor={theme.textSubtle}
+        style={[styles.captionInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
         maxLength={180}
       />
       {mediaAssets.length ? (
@@ -168,11 +170,15 @@ export function CreateStoryScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Preview story ${index + 1}${item.type === 'video' ? ' (video)' : ''}`}
               onPress={() => setSelectedIndex(index)}
-              style={[styles.thumbnail, index === selectedIndex ? styles.selectedThumbnail : null]}
+              style={[
+                styles.thumbnail,
+                index === selectedIndex ? styles.selectedThumbnail : null,
+                { borderColor: index === selectedIndex ? theme.accent : theme.border },
+              ]}
             >
               {item.type === 'video' ? (
-                <View style={styles.videoThumbnailTile}>
-                  <VideoIcon size={22} color={colors.light[100]} />
+                <View style={[styles.videoThumbnailTile, { backgroundColor: theme.surfaceMuted }]}>
+                  <VideoIcon size={22} color={theme.textMuted} />
                 </View>
               ) : (
                 <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />

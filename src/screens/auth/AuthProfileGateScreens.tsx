@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react-native';
 
 import { AppText, Button, Chip, Input, Screen } from '@/components/ui';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
@@ -15,6 +16,7 @@ const levels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
 const generatedUsernamePattern = /^athlete_[a-f0-9]{8}(?:_\d+)?$/i;
 
 export function ProfileCompletionScreen() {
+  const { colors: theme } = useAppTheme();
   const user = useAuthStore((state) => state.user);
   const profile = useAuthStore((state) => state.profile);
   const completeProfile = useAuthStore((state) => state.completeProfile);
@@ -110,7 +112,7 @@ export function ProfileCompletionScreen() {
 
       <View style={styles.group}>
         <AppText style={styles.label}>Primary Sport</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
           {allSports.map((item) => (
             <Chip key={item} selected={sport === item} onPress={() => setSport(item)}>{item}</Chip>
           ))}
@@ -126,7 +128,7 @@ export function ProfileCompletionScreen() {
         </View>
       </View>
 
-      {formError || storeError ? <AppText style={styles.error}>{formError ?? storeError}</AppText> : null}
+      {formError || storeError ? <AppText style={[styles.error, { color: theme.danger }]}>{formError ?? storeError}</AppText> : null}
       <Button full size="lg" disabled={!canSubmit} loading={loading} onPress={submit}>
         Continue to SPORTZ
       </Button>
@@ -138,6 +140,7 @@ export function ProfileCompletionScreen() {
 }
 
 export function ProfileLoadErrorScreen() {
+  const { colors: theme } = useAppTheme();
   const retryProfile = useAuthStore((state) => state.retryProfile);
   const signOut = useAuthStore((state) => state.signOut);
   const loading = useAuthStore((state) => state.loading);
@@ -145,7 +148,7 @@ export function ProfileLoadErrorScreen() {
 
   return (
     <Screen scroll={false} contentContainerStyle={styles.errorState}>
-      <AlertTriangle size={44} color={colors.semantic.danger} />
+      <AlertTriangle size={44} color={theme.danger} />
       <AppText variant="h2">Could not load your profile</AppText>
       <AppText variant="bodyMuted" style={styles.centered}>
         {error ?? 'Check your connection and try again.'}
@@ -176,6 +179,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   error: {
     color: colors.semantic.danger

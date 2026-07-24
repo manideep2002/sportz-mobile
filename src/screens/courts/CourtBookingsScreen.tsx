@@ -15,6 +15,7 @@ import {
   Screen,
   VerifiedName
 } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   useAdminCourtBookings,
@@ -50,6 +51,7 @@ const statusTone = (status: CourtBooking['status']) => {
 
 export function CourtBookingsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const profile = useAuthStore((state) => state.profile);
   const adminMode = Boolean(route.params?.admin && profile?.isAdmin);
@@ -94,7 +96,7 @@ export function CourtBookingsScreen() {
       </View>
 
       {!adminMode ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           {filters.map((item) => (
             <Chip key={item.key} selected={filter === item.key} onPress={() => setFilter(item.key)}>
               {item.label}
@@ -103,7 +105,7 @@ export function CourtBookingsScreen() {
         </ScrollView>
       ) : null}
 
-      {query.isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {query.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {query.isError ? (
         <View style={styles.empty}>
           <AppText variant="bodyMuted">
@@ -115,7 +117,7 @@ export function CourtBookingsScreen() {
 
       {!query.isLoading && !query.isError && visibleBookings.length === 0 ? (
         <View style={styles.empty}>
-          <CalendarCheck size={42} color={colors.text.tertiary} />
+          <CalendarCheck size={42} color={theme.textSubtle} />
           <AppText variant="h4">{adminMode ? 'No booking requests' : `No ${filter} bookings`}</AppText>
           <AppText variant="bodyMuted">
             {adminMode
@@ -127,7 +129,7 @@ export function CourtBookingsScreen() {
       ) : null}
 
       {visibleBookings.map((booking) => (
-        <View key={booking.id} style={styles.booking}>
+        <View key={booking.id} style={[styles.booking, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.topRow}>
             <View style={styles.flex}>
               <AppText style={styles.courtName}>{booking.court.name}</AppText>
@@ -198,7 +200,11 @@ const styles = StyleSheet.create({
     width: 40
   },
   filters: {
+    alignItems: 'flex-start',
     gap: spacing.xs
+  },
+  filterScroller: {
+    flexGrow: 0
   },
   empty: {
     alignItems: 'center',

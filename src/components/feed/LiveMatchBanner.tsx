@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, Card } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { SportEvent } from '@/types/domain';
 
@@ -10,6 +11,7 @@ interface LiveMatchBannerProps {
 }
 
 export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
+  const { colors: theme } = useAppTheme();
   const elapsedMinutes = Math.max(
     0,
     Math.floor((Date.now() - new Date(event.startsAt).getTime()) / 60000)
@@ -18,13 +20,13 @@ export function LiveMatchBanner({ event, onPress }: LiveMatchBannerProps) {
 
   return (
     <Pressable accessibilityRole="button" onPress={onPress}>
-      <Card style={styles.card}>
-        <View style={styles.glow} />
+      <Card style={[styles.card, { borderColor: theme.accentBorder }]}>
+        <View style={[styles.glow, { backgroundColor: theme.accentSoft }]} />
         <View style={styles.top}>
           <View>
             <View style={styles.liveRow}>
-              <View style={styles.liveDot} />
-              <AppText style={styles.liveText}>LIVE NOW</AppText>
+              <View style={[styles.liveDot, { backgroundColor: theme.danger }]} />
+              <AppText style={[styles.liveText, { color: theme.danger }]}>LIVE NOW</AppText>
             </View>
             <AppText variant="h3" color={colors.light[0]}>{event.title}</AppText>
             <AppText variant="small" color={colors.light[100]}>{event.locationName}{event.city ? ` - ${event.city}` : ''}</AppText>

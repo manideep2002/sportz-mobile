@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { AppText, Button } from '@/components/ui';
-import { colors, spacing } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { spacing } from '@/design/tokens';
 import { useDeletePost, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { reportReasons, reportService } from '@/services/reportService';
@@ -42,6 +43,7 @@ export function CommunityPostFeed({
   onLoadMore
 }: CommunityPostFeedProps) {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
   const saveMutation = useOptimisticPostSave();
@@ -73,7 +75,7 @@ export function CommunityPostFeed({
   };
 
   if (isLoading) {
-    return <ActivityIndicator accessibilityLabel="Loading posts" color={colors.orange[500]} style={styles.loader} />;
+    return <ActivityIndicator accessibilityLabel="Loading posts" color={theme.accent} style={styles.loader} />;
   }
 
   if (isError && posts.length === 0) {

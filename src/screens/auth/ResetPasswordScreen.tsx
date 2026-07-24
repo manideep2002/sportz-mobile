@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { AppText, Button, IconButton, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, shadows, spacing, typography } from '@/design/tokens';
 import type { AuthStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
@@ -34,6 +35,7 @@ function validate(password: string, confirm: string) {
 }
 
 export function ResetPasswordScreen({ navigation }: Props) {
+  const { colors: theme, isDark } = useAppTheme();
   const updatePassword = useAuthStore((state) => state.updatePassword);
   const loading = useAuthStore((state) => state.loading);
 
@@ -92,8 +94,8 @@ export function ResetPasswordScreen({ navigation }: Props) {
             { transform: [{ scale: checkScale }], opacity: checkOpacity },
           ]}
         >
-          <View style={styles.successRing}>
-            <CheckCircle size={52} color={colors.semantic.success} strokeWidth={1.5} />
+          <View style={[styles.successRing, { backgroundColor: isDark ? colors.overlays.successSoft : '#DCFCE7', borderColor: theme.success }]}>
+            <CheckCircle size={52} color={theme.success} strokeWidth={1.5} />
           </View>
         </Animated.View>
 
@@ -118,8 +120,8 @@ export function ResetPasswordScreen({ navigation }: Props) {
 
       {/* Header */}
       <View style={styles.iconHeader}>
-        <View style={styles.headerIconWrap}>
-          <ShieldCheck size={30} color={colors.orange[500]} strokeWidth={1.6} />
+        <View style={[styles.headerIconWrap, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder, shadowColor: theme.accent }]}>
+          <ShieldCheck size={30} color={theme.accent} strokeWidth={1.6} />
         </View>
       </View>
 
@@ -130,8 +132,8 @@ export function ResetPasswordScreen({ navigation }: Props) {
 
       {/* Error banner */}
       {errors.form ? (
-        <View style={styles.errorBanner}>
-          <AppText style={styles.errorBannerText}>{errors.form}</AppText>
+        <View style={[styles.errorBanner, { backgroundColor: theme.dangerSoft, borderColor: theme.danger }]}>
+          <AppText style={[styles.errorBannerText, { color: theme.danger }]}>{errors.form}</AppText>
         </View>
       ) : null}
 
@@ -187,14 +189,16 @@ interface PasswordFieldProps {
 }
 
 function PasswordField({ label, value, onChangeText, show, onToggleShow, error }: PasswordFieldProps) {
+  const { colors: theme } = useAppTheme();
   return (
     <>
-      <View style={[styles.inputWrap, error ? styles.inputWrapError : null]}>
-        <Lock size={16} color={colors.text.tertiary} style={styles.inputIcon} />
+      <View style={[styles.inputWrap, { backgroundColor: theme.surface, borderColor: error ? theme.danger : theme.border }]}>
+        <Lock size={16} color={theme.textSubtle} style={styles.inputIcon} />
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, { color: theme.text }]}
           placeholder={label}
-          placeholderTextColor={colors.text.tertiary}
+          placeholderTextColor={theme.textSubtle}
+          selectionColor={theme.accent}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={!show}
@@ -203,11 +207,11 @@ function PasswordField({ label, value, onChangeText, show, onToggleShow, error }
         />
         <Pressable onPress={onToggleShow} style={styles.eyeBtn} accessibilityLabel={show ? 'Hide password' : 'Show password'}>
           {show
-            ? <EyeOff size={16} color={colors.text.tertiary} />
-            : <Eye size={16} color={colors.text.tertiary} />}
+            ? <EyeOff size={16} color={theme.textSubtle} />
+            : <Eye size={16} color={theme.textSubtle} />}
         </Pressable>
       </View>
-      {error ? <AppText style={styles.fieldError}>{error}</AppText> : null}
+      {error ? <AppText style={[styles.fieldError, { color: theme.danger }]}>{error}</AppText> : null}
     </>
   );
 }
@@ -219,6 +223,7 @@ const RULES = [
 ];
 
 function StrengthHints({ password }: { password: string }) {
+  const { colors: theme } = useAppTheme();
   if (!password) return null;
   return (
     <View style={styles.hintsWrap}>
@@ -226,8 +231,8 @@ function StrengthHints({ password }: { password: string }) {
         const ok = rule.test(password);
         return (
           <View key={rule.label} style={styles.hintRow}>
-            <View style={[styles.hintDot, ok ? styles.hintDotOk : styles.hintDotNeutral]} />
-            <AppText style={[styles.hintText, ok ? styles.hintTextOk : null]}>{rule.label}</AppText>
+            <View style={[styles.hintDot, { backgroundColor: ok ? theme.success : theme.border }]} />
+            <AppText style={[styles.hintText, { color: ok ? theme.success : theme.textSubtle }]}>{rule.label}</AppText>
           </View>
         );
       })}

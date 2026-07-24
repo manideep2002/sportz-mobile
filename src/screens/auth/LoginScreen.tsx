@@ -6,6 +6,7 @@ import { ChevronLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import { Alert, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, IconButton, Input, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { env } from '@/lib/env';
 import type { AuthStackParamList } from '@/navigation/routes';
@@ -14,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props) {
+  const { colors: theme } = useAppTheme();
   const signIn = useAuthStore((state) => state.signIn);
   const signInWithIdToken = useAuthStore((state) => state.signInWithIdToken);
   const loading = useAuthStore((state) => state.loading);
@@ -88,12 +90,12 @@ export function LoginScreen({ navigation }: Props) {
           </Button>
         ) : null}
         <View style={styles.dividerRow}>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <AppText variant="small">or email</AppText>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
         </View>
         <Input label="Email" icon={Mail} value={email} onChangeText={(value) => { setEmail(value); setErrors((old) => ({ ...old, email: undefined, form: undefined })); }} keyboardType="email-address" autoCapitalize="none" accessibilityLabel="Email" />
-        {errors.email ? <AppText style={styles.error}>{errors.email}</AppText> : null}
+        {errors.email ? <AppText style={[styles.error, { color: theme.danger }]}>{errors.email}</AppText> : null}
         <View>
           <Input
             label="Password"
@@ -108,21 +110,21 @@ export function LoginScreen({ navigation }: Props) {
             size={34}
             iconSize={16}
             accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-            style={styles.passwordToggle}
+            style={[styles.passwordToggle, { backgroundColor: theme.surfaceMuted }]}
             onPress={() => setShowPassword((value) => !value)}
           />
         </View>
-        {errors.password ? <AppText style={styles.error}>{errors.password}</AppText> : null}
-        {errors.form ? <AppText style={styles.error}>{errors.form}</AppText> : null}
+        {errors.password ? <AppText style={[styles.error, { color: theme.danger }]}>{errors.password}</AppText> : null}
+        {errors.form ? <AppText style={[styles.error, { color: theme.danger }]}>{errors.form}</AppText> : null}
         <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
-          <AppText style={styles.forgot}>Forgot password?</AppText>
+          <AppText style={[styles.forgot, { color: theme.accent }]}>Forgot password?</AppText>
         </Pressable>
         <Button full size="lg" loading={loading} onPress={handleEmailLogin}>
           Sign In
         </Button>
         <Pressable style={styles.switch} onPress={() => navigation.navigate('Register')}>
           <AppText variant="bodyMuted">Do not have an account? </AppText>
-          <AppText style={styles.link}>Sign Up</AppText>
+          <AppText style={[styles.link, { color: theme.accent }]}>Sign Up</AppText>
         </Pressable>
       </View>
     </Screen>

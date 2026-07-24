@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 import { EventCard } from '@/components/events/EventCard';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   useCommunity,
@@ -53,6 +54,7 @@ const roleLabel = (role?: CommunityMemberRole | null) => {
 
 export function GroupDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const { data: community, isLoading, isError, isRefetching, error, refetch } = useCommunity(route.params.communityId);
@@ -169,7 +171,7 @@ export function GroupDetailScreen() {
         }
       >
         <View style={styles.fallback}>
-          <ActivityIndicator color={colors.orange[500]} />
+          <ActivityIndicator color={theme.accent} />
         </View>
       </Screen>
     );
@@ -262,8 +264,8 @@ export function GroupDetailScreen() {
         ) : null}
 
         {!canViewContent ? (
-          <View style={styles.privateGate}>
-            <Lock size={22} color={colors.orange[400]} />
+          <View style={[styles.privateGate, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Lock size={22} color={theme.accent} />
             <View style={styles.privateGateCopy}>
               <AppText style={styles.privateGateTitle}>
                 {community.isPrivate ? 'Membership required' : 'Join to enter'}
@@ -296,10 +298,10 @@ export function GroupDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <AppText variant="h4">Members</AppText>
-                {membersLoading ? <ActivityIndicator color={colors.orange[500]} /> : <Badge>{members.length}</Badge>}
+                {membersLoading ? <ActivityIndicator color={theme.accent} /> : <Badge>{members.length}</Badge>}
               </View>
               {membersIsError ? (
-                <View style={styles.fallbackInline}>
+                <View style={[styles.fallbackInline, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   <AppText variant="bodyMuted">Could not load members.</AppText>
                   <Button size="sm" onPress={() => void refetchMembers()}>Retry</Button>
                 </View>
@@ -342,10 +344,10 @@ export function GroupDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <AppText variant="h4">Group Events</AppText>
-                {groupEventsLoading ? <ActivityIndicator color={colors.orange[500]} /> : <Badge>{groupEvents.length}</Badge>}
+                {groupEventsLoading ? <ActivityIndicator color={theme.accent} /> : <Badge>{groupEvents.length}</Badge>}
               </View>
               {groupEventsIsError ? (
-                <View style={styles.fallbackInline}>
+                <View style={[styles.fallbackInline, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   <AppText variant="bodyMuted">Could not load group events.</AppText>
                   <Button size="sm" onPress={() => void refetchGroupEvents()}>Retry</Button>
                 </View>
@@ -379,7 +381,7 @@ export function GroupDetailScreen() {
       ) : null}
       <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => setInviteOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setInviteOpen(false)}>
-          <Pressable style={styles.inviteCard}>
+          <Pressable style={[styles.inviteCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
             <AppText variant="h3">Invite players</AppText>
             <Input
               value={inviteQuery}
@@ -435,9 +437,10 @@ function MembershipPanel({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const { colors: theme } = useAppTheme();
   if (status === 'invited') {
     return (
-      <View style={styles.membershipPanel}>
+      <View style={[styles.membershipPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <AppText style={styles.panelTitle}>You have an invite</AppText>
         <View style={styles.panelActions}>
           <Button size="sm" style={styles.panelButton} loading={loading} onPress={onAccept}>Accept</Button>
@@ -449,7 +452,7 @@ function MembershipPanel({
 
   if (status === 'requested') {
     return (
-      <View style={styles.membershipPanel}>
+      <View style={[styles.membershipPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <AppText style={styles.panelTitle}>Request pending</AppText>
         <AppText variant="bodyMuted">Admins will review your request.</AppText>
       </View>
@@ -474,16 +477,17 @@ function JoinRequestsList({
   responding: boolean;
   onRespond: (requestId: string, approve: boolean) => void;
 }) {
+  const { colors: theme } = useAppTheme();
   if (!loading && requests.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <AppText variant="h4">Join Requests</AppText>
-        {loading ? <ActivityIndicator color={colors.orange[500]} /> : <Badge tone="yellow">{requests.length}</Badge>}
+        {loading ? <ActivityIndicator color={theme.accent} /> : <Badge tone="yellow">{requests.length}</Badge>}
       </View>
       {requests.map((request) => (
-        <View key={request.id} style={styles.requestRow}>
+        <View key={request.id} style={[styles.requestRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Avatar initials={request.requester.initials} uri={request.requester.avatarUrl} size={38} />
           <View style={styles.memberMeta}>
             <VerifiedName profile={request.requester} style={styles.memberName} numberOfLines={1} />
@@ -510,8 +514,9 @@ function MemberRow({
   onToggleAdmin: () => void;
   onRemove: () => void;
 }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <View style={styles.memberRow}>
+    <View style={[styles.memberRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Avatar initials={member.profile.initials} uri={member.profile.avatarUrl} size={40} />
       <View style={styles.memberMeta}>
         <VerifiedName profile={member.profile} style={styles.memberName} numberOfLines={1} />
@@ -524,11 +529,11 @@ function MemberRow({
             icon={Shield}
             size={34}
             iconSize={16}
-            color={member.role === 'admin' ? colors.orange[400] : colors.text.secondary}
+            color={member.role === 'admin' ? theme.accent : theme.textMuted}
             disabled={busy}
             onPress={onToggleAdmin}
           />
-          <IconButton icon={UserMinus} size={34} iconSize={16} color={colors.semantic.danger} disabled={busy} onPress={onRemove} />
+          <IconButton icon={UserMinus} size={34} iconSize={16} color={theme.danger} disabled={busy} onPress={onRemove} />
         </View>
       ) : null}
     </View>
@@ -548,11 +553,21 @@ function Action({
   danger?: boolean;
   onPress?: () => void;
 }) {
-  const toneColor = danger ? colors.semantic.danger : colors.orange[500];
+  const { colors: theme } = useAppTheme();
+  const toneColor = danger ? theme.danger : theme.accent;
   return (
-    <Pressable style={[styles.action, primary ? styles.actionPrimary : null, danger ? styles.actionDanger : null]} onPress={onPress}>
-      <Icon size={18} color={primary ? colors.light[0] : toneColor} />
-      <AppText style={[styles.actionLabel, primary ? styles.actionPrimaryLabel : danger ? styles.actionDangerLabel : null]}>{label}</AppText>
+    <Pressable
+      style={[
+        styles.action,
+        {
+          backgroundColor: primary ? theme.accent : danger ? theme.dangerSoft : theme.surface,
+          borderColor: primary ? theme.accent : danger ? theme.danger : theme.border
+        }
+      ]}
+      onPress={onPress}
+    >
+      <Icon size={18} color={primary ? theme.onAccent : toneColor} />
+      <AppText style={[styles.actionLabel, { color: primary ? theme.onAccent : danger ? theme.danger : theme.textMuted }]}>{label}</AppText>
     </Pressable>
   );
 }

@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Send } from 'lucide-react-native';
 
 import { AppText, Avatar, IconButton, Input, VerifiedName } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCreateComment } from '@/hooks/useFeed';
 import type { Comment, UserProfile } from '@/types/domain';
@@ -26,6 +27,7 @@ export function CommentInput({
   onCancelReply,
   onSubmitted
 }: CommentInputProps) {
+  const { colors: theme } = useAppTheme();
   const [body, setBody] = useState('');
   const createComment = useCreateComment(postId);
   const trimmedBody = body.trim();
@@ -65,11 +67,11 @@ export function CommentInput({
             }}
           >
             <View style={styles.replyingToRow}>
-              <AppText variant="small" style={styles.replyingTo}>Replying to</AppText>
+              <AppText variant="small" style={[styles.replyingTo, { color: theme.accent }]}>Replying to</AppText>
               <VerifiedName
                 profile={replyingTo.author}
                 variant="small"
-                style={styles.replyingTo}
+                style={[styles.replyingTo, { color: theme.accent }]}
                 badgeSize={12}
                 numberOfLines={1}
               />

@@ -139,13 +139,8 @@ export const enIN = {
   appearance: {
     title: 'Appearance',
     theme: 'Theme',
-    accent: 'Accent color',
     dark: 'Dark',
     light: 'Light',
-    orange: 'Orange',
-    green: 'Green',
-    blue: 'Blue',
-    pink: 'Pink',
-    summary: '{{theme}} mode · {{accent}} accent'
+    summary: '{{theme}} mode'
   },
 } as const;

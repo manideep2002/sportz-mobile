@@ -5,6 +5,7 @@ const mockSetProfile = jest.fn();
 const mockUpdateProfile = jest.fn();
 const mockVerifyUsername = jest.fn();
 const mockRememberUsername = jest.fn();
+const mockPickImage = jest.fn();
 
 const profile = {
   id: 'user-1',
@@ -49,7 +50,7 @@ jest.mock('@/services/profileService', () => ({
 }));
 jest.mock('@/services/storageService', () => ({
   storageService: {
-    pickImage: jest.fn(),
+    pickImage: (...args: unknown[]) => mockPickImage(...args),
     uploadMedia: jest.fn()
   }
 }));
@@ -68,6 +69,7 @@ describe('EditProfileScreen', () => {
     jest.clearAllMocks();
     mockVerifyUsername.mockResolvedValue({ status: 'available', message: 'Available' });
     mockRememberUsername.mockResolvedValue(undefined);
+    mockPickImage.mockResolvedValue(null);
     mockUpdateProfile.mockImplementation((_id: string, input: Record<string, unknown>) =>
       Promise.resolve({
         ...profile,
@@ -128,5 +130,30 @@ describe('EditProfileScreen', () => {
       )
     );
     expect(screen.getByTestId('edit-profile-cover').props.accessibilityLabel).toBe('gradient');
+  });
+
+  it('opens the media picker from Choose New Cover and stages the selected cover', async () => {
+    const coverAsset = {
+      uri: 'file:///new-cover.jpg',
+      width: 1600,
+      height: 600,
+      type: 'image'
+    };
+    mockPickImage.mockResolvedValue(coverAsset);
+    await render(<EditProfileScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Change profile cover' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose New Cover' }));
+
+    await waitFor(() => expect(mockPickImage).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('edit-profile-cover').props.accessibilityLabel).toBe(coverAsset.uri);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ coverAsset })
+      )
+    );
   });
 });

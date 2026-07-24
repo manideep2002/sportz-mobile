@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Bell, Check, MessageSquare, UserPlus, Trophy, Heart, Reply, Calendar, X } from 'lucide-react-native';
 
 import { AppText, Avatar, Button } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { SportzNotification } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
@@ -15,26 +16,26 @@ interface NotificationRowProps {
   inviteActionLoading?: boolean;
 }
 
-const getNotificationIcon = (kind: SportzNotification['kind']) => {
+const getNotificationIcon = (kind: SportzNotification['kind'], color: string) => {
   switch (kind) {
     case 'like':
-      return <Heart size={20} color={colors.orange[500]} />;
+      return <Heart size={20} color={color} />;
     case 'comment':
     case 'mention':
-      return <Reply size={20} color={colors.orange[500]} />;
+      return <Reply size={20} color={color} />;
     case 'follow':
     case 'follow_request':
-      return <UserPlus size={20} color={colors.orange[500]} />;
+      return <UserPlus size={20} color={color} />;
     case 'event':
-      return <Calendar size={20} color={colors.orange[500]} />;
+      return <Calendar size={20} color={color} />;
     case 'message':
-      return <MessageSquare size={20} color={colors.orange[500]} />;
+      return <MessageSquare size={20} color={color} />;
     case 'invite':
-      return <UserPlus size={20} color={colors.orange[500]} />;
+      return <UserPlus size={20} color={color} />;
     case 'achievement':
-      return <Trophy size={20} color={colors.orange[500]} />;
+      return <Trophy size={20} color={color} />;
     default:
-      return <Bell size={20} color={colors.orange[500]} />;
+      return <Bell size={20} color={color} />;
   }
 };
 
@@ -46,15 +47,23 @@ export function NotificationRow({
   onInviteDecline,
   inviteActionLoading = false
 }: NotificationRowProps) {
+  const { colors: theme } = useAppTheme();
   const showInviteActions = Boolean(onInviteAccept && onInviteDecline);
 
   return (
-    <Pressable onPress={onPress} style={[styles.row, !notification.read ? styles.unread : null]}>
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.row,
+        { borderBottomColor: theme.border },
+        !notification.read ? { backgroundColor: theme.accentSoft } : null
+      ]}
+    >
       {notification.actor ? (
         <Avatar initials={notification.actor.initials} uri={notification.actor.avatarUrl} size={44} />
       ) : (
-        <View style={styles.icon}>
-          {getNotificationIcon(notification.kind)}
+        <View style={[styles.icon, { backgroundColor: theme.accentSoft }]}>
+          {getNotificationIcon(notification.kind, theme.accent)}
         </View>
       )}
       <View style={styles.body}>
@@ -98,7 +107,7 @@ export function NotificationRow({
           </View>
         ) : null}
       </View>
-      {!notification.read ? <View style={styles.dot} /> : null}
+      {!notification.read ? <View style={[styles.dot, { backgroundColor: theme.accent }]} /> : null}
     </Pressable>
   );
 }

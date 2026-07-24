@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, S
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { eventService } from '@/services/eventService';
@@ -22,6 +23,7 @@ const eventMessageKey = (eventId: string) => ['events', eventId, 'messages'] as 
 
 export function EventChatScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { eventId } = route.params;
   const queryClient = useQueryClient();
@@ -60,16 +62,16 @@ export function EventChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Event Chat</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.loader} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
       <ScrollView
         style={styles.messagesScroller}
         contentContainerStyle={styles.messages}
@@ -102,22 +104,29 @@ export function EventChatScreen() {
           return (
             <View key={message.id} style={[styles.messageRow, mine ? styles.mineRow : null]}>
               {!mine ? <Avatar initials={message.sender.initials} uri={message.sender.avatarUrl} size={32} /> : null}
-              <View style={[styles.bubble, mine ? styles.mine : styles.them]}>
+              <View
+                style={[
+                  styles.bubble,
+                  mine
+                    ? [styles.mine, { backgroundColor: theme.accent }]
+                    : [styles.them, { backgroundColor: theme.surface }]
+                ]}
+              >
                 {!mine ? <VerifiedName profile={message.sender} style={styles.sender} numberOfLines={1} /> : null}
-                <AppText style={[styles.messageText, mine ? styles.mineText : null]}>{message.body}</AppText>
-                <AppText style={[styles.time, mine ? styles.mineText : null]}>{formatTime(message.createdAt)}</AppText>
+                <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
+                <AppText style={[styles.time, { color: mine ? theme.onAccent : theme.textSubtle }]}>{formatTime(message.createdAt)}</AppText>
               </View>
             </View>
           );
         })}
       </ScrollView>
-      <View style={styles.composer}>
+      <View style={[styles.composer, { borderTopColor: theme.border }]}>
         <TextInput
           value={body}
           onChangeText={setBody}
           placeholder="Message attendees..."
-          placeholderTextColor={colors.text.tertiary}
-          style={styles.input}
+          placeholderTextColor={theme.textSubtle}
+          style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
           onSubmitEditing={() => void send()}
         />
         <IconButton icon={Send} filled disabled={!body.trim() || sending || isError} onPress={() => void send()} />

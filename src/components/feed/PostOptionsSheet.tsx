@@ -2,6 +2,7 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Bookmark, Edit3, Flag, Share2, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
 
 import { AppText, BottomSheet } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Post } from '@/types/domain';
 
@@ -40,6 +41,7 @@ export function PostOptionsSheet({
   onEdit,
   onDelete
 }: PostOptionsSheetProps) {
+  const { colors: theme } = useAppTheme();
   if (!post) {
     return null;
   }
@@ -133,16 +135,28 @@ export function PostOptionsSheet({
     <BottomSheet open={open} title="Post options" onClose={onClose}>
       <View>
         {options.map((option) => (
-          <Pressable key={option.label} style={styles.option} onPress={option.onPress}>
-            <View style={[styles.iconWrap, option.destructive ? styles.iconWrapDanger : null]}>
+          <Pressable key={option.label} style={[styles.option, { borderBottomColor: theme.border }]} onPress={option.onPress}>
+            <View
+              style={[
+                styles.iconWrap,
+                { backgroundColor: option.destructive ? theme.dangerSoft : theme.accentSoft },
+                option.destructive ? styles.iconWrapDanger : null
+              ]}
+            >
               <option.icon
                 size={20}
-                color={option.destructive ? colors.semantic.danger : colors.orange[500]}
+                color={option.destructive ? theme.danger : theme.accent}
                 strokeWidth={2.1}
               />
             </View>
             <View style={styles.meta}>
-              <AppText style={[styles.label, option.destructive ? styles.labelDanger : null]}>
+              <AppText
+                style={[
+                  styles.label,
+                  { color: option.destructive ? theme.danger : theme.text },
+                  option.destructive ? styles.labelDanger : null
+                ]}
+              >
                 {option.label}
               </AppText>
               <AppText variant="small">{option.detail}</AppText>

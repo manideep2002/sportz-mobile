@@ -7,6 +7,7 @@ import { ChevronLeft, Users } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
@@ -18,6 +19,7 @@ type Route = RouteProp<AppStackParamList, 'Followers'>;
 
 export function FollowersScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { userId, mode } = route.params;
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -93,17 +95,17 @@ export function FollowersScreen() {
         <AppText variant="h3">{mode === 'followers' ? 'Followers' : 'Following'}</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {loading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {loading ? <ActivityIndicator color={theme.accent} /> : null}
       {!loading && profiles.length === 0 ? (
         <View style={styles.empty}>
-          <Users size={34} color={colors.text.tertiary} />
+          <Users size={34} color={theme.textSubtle} />
           <AppText variant="bodyMuted">No {mode} yet.</AppText>
         </View>
       ) : null}
       {profiles.map((profile) => (
         <Pressable
           key={profile.id}
-          style={styles.row}
+          style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => navigation.navigate('UserProfile', { userId: profile.id })}
           accessibilityRole="button"
         >

@@ -8,6 +8,7 @@ import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
 import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
@@ -18,6 +19,7 @@ type Route = RouteProp<AppStackParamList, 'PageDetail'>;
 
 export function PageDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: community, isLoading, isError, isRefetching, error, refetch } = useCommunity(route.params.communityId);
   const {
@@ -48,7 +50,7 @@ export function PageDetailScreen() {
         }
       >
         <View style={styles.fallback}>
-          <ActivityIndicator color={colors.orange[500]} />
+          <ActivityIndicator color={theme.accent} />
         </View>
       </Screen>
     );
@@ -94,7 +96,7 @@ export function PageDetailScreen() {
           onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })}
         />
       </View>
-      <LinearGradient colors={['#1A0800', colors.orange[600], '#1A0800']} style={styles.cover}>
+      <LinearGradient colors={[theme.accentPressed, theme.accent, theme.accentPressed]} style={styles.cover}>
         <AppText variant="h1" color={colors.light[0]}>
           {community.name.substring(0, 4).toUpperCase()}
         </AppText>

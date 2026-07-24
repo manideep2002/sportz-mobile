@@ -10,6 +10,7 @@ import * as Location from 'expo-location';
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
 import { eventPaymentNotice, eventTypes, eventVisibilityOptions, type EventCreateVisibility } from '@/constants/events';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing } from '@/design/tokens';
 import { useCreateEvent } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -23,6 +24,7 @@ const sports: Sport[] = allSports;
 
 export function CreateEventScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const communityId = route.params?.communityId;
   const [sport, setSport] = useState<Sport>('Basketball');
@@ -171,7 +173,7 @@ export function CreateEventScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
@@ -181,15 +183,15 @@ export function CreateEventScreen() {
         <Button size="sm" loading={createEvent.isPending} onPress={handleCreate}>Create</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Pressable style={styles.cover} onPress={handlePickImage}>
+        <Pressable style={[styles.cover, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={handlePickImage}>
           {coverImage ? (
             <View style={styles.coverImageContainer}>
               <Image source={{ uri: coverImage }} resizeMode="cover" style={styles.coverImage} />
-              <AppText variant="small" style={styles.changeCover}>Tap to change</AppText>
+              <AppText variant="small" color={colors.light[0]} style={styles.changeCover}>Tap to change</AppText>
             </View>
           ) : (
             <>
-              <Camera size={28} color={colors.text.tertiary} />
+              <Camera size={28} color={theme.textSubtle} />
               <AppText variant="small">Add cover photo</AppText>
             </>
           )}
@@ -203,8 +205,8 @@ export function CreateEventScreen() {
         />
 
         <View style={styles.group}>
-          <AppText style={styles.label}>Sport</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Sport</AppText>
+          <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
             {sports.map((item) => (
               <Chip key={item} selected={item === sport} onPress={() => setSport(item)}>
                 {item}
@@ -215,7 +217,7 @@ export function CreateEventScreen() {
 
         {communityId ? (
           <View style={styles.group}>
-            <AppText style={styles.label}>Visibility</AppText>
+            <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
             <View style={styles.dateAdjust}>
               <Chip selected={visibility === 'group'} onPress={() => setVisibility('group')}>Group members</Chip>
               <Chip selected={visibility === 'invite'} onPress={() => setVisibility('invite')}>Invite-only</Chip>
@@ -225,7 +227,7 @@ export function CreateEventScreen() {
         ) : null}
 
         <View style={styles.group}>
-          <AppText style={styles.label}>Date & Time</AppText>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Date & Time</AppText>
           <View style={styles.manualDateTimeRow}>
             <View style={styles.manualDateTimeField}>
               <Input
@@ -301,8 +303,8 @@ export function CreateEventScreen() {
         ) : null}
 
         <View style={styles.group}>
-          <AppText style={styles.label}>Event Type</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Event Type</AppText>
+          <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
             {eventTypes.map((item) => (
               <Chip key={item} selected={item === eventType} onPress={() => setEventType(item)}>
                 {item}
@@ -312,8 +314,8 @@ export function CreateEventScreen() {
         </View>
 
         <View style={styles.group}>
-          <AppText style={styles.label}>Visibility</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
+          <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
             {eventVisibilityOptions.map((option) => (
               <Chip
                 key={option.value}
@@ -387,10 +389,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject
   },
   changeCover: {
-    color: colors.text.secondary
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4
   },
   group: {
     gap: 8
+  },
+  chipScroller: {
+    flexGrow: 0
+  },
+  chipContent: {
+    alignItems: 'flex-start'
   },
   label: {
     color: colors.text.tertiary,

@@ -7,6 +7,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-nat
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AuthStackParamList } from '@/navigation/routes';
@@ -132,6 +133,7 @@ const getCalendarDays = (monthDate: Date) => {
 };
 
 export function RegisterScreen({ navigation }: Props) {
+  const { colors: theme } = useAppTheme();
   const signUp = useAuthStore((state) => state.signUp);
   const loading = useAuthStore((state) => state.loading);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -218,14 +220,14 @@ export function RegisterScreen({ navigation }: Props) {
     secondarySports.length === 0
       ? 'Select secondary sports'
       : `${secondarySports.slice(0, 2).join(', ')}${secondarySports.length > 2 ? ` +${secondarySports.length - 2}` : ''}`;
-  const usernameStatusStyle =
+  const usernameStatusColor =
     visibleError('username')
-      ? styles.passwordHintError
+      ? theme.danger
       : usernameAvailability.status === 'available'
-      ? styles.successText
+      ? theme.success
       : usernameAvailability.status === 'taken' || usernameAvailability.status === 'invalid'
-        ? styles.passwordHintError
-        : styles.helperText;
+        ? theme.danger
+        : theme.textSubtle;
 
   const handlePrimarySportSelect = (sport: Sport) => {
     markTouched('primarySport');
@@ -365,7 +367,7 @@ export function RegisterScreen({ navigation }: Props) {
         </AppText>
         <Pressable style={styles.avatarPicker} onPress={handlePickAvatar} accessibilityRole="button" accessibilityLabel="Choose profile photo">
           <Avatar initials="SP" uri={avatarAsset?.uri} size={76} />
-          <View style={styles.avatarCamera}><Camera size={15} color={colors.light[0]} /></View>
+          <View style={[styles.avatarCamera, { backgroundColor: theme.accent, borderColor: theme.background }]}><Camera size={15} color={theme.onAccent} /></View>
         </Pressable>
         <View style={styles.form}>
           <View style={styles.row}>
@@ -408,7 +410,7 @@ export function RegisterScreen({ navigation }: Props) {
             autoCorrect={false}
             maxLength={REGISTRATION_LIMITS.username + 1}
           />
-          <AppText variant="small" style={[styles.usernameHint, usernameStatusStyle]}>
+          <AppText variant="small" style={[styles.usernameHint, { color: usernameStatusColor }]}>
             {visibleError('username') ?? usernameAvailability.message}
           </AppText>
           <Input
@@ -447,11 +449,11 @@ export function RegisterScreen({ navigation }: Props) {
             {passwordStatus.map((rule) => (
               <View key={rule.label} style={styles.passwordRule}>
                 {rule.valid ? (
-                  <Check size={14} color={colors.semantic.success} />
+                  <Check size={14} color={theme.success} />
                 ) : (
-                  <X size={14} color={colors.semantic.danger} />
+                  <X size={14} color={theme.danger} />
                 )}
-                <AppText style={[styles.passwordRuleText, rule.valid ? styles.passwordHintValid : styles.passwordHintError]}>
+                <AppText style={[styles.passwordRuleText, { color: rule.valid ? theme.success : theme.danger }]}>
                   {rule.label}
                 </AppText>
               </View>
@@ -460,8 +462,13 @@ export function RegisterScreen({ navigation }: Props) {
               variant="small"
               style={[
                 styles.passwordHint,
-                passwordIsValid && passwordMatches ? styles.passwordHintValid : null,
-                confirmPassword && !passwordMatches ? styles.passwordHintError : null
+                {
+                  color: confirmPassword && !passwordMatches
+                    ? theme.danger
+                    : passwordIsValid && passwordMatches
+                      ? theme.success
+                      : theme.textSubtle
+                }
               ]}
             >
               {passwordHint}
@@ -483,12 +490,12 @@ export function RegisterScreen({ navigation }: Props) {
           <View style={styles.group}>
             <AppText style={styles.label}>DOB</AppText>
             <Pressable
-              style={styles.selectInput}
+              style={[styles.selectInput, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => { markTouched('dateOfBirth'); setCalendarVisible(true); }}
               accessibilityRole="button"
               accessibilityLabel="Date of birth"
             >
-              <CalendarDays size={17} color={colors.text.tertiary} strokeWidth={2} />
+              <CalendarDays size={17} color={theme.textSubtle} strokeWidth={2} />
               <AppText style={styles.selectText}>{dateOfBirth || 'Select date of birth'}</AppText>
             </Pressable>
             <AppText variant="small" style={styles.helperText}>You must be at least {MINIMUM_REGISTRATION_AGE} years old.</AppText>
@@ -507,13 +514,13 @@ export function RegisterScreen({ navigation }: Props) {
           <View style={styles.group}>
             <AppText style={styles.label}>Primary Sport</AppText>
             <Pressable
-              style={styles.selectInput}
+              style={[styles.selectInput, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={openPrimarySportPicker}
               accessibilityRole="button"
               accessibilityLabel="Primary Sport"
             >
               <AppText style={styles.selectText}>{primarySport}</AppText>
-              <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
+              <ChevronDown size={17} color={theme.textSubtle} strokeWidth={2} />
             </Pressable>
             <FieldError message={visibleError('primarySport')} />
           </View>
@@ -535,33 +542,33 @@ export function RegisterScreen({ navigation }: Props) {
           <View style={styles.group}>
             <AppText style={styles.label}>Secondary Sports</AppText>
             <Pressable
-              style={styles.selectInput}
+              style={[styles.selectInput, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={openSecondarySportPicker}
               accessibilityRole="button"
               accessibilityLabel="Secondary Sports"
             >
               <AppText style={styles.selectText}>{secondarySportsLabel}</AppText>
-              <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
+              <ChevronDown size={17} color={theme.textSubtle} strokeWidth={2} />
             </Pressable>
             <FieldError message={visibleError('secondarySports')} />
           </View>
           <View style={styles.group}>
             <AppText style={styles.label}>Location</AppText>
             <Pressable
-              style={styles.selectInput}
+              style={[styles.selectInput, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => { markTouched('city'); setLocationPickerVisible(true); }}
               accessibilityRole="button"
               accessibilityLabel="Location"
             >
               <AppText style={styles.selectText}>{city || 'Select location'}</AppText>
-              <ChevronDown size={17} color={colors.text.tertiary} strokeWidth={2} />
+              <ChevronDown size={17} color={theme.textSubtle} strokeWidth={2} />
             </Pressable>
             <Button variant="dark" size="sm" icon={LocateFixed} loading={detectingLocation} onPress={handleDetectLocation}>
               Auto Detect Location
             </Button>
             <FieldError message={visibleError('city')} />
           </View>
-          {formError ? <AppText accessibilityRole="alert" style={styles.passwordHintError}>{formError}</AppText> : null}
+          {formError ? <AppText accessibilityRole="alert" style={{ color: theme.danger }}>{formError}</AppText> : null}
           <Button
             full
             size="lg"
@@ -573,7 +580,7 @@ export function RegisterScreen({ navigation }: Props) {
           </Button>
           <Pressable style={styles.switch} onPress={() => navigation.navigate('Login')}>
             <AppText variant="bodyMuted">Already have an account? </AppText>
-            <AppText style={styles.link}>Sign In</AppText>
+            <AppText style={[styles.link, { color: theme.accent }]}>Sign In</AppText>
           </Pressable>
         </View>
       </Screen>
@@ -630,8 +637,8 @@ export function RegisterScreen({ navigation }: Props) {
         onClose={() => setSecondarySportPickerVisible(false)}
       />
       <Modal visible={confirmationVisible} transparent animationType="fade" onRequestClose={() => setConfirmationVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.calendarCard}>
+        <View style={[styles.modalBackdrop, { backgroundColor: theme.scrim }]}>
+          <View style={[styles.calendarCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
             <AppText variant="h3">Check your inbox</AppText>
             <AppText variant="bodyMuted">Confirm your email address before signing in to SPORTZ.</AppText>
             <Button
@@ -651,8 +658,9 @@ export function RegisterScreen({ navigation }: Props) {
 }
 
 function FieldError({ message }: { message?: string }) {
+  const { colors: theme } = useAppTheme();
   return message ? (
-    <AppText accessibilityRole="alert" variant="small" style={styles.fieldError}>
+    <AppText accessibilityRole="alert" variant="small" style={[styles.fieldError, { color: theme.danger }]}>
       {message}
     </AppText>
   ) : null;
@@ -685,10 +693,11 @@ function LocationPickerModal({
   onDetect,
   onClose
 }: LocationPickerModalProps) {
+  const { colors: theme } = useAppTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.pickerCard}>
+      <View style={[styles.modalBackdrop, { backgroundColor: theme.scrim }]}>
+        <View style={[styles.pickerCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
           <View style={styles.pickerHeader}>
             <View>
               <AppText style={styles.pickerTitle}>Select location</AppText>
@@ -707,7 +716,7 @@ function LocationPickerModal({
             Auto Detect Location
           </Button>
           {canUseTypedLocation ? (
-            <Pressable style={styles.pickerOptionFeatured} onPress={() => onSelect(typedLocation)}>
+            <Pressable style={[styles.pickerOptionFeatured, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]} onPress={() => onSelect(typedLocation)}>
               <AppText style={styles.pickerOptionTitle}>Use &ldquo;{typedLocation}&rdquo;</AppText>
               <AppText variant="small">Add this as your location</AppText>
             </Pressable>
@@ -716,7 +725,14 @@ function LocationPickerModal({
             {locations.map((location) => (
               <Pressable
                 key={location}
-                style={[styles.pickerOption, location === selectedLocation ? styles.pickerOptionSelected : null]}
+                style={[
+                  styles.pickerOption,
+                  location === selectedLocation ? styles.pickerOptionSelected : null,
+                  {
+                    backgroundColor: location === selectedLocation ? theme.accentSoft : 'transparent',
+                    borderBottomColor: location === selectedLocation ? theme.accentBorder : theme.border
+                  }
+                ]}
                 onPress={() => onSelect(location)}
               >
                 <AppText style={styles.pickerOptionTitle}>{location}</AppText>
@@ -764,10 +780,11 @@ function SportPickerModal({
   onSecondaryToggle,
   onClose
 }: SportPickerModalProps) {
+  const { colors: theme } = useAppTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.pickerCard}>
+      <View style={[styles.modalBackdrop, { backgroundColor: theme.scrim }]}>
+        <View style={[styles.pickerCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
           <View style={styles.pickerHeader}>
             <View>
               <AppText style={styles.pickerTitle}>{title}</AppText>
@@ -783,7 +800,14 @@ function SportPickerModal({
               return (
                 <Pressable
                   key={sport}
-                  style={[styles.pickerOption, selected ? styles.pickerOptionSelected : null]}
+                  style={[
+                    styles.pickerOption,
+                    selected ? styles.pickerOptionSelected : null,
+                    {
+                      backgroundColor: selected ? theme.accentSoft : 'transparent',
+                      borderBottomColor: selected ? theme.accentBorder : theme.border
+                    }
+                  ]}
                   onPress={() => (mode === 'primary' ? onPrimarySelect(sport) : onSecondaryToggle(sport))}
                 >
                   <AppText style={styles.pickerOptionTitle}>
@@ -818,6 +842,7 @@ interface CalendarModalProps {
 }
 
 function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSelect, onClose }: CalendarModalProps) {
+  const { colors: theme } = useAppTheme();
   const selected = selectedDate ? parseDate(selectedDate) : null;
   const days = getCalendarDays(monthDate);
   const monthLabel = `${monthNames[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
@@ -828,8 +853,8 @@ function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSele
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.calendarCard}>
+      <View style={[styles.modalBackdrop, { backgroundColor: theme.scrim }]}>
+        <View style={[styles.calendarCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
           <View style={styles.calendarHeader}>
             <Button variant="dark" size="sm" onPress={() => moveMonth(-1)}>
               Prev
@@ -854,11 +879,19 @@ function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSele
                   key={`${index}-${day ?? 'blank'}`}
                   disabled={!date}
                   onPress={() => date && onSelect(date)}
-                  style={[styles.dayCell, isSelected ? styles.daySelected : null]}
+                  style={[
+                    styles.dayCell,
+                    isSelected ? styles.daySelected : null,
+                    isSelected ? { backgroundColor: theme.accent } : null
+                  ]}
                   accessibilityRole={date ? 'button' : undefined}
                   accessibilityLabel={date ? `Select ${monthNames[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}` : undefined}
                 >
-                  <AppText style={[styles.dayText, isSelected ? styles.daySelectedText : null]}>{day ?? ''}</AppText>
+                  <AppText style={[
+                    styles.dayText,
+                    isSelected ? styles.daySelectedText : null,
+                    { color: isSelected ? theme.onAccent : theme.textMuted }
+                  ]}>{day ?? ''}</AppText>
                 </Pressable>
               );
             })}

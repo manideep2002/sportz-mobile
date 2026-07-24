@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Badge, Button, Card } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { Court } from '@/types/domain';
 import { currency } from '@/utils/format';
@@ -12,20 +13,21 @@ interface CourtCardProps {
 }
 
 export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
+  const { colors: theme } = useAppTheme();
   const distanceLabel = court.distanceKm === null ? 'Distance unavailable' : `${court.distanceKm.toFixed(1)} km`;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
       <Card style={[styles.card, !court.futureBookable ? styles.disabled : null]}>
-        <View style={styles.sportIcon}>
+        <View style={[styles.sportIcon, { backgroundColor: theme.accentSoft }]}>
           <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
         </View>
         <View style={styles.meta}>
-          <AppText style={styles.name}>{court.name}</AppText>
+          <AppText style={[styles.name, { color: theme.text }]}>{court.name}</AppText>
           <AppText variant="small">
             {distanceLabel} - {court.surface} - {court.rating.toFixed(1)}
           </AppText>
           <View style={styles.priceRow}>
-            <AppText style={[styles.price, !court.futureBookable ? styles.mutedPrice : null]}>
+            <AppText style={[styles.price, { color: theme.accent }, !court.futureBookable ? { color: theme.textSubtle } : null]}>
               {currency(court.hourlyPrice, court.currency)}
               <AppText variant="small">/hr</AppText>
             </AppText>

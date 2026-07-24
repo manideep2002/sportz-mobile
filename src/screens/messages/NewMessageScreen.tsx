@@ -6,6 +6,7 @@ import { Check, ChevronLeft, Search, Users } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -18,6 +19,7 @@ type Route = RouteProp<AppStackParamList, 'NewMessage'>;
 
 export function NewMessageScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const route = useRoute<Route>();
   const addToConversationId = route.params?.addToConversationId;
@@ -119,7 +121,7 @@ export function NewMessageScreen() {
       />
 
       {selected.length ? (
-        <View style={styles.selectedPanel}>
+        <View style={[styles.selectedPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {!isAddMode ? (
             <Input
               icon={Users}
@@ -130,8 +132,8 @@ export function NewMessageScreen() {
           ) : null}
           <View style={styles.selectedChips}>
             {selected.map((player) => (
-              <Pressable key={player.id} style={styles.chip} onPress={() => toggleSelected(player)}>
-                <VerifiedName profile={player} style={styles.chipText} badgeSize={13} numberOfLines={1} />
+              <Pressable key={player.id} style={[styles.chip, { backgroundColor: theme.accentSoft }]} onPress={() => toggleSelected(player)}>
+                <VerifiedName profile={player} style={[styles.chipText, { color: theme.accent }]} badgeSize={13} numberOfLines={1} />
               </Pressable>
             ))}
           </View>
@@ -145,7 +147,7 @@ export function NewMessageScreen() {
         {players.map((player) => {
           const isSelected = selectedIds.has(player.id);
           return (
-            <View key={player.id} style={styles.playerRow}>
+            <View key={player.id} style={[styles.playerRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Pressable style={styles.playerPressArea} onPress={() => toggleSelected(player)}>
                 <Avatar initials={player.initials} uri={player.avatarUrl} size={44} />
                 <View style={styles.playerMeta}>

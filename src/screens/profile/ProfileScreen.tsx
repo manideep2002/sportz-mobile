@@ -264,7 +264,7 @@ function currentPostStreak(posts: { createdAt: string }[]) {
 function HighlightsPanel({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
   const { t } = useAppTranslation();
-  const { colors: theme } = useAppTheme();
+  const { colors: theme, isDark } = useAppTheme();
   const { data: postsList = [] } = useUserPosts(userId);
   const [filterKind, setFilterKind] = useState<'stats' | 'highlight' | null>(null);
   const topStats = postsList
@@ -275,7 +275,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
 
   return (
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
         {[
           { label: t('profile.add'), kind: null },
           { label: t('profile.season'), kind: 'stats' as const },
@@ -302,8 +302,8 @@ function HighlightsPanel({ userId }: { userId: string }) {
           <AppText style={[styles.highlightTitle, { color: theme.text }]}>{topStats?.body || t('profile.shareStats')}</AppText>
           <Badge tone="orange">{topStats?.statsLine ?? t('profile.stats').toLocaleUpperCase()}</Badge>
         </LinearGradient>
-        <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.semantic.success}>{streak}</AppText>
+        <LinearGradient colors={isDark ? ['#0A1A1A', '#0F2A2A'] : ['#ECFDF5', '#D1FAE5']} style={styles.highlightCard}>
+          <AppText variant="h2" color={theme.success}>{streak}</AppText>
           <AppText style={[styles.highlightTitle, { color: theme.text }]}>{t('profile.activityStreak')}</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
@@ -513,6 +513,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginRight: 12
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   highlightCircle: {
     width: 64,

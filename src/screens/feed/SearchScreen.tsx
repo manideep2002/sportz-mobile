@@ -7,6 +7,7 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppRefreshControl, AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useSearch, useTrendingTags } from '@/hooks/useSearch';
 import { blockService, toBlockedIdSet } from '@/services/blockService';
@@ -27,6 +28,7 @@ const filterTypes: Record<string, string | undefined> = {
 
 export function SearchScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const { data = [], isRefetching: searchRefetching, refetch: refetchSearch } = useSearch(query);
@@ -63,6 +65,7 @@ export function SearchScreen() {
       </View>
       <FlatList
         horizontal
+        style={styles.horizontalScroller}
         showsHorizontalScrollIndicator={false}
         data={filters}
         keyExtractor={(item) => item}
@@ -96,7 +99,7 @@ export function SearchScreen() {
       {filteredData.map((result, index) => (
         <Pressable
           key={`${result.type}-${result.id}`}
-          style={styles.result}
+          style={[styles.result, { borderBottomColor: theme.border }]}
           onPress={() => {
             if (result.type === 'player') navigation.navigate('UserProfile', { userId: result.id });
             if (result.type === 'event') navigation.navigate('EventDetail', { eventId: result.id });
@@ -147,6 +150,9 @@ const styles = StyleSheet.create({
   filterRow: {
     paddingHorizontal: spacing.screen,
     paddingBottom: 16
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   section: {
     paddingHorizontal: spacing.screen,

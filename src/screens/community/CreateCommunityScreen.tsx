@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react-native';
 
 import { AppText, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCreateCommunity } from '@/hooks/useCommunities';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -15,6 +16,7 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function CreateCommunityScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const createCommunity = useCreateCommunity();
   const [type, setType] = useState<Community['type']>('group');
   const [name, setName] = useState('');
@@ -38,7 +40,7 @@ export function CreateCommunityScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
@@ -48,7 +50,7 @@ export function CreateCommunityScreen() {
         <Button size="sm" loading={createCommunity.isPending} onPress={submit}>Create</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AppText style={styles.label}>Type</AppText>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Type</AppText>
         <View style={styles.wrap}>
           {(['group', 'page'] as const).map((item) => (
             <Chip key={item} selected={type === item} onPress={() => setType(item)}>
@@ -58,7 +60,7 @@ export function CreateCommunityScreen() {
         </View>
         {type === 'group' ? (
           <>
-            <AppText style={styles.label}>Visibility</AppText>
+            <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
             <View style={styles.wrap}>
               <Chip selected={!isPrivate} onPress={() => setIsPrivate(false)}>Public</Chip>
               <Chip selected={isPrivate} onPress={() => setIsPrivate(true)}>Private</Chip>
@@ -67,8 +69,8 @@ export function CreateCommunityScreen() {
         ) : null}
         <Input label="Name" value={name} onChangeText={setName} />
         <Input label="City" value={city} onChangeText={setCity} />
-        <AppText style={styles.label}>Sport</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Sport</AppText>
+        <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
           {allSports.slice(0, 20).map((item) => (
             <Chip key={item} selected={sport === item} onPress={() => setSport(item)}>{item}</Chip>
           ))}
@@ -106,6 +108,12 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     gap: spacing.xs
+  },
+  chipScroller: {
+    flexGrow: 0
+  },
+  chipContent: {
+    alignItems: 'flex-start'
   }
 });
 

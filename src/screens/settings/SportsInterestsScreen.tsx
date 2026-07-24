@@ -48,7 +48,7 @@ export function SportsInterestsScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}><IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} /><AppText variant="h3">Sports Interests</AppText><Button size="sm" loading={saving} onPress={save}>Save</Button></View>
       <AppText variant="small">Primary sport</AppText>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
         {allSports.map((item) => (
           <Chip
             key={`primary-${item}`}
@@ -80,4 +80,5 @@ const styles = StyleSheet.create({
   content: { gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingBottom: 40 },
+  horizontalScroller: { flexGrow: 0 },
 });

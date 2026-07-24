@@ -9,6 +9,7 @@ import { NotificationRow } from '@/components/notifications/NotificationRow';
 
 import { AppRefreshControl, AppText, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import {
   useInfiniteNotifications,
@@ -92,6 +93,7 @@ const navigateForNotification = (
 
 export function NotificationsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
   const flashListRef = useRef<FlashListRef<SportzNotification>>(null);
@@ -170,7 +172,7 @@ export function NotificationsScreen() {
   if (isLoading) {
     return (
       <Screen contentContainerStyle={styles.loadingContainer}>
-        <ActivityIndicator color={colors.orange[500]} size="large" />
+        <ActivityIndicator color={theme.accent} size="large" />
       </Screen>
     );
   }
@@ -195,8 +197,8 @@ export function NotificationsScreen() {
 
       {/* Error banner — shown when the fetch fails, with a retry action */}
       {isError ? (
-        <View style={styles.errorBanner}>
-          <AppText style={styles.errorText}>
+        <View style={[styles.errorBanner, { backgroundColor: theme.dangerSoft, borderColor: theme.danger }]}>
+          <AppText style={[styles.errorText, { color: theme.danger }]}>
             {error instanceof Error ? error.message : 'Could not load notifications.'}
           </AppText>
           <Button size="sm" onPress={() => void refetch()}>Retry</Button>
@@ -229,7 +231,7 @@ export function NotificationsScreen() {
         onEndReachedThreshold={0.3}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Filter size={48} color={colors.text.tertiary} />
+            <Filter size={48} color={theme.textSubtle} />
             <AppText variant="h4" style={styles.emptyTitle}>
               {filter === 'All' ? 'No activity yet' : `No ${filter.toLowerCase()} notifications`}
             </AppText>
@@ -247,7 +249,7 @@ export function NotificationsScreen() {
         }
         ListFooterComponent={
           isFetchingNextPage ? (
-            <ActivityIndicator color={colors.orange[500]} style={styles.footer} />
+            <ActivityIndicator color={theme.accent} style={styles.footer} />
           ) : !hasNextPage && notifications.length > 0 ? (
             <AppText variant="caption" style={styles.footerEnd}>
               {"You're all caught up"}
@@ -264,7 +266,7 @@ export function NotificationsScreen() {
             onInviteDecline={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, false) : undefined}
           />
         )}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.border }]} />}
       />
     </Screen>
   );

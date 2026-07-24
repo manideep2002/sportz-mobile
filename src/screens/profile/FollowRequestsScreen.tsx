@@ -7,6 +7,7 @@ import { ChevronLeft, UserPlus } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
@@ -16,6 +17,7 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function FollowRequestsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const { data: requests = [], isLoading, isError, error, isRefetching, refetch } = useQuery({
     queryKey: ['follow-requests', 'incoming'],
@@ -49,7 +51,7 @@ export function FollowRequestsScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (
         <View style={styles.empty}>
           <AppText variant="h4">Could not load requests</AppText>
@@ -62,7 +64,7 @@ export function FollowRequestsScreen() {
 
       {!isLoading && !isError && requests.length === 0 ? (
         <View style={styles.empty}>
-          <UserPlus size={42} color={colors.text.tertiary} />
+          <UserPlus size={42} color={theme.textSubtle} />
           <AppText variant="h4">No pending requests</AppText>
           <AppText variant="bodyMuted" style={styles.emptyText}>
             Requests for private profiles will appear here.
@@ -71,7 +73,7 @@ export function FollowRequestsScreen() {
       ) : null}
 
       {requests.map((request) => (
-        <View key={request.id} style={styles.row}>
+        <View key={request.id} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Pressable
             style={styles.profile}
             onPress={() => navigation.navigate('UserProfile', { userId: request.requester.id })}

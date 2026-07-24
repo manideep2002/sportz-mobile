@@ -2,7 +2,8 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
 import { AppText } from './AppText';
-import { colors, spacing, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { spacing, typography } from '@/design/tokens';
 import type { UserProfile } from '@/types/domain';
 
 type NameProfile = Pick<UserProfile, 'displayName' | 'skillLevel'>;
@@ -30,6 +31,7 @@ export function VerifiedName({
   numberOfLines,
   badgeSize = 15
 }: VerifiedNameProps) {
+  const { colors: theme } = useAppTheme();
   const showBadge = shouldShowProVerifiedBadge(profile);
   const badgeHeight = Math.max(13, badgeSize);
   const badgeFontSize = Math.max(8, Math.round(badgeHeight * 0.5));
@@ -54,11 +56,14 @@ export function VerifiedName({
             {
               minHeight: badgeHeight,
               paddingHorizontal: badgePadding,
-              borderRadius: badgeHeight / 2
+              borderRadius: badgeHeight / 2,
+              backgroundColor: theme.warningSoft,
+              borderColor: theme.warningBorder,
+              shadowColor: theme.warning
             }
           ]}
         >
-          <AppText style={[styles.proBadgeText, { fontSize: badgeFontSize, lineHeight: badgeHeight - 2 }]}>
+          <AppText style={[styles.proBadgeText, { color: theme.warning, fontSize: badgeFontSize, lineHeight: badgeHeight - 2 }]}>
             PRO
           </AppText>
         </View>
@@ -81,16 +86,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(245, 158, 11, 0.46)',
-    backgroundColor: 'rgba(245, 158, 11, 0.13)',
-    shadowColor: colors.semantic.warning,
     shadowOpacity: 0.16,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1
   },
   proBadgeText: {
-    color: '#F8D77C',
     fontFamily: typography.bodyBold,
     includeFontPadding: false
   }

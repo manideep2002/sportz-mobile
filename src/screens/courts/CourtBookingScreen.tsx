@@ -6,6 +6,7 @@ import { addDays, format } from 'date-fns';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Button, Chip, IconButton, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useBookCourt, useCourt, useCourtAvailability } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -21,6 +22,7 @@ const addDaysToKey = (dateKey: string, amount: number) =>
 
 export function CourtBookingScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
   const timezone = court?.timezone ?? 'Asia/Kolkata';
@@ -102,7 +104,7 @@ export function CourtBookingScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (
         <View style={styles.state}>
           <AppText variant="bodyMuted">Could not load this court.</AppText>
@@ -112,7 +114,7 @@ export function CourtBookingScreen() {
 
       <AppText variant="h2">{court?.name ?? 'Court'}</AppText>
       {court ? (
-        <View style={styles.policy}>
+        <View style={[styles.policy, { backgroundColor: theme.surface }]}>
           <AppText variant="small">
             {court.slotDurationMinutes}-minute slots · {court.timezone}
           </AppText>
@@ -126,7 +128,7 @@ export function CourtBookingScreen() {
 
       {availability.isLoading ? (
         <View style={styles.state}>
-          <ActivityIndicator color={colors.orange[500]} />
+          <ActivityIndicator color={theme.accent} />
           <AppText variant="bodyMuted">Checking live availability…</AppText>
         </View>
       ) : null}
@@ -152,8 +154,8 @@ export function CourtBookingScreen() {
 
       {days.length ? (
         <>
-          <AppText style={styles.label}>Available date</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Available date</AppText>
+          <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
             {days.map((day) => {
               const firstSlot = slotsByDay.get(day)?.[0];
               return (
@@ -171,7 +173,7 @@ export function CourtBookingScreen() {
             })}
           </ScrollView>
 
-          <AppText style={styles.label}>Available slot</AppText>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Available slot</AppText>
           <View style={styles.wrap}>
             {selectedSlots.map((slot) => (
               <Chip
@@ -187,7 +189,7 @@ export function CourtBookingScreen() {
       ) : null}
 
       {selectedSlot ? (
-        <View style={styles.summary}>
+        <View style={[styles.summary, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
           <AppText variant="h4">Booking summary</AppText>
           <AppText variant="small">
             {formatCourtDate(selectedSlot.startsAt, timezone)} · {formatCourtTime(selectedSlot.startsAt, timezone)}
@@ -222,6 +224,12 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40
+  },
+  filterScroller: {
+    flexGrow: 0
+  },
+  filterContent: {
+    alignItems: 'flex-start'
   },
   label: {
     color: colors.text.tertiary,

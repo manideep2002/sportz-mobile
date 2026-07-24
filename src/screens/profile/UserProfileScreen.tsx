@@ -9,6 +9,7 @@ import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleShe
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, StatCard, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
@@ -24,6 +25,7 @@ type Route = RouteProp<AppStackParamList, 'UserProfile'>;
 export function UserProfileScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const { userId } = route.params;
 
@@ -178,7 +180,7 @@ export function UserProfileScreen() {
         <View style={styles.header}>
           <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         </View>
-        <ActivityIndicator color={colors.orange[500]} size="large" style={{ marginTop: 80 }} />
+        <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 80 }} />
       </Screen>
     );
   }
@@ -224,12 +226,11 @@ export function UserProfileScreen() {
         <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
       </View>
       <ProfileCover
-        fallbackColors={['#0A1A08', '#18381A']}
         uri={profile.coverUrl}
         style={styles.cover}
         testID="public-profile-cover"
       />
-      <View style={styles.avatarWrap}>
+      <View style={[styles.avatarWrap, { borderColor: theme.background }]}>
         <Avatar initials={profile.initials} uri={profile.avatarUrl} size={80} online={profile.isOnline} />
       </View>
       <View style={styles.body}>
@@ -259,8 +260,8 @@ export function UserProfileScreen() {
         <AppText variant="bodyMuted">{profile.bio}</AppText>
 
         {isBlocked ? (
-          <View style={styles.blockedNotice}>
-            <Ban size={16} color={colors.semantic.danger} />
+          <View style={[styles.blockedNotice, { backgroundColor: theme.dangerSoft, borderColor: theme.danger }]}>
+            <Ban size={16} color={theme.danger} />
             <AppText variant="bodyMuted" style={styles.blockedNoticeText}>
               You have blocked this profile. Unblock to follow or message.
             </AppText>
@@ -326,20 +327,21 @@ export function UserProfileScreen() {
 
 function ProfileGrid({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const { data: postsList = [], isLoading } = useUserPosts(userId);
 
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.orange[500]} size="small" />
+        <ActivityIndicator color={theme.accent} size="small" />
       </View>
     );
   }
 
   if (postsList.length === 0) {
     return (
-      <View style={styles.emptyState}>
-        <MessageSquare size={32} color={colors.text.tertiary} style={{ marginBottom: 8 }} />
+      <View style={[styles.emptyState, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <MessageSquare size={32} color={theme.textSubtle} style={{ marginBottom: 8 }} />
         <AppText variant="bodyMuted" style={{ textAlign: 'center' }}>
           No posts shared yet.
         </AppText>
@@ -357,42 +359,46 @@ function ProfileGrid({ userId }: { userId: string }) {
             onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
             style={({ pressed }) => [
               styles.gridItem,
-              isStats ? styles.gridItemStats : null,
+              {
+                backgroundColor: theme.surface,
+                borderColor: isStats ? theme.accent : theme.border,
+                borderWidth: isStats ? 1 : StyleSheet.hairlineWidth
+              },
               pressed ? styles.gridItemPressed : null
             ]}
           >
             {isStats ? (
-              <LinearGradient colors={['#FF5A1F', '#FF7A45']} style={styles.gridGradient}>
+              <LinearGradient colors={[theme.accent, theme.accentPressed]} style={styles.gridGradient}>
                 <View style={styles.gridHeader}>
-                  <Trophy size={14} color="#0A0907" />
-                  <AppText style={styles.gridSportTextStats}>{post.sport}</AppText>
+                  <Trophy size={14} color={theme.onAccent} />
+                  <AppText style={[styles.gridSportTextStats, { color: theme.onAccent }]}>{post.sport}</AppText>
                 </View>
-                <AppText style={styles.gridBodyTextStats} numberOfLines={2}>
+                <AppText style={[styles.gridBodyTextStats, { color: theme.onAccent }]} numberOfLines={2}>
                   {post.statsLine || post.body}
                 </AppText>
                 <View style={styles.gridFooter}>
-                  <Heart size={10} color="#0A0907" />
-                  <AppText style={styles.gridStatTextStats}>{post.likes}</AppText>
-                  <MessageCircle size={10} color="#0A0907" style={{ marginLeft: 6 }} />
-                  <AppText style={styles.gridStatTextStats}>{post.comments}</AppText>
+                  <Heart size={10} color={theme.onAccent} />
+                  <AppText style={[styles.gridStatTextStats, { color: theme.onAccent }]}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={theme.onAccent} style={{ marginLeft: 6 }} />
+                  <AppText style={[styles.gridStatTextStats, { color: theme.onAccent }]}>{post.comments}</AppText>
                 </View>
               </LinearGradient>
             ) : (
               <View style={styles.gridInner}>
                 <View style={styles.gridHeader}>
-                  <AppText style={styles.gridSportText}>{post.sport}</AppText>
+                  <AppText style={[styles.gridSportText, { color: theme.accent }]}>{post.sport}</AppText>
                   {post.mediaKind === 'court-card' && (
-                    <AppText style={styles.courtBadge}>COURT</AppText>
+                    <AppText style={[styles.courtBadge, { color: theme.info, borderColor: theme.info }]}>COURT</AppText>
                   )}
                 </View>
-                <AppText style={styles.gridBodyText} numberOfLines={3}>
+                <AppText style={[styles.gridBodyText, { color: theme.text }]} numberOfLines={3}>
                   {post.body}
                 </AppText>
                 <View style={styles.gridFooter}>
-                  <Heart size={10} color={colors.text.secondary} />
-                  <AppText style={styles.gridStatText}>{post.likes}</AppText>
-                  <MessageCircle size={10} color={colors.text.secondary} style={{ marginLeft: 6 }} />
-                  <AppText style={styles.gridStatText}>{post.comments}</AppText>
+                  <Heart size={10} color={theme.textMuted} />
+                  <AppText style={[styles.gridStatText, { color: theme.textMuted }]}>{post.likes}</AppText>
+                  <MessageCircle size={10} color={theme.textMuted} style={{ marginLeft: 6 }} />
+                  <AppText style={[styles.gridStatText, { color: theme.textMuted }]}>{post.comments}</AppText>
                 </View>
               </View>
             )}
@@ -406,6 +412,7 @@ function ProfileGrid({ userId }: { userId: string }) {
 // -- StatsPanel ---------------------------------------------------------------
 
 function StatsPanel({ profile }: { profile: UserProfile }) {
+  const { colors: theme } = useAppTheme();
   const statLines = [
     ['Games Played', profile.stats.games],
     ['Win Rate', profile.stats.winRate],
@@ -416,16 +423,16 @@ function StatsPanel({ profile }: { profile: UserProfile }) {
   const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <AppText variant="h4">Season Stats - 2026</AppText>
       {statLines.map(([label, value]) => (
         <View key={label} style={styles.statLine}>
           <View style={styles.statLineTop}>
             <AppText variant="small">{label}</AppText>
-            <AppText style={styles.statValue}>{value}</AppText>
+            <AppText style={[styles.statValue, { color: theme.text }]}>{value}</AppText>
           </View>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%` }]} />
+          <View style={[styles.track, { backgroundColor: theme.surfaceMuted }]}>
+            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%`, backgroundColor: theme.accent }]} />
           </View>
         </View>
       ))}
@@ -464,6 +471,7 @@ function currentPostStreak(posts: { createdAt: string }[]) {
 
 function HighlightsPanel({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme, isDark } = useAppTheme();
   const { data: postsList = [] } = useUserPosts(userId);
   const [filterKind, setFilterKind] = useState<'stats' | 'highlight' | null>(null);
   const topStats = postsList
@@ -475,8 +483,8 @@ function HighlightsPanel({ userId }: { userId: string }) {
     : postsList.filter((post) => post.kind === 'highlight');
 
   return (
-    <View style={styles.panel}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
         {[
           { label: 'Add', kind: null },
           { label: 'Season', kind: 'stats' as const },
@@ -490,7 +498,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
               else setFilterKind(item.kind);
             }}
           >
-            <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null]}>
+            <View style={[styles.highlightCircle, index === 0 ? styles.highlightAdd : null, { borderColor: index === 0 ? theme.accent : theme.border }]}>
               <AppText variant="h3">{index === 0 ? '+' : item.label.slice(0, 1)}</AppText>
             </View>
             <AppText variant="small">{item.label}</AppText>
@@ -498,20 +506,20 @@ function HighlightsPanel({ userId }: { userId: string }) {
         ))}
       </ScrollView>
       <View style={styles.highlightCards}>
-        <LinearGradient colors={['#1A0800', '#2A1200']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.orange[500]}>{topStats ? 'TOP' : 'ADD'}</AppText>
-          <AppText style={styles.highlightTitle}>{topStats?.body || 'No stats posts yet'}</AppText>
+        <LinearGradient colors={[theme.accentSoft, theme.surfaceMuted]} style={styles.highlightCard}>
+          <AppText variant="h2" color={theme.accent}>{topStats ? 'TOP' : 'ADD'}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{topStats?.body || 'No stats posts yet'}</AppText>
           <Badge tone="orange">{topStats?.statsLine ?? 'STATS'}</Badge>
         </LinearGradient>
-        <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
-          <AppText variant="h2" color={colors.semantic.success}>{streak}</AppText>
-          <AppText style={styles.highlightTitle}>Day Activity Streak</AppText>
+        <LinearGradient colors={isDark ? ['#0A1A1A', '#0F2A2A'] : ['#ECFDF5', '#D1FAE5']} style={styles.highlightCard}>
+          <AppText variant="h2" color={theme.success}>{streak}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>Day Activity Streak</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
       </View>
       {filteredPosts.slice(0, 4).map((post) => (
-        <Pressable key={post.id} style={styles.highlightListItem} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
-          <AppText style={styles.highlightTitle}>{post.body}</AppText>
+        <Pressable key={post.id} style={[styles.highlightListItem, { borderColor: theme.border }]} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{post.body}</AppText>
           <Badge>{post.kind}</Badge>
         </Pressable>
       ))}
@@ -742,6 +750,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginRight: 12
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   highlightCircle: {
     width: 64,

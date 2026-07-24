@@ -1,5 +1,4 @@
 import { createAppTheme } from '@/design/ThemeProvider';
-import type { AccentColor } from '@/store/uiStore';
 
 const relativeLuminance = (hex: string) => {
   const channels = hex
@@ -20,8 +19,8 @@ const contrastRatio = (foreground: string, background: string) => {
 
 describe('semantic themes', () => {
   it('provides distinct readable light and dark surfaces', () => {
-    const dark = createAppTheme('dark', 'orange');
-    const light = createAppTheme('light', 'orange');
+    const dark = createAppTheme('dark');
+    const light = createAppTheme('light');
 
     expect(dark.colors.background).not.toBe(light.colors.background);
     expect(dark.colors.surface).not.toBe(light.colors.surface);
@@ -29,17 +28,17 @@ describe('semantic themes', () => {
     expect(contrastRatio(light.colors.text, light.colors.background)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each<AccentColor>(['orange', 'green', 'blue', 'pink'])(
-    'resolves the %s accent with readable foreground text',
-    (accent) => {
-      const theme = createAppTheme('light', accent);
-      expect(theme.accentName).toBe(accent);
-      expect(contrastRatio(theme.colors.onAccent, theme.colors.accent)).toBeGreaterThanOrEqual(4.5);
-    }
-  );
+  it('uses the original bright orange in dark mode and the deeper orange in light mode', () => {
+    const dark = createAppTheme('dark');
+    const light = createAppTheme('light');
 
-  it('falls back to orange if corrupted persisted accent data is encountered', () => {
-    const theme = createAppTheme('dark', 'unknown' as AccentColor);
-    expect(theme.colors.accent).toBe(createAppTheme('dark', 'orange').colors.accent);
+    expect(dark.colors.accent).toBe('#FF5A1F');
+    expect(light.colors.accent).toBe('#C2410C');
+    expect(contrastRatio(dark.colors.onAccent, dark.colors.accent)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(light.colors.onAccent, light.colors.accent)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(['dark', 'light'] as const)('keeps the %s bottom navigation transparent', (mode) => {
+    expect(createAppTheme(mode).colors.nav).toBe('transparent');
   });
 });

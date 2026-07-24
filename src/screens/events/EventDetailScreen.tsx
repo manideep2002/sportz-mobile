@@ -10,6 +10,7 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, Pr
 
 import { eventPaymentNotice, eventVisibilityLabel } from '@/constants/events';
 import { CourtArt } from '@/components/feed/CourtArt';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   useEvent,
@@ -31,6 +32,7 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
   const {
@@ -123,7 +125,7 @@ export function EventDetailScreen() {
     return (
       <Screen>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.orange[500]} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       </Screen>
     );
@@ -210,7 +212,7 @@ export function EventDetailScreen() {
         ) : (
           <CourtArt />
         )}
-        <LinearGradient colors={['transparent', colors.dark[950]]} style={styles.heroGradient} />
+        <LinearGradient colors={['transparent', theme.mediaGradientEnd]} style={styles.heroGradient} />
         {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
         {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
         {(isFull || event.status === 'full') && event.status !== 'cancelled' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
@@ -227,20 +229,20 @@ export function EventDetailScreen() {
         </View>
         <AppText variant="h1" style={styles.title}>{event.title}</AppText>
         <View style={styles.metaRow}>
-          <CalendarDays size={14} color={colors.orange[500]} />
+          <CalendarDays size={14} color={theme.accent} />
           <AppText variant="bodyMuted">{eventDate(event.startsAt)}</AppText>
-          <Clock size={14} color={colors.orange[500]} />
+          <Clock size={14} color={theme.accent} />
           <AppText variant="bodyMuted">{formatTime(event.startsAt)}</AppText>
         </View>
         <View style={styles.metaRow}>
-          <MapPin size={16} color={colors.orange[500]} />
+          <MapPin size={16} color={theme.accent} />
           <AppText variant="bodyMuted">{event.locationName}, {event.city}</AppText>
         </View>
         <AppText variant="bodyMuted">{feeDescription}</AppText>
         <Card style={styles.players}>
           <View style={styles.playersTop}>
             <AppText style={styles.playersLabel}>Players</AppText>
-            <AppText style={styles.playersCount}>{event.playerCount}<AppText style={styles.max}>/{event.maxPlayers}</AppText></AppText>
+            <AppText style={[styles.playersCount, { color: theme.accent }]}>{event.playerCount}<AppText style={[styles.max, { color: theme.textSubtle }]}>/{event.maxPlayers}</AppText></AppText>
           </View>
           <ProgressBar value={event.playerCount} max={event.maxPlayers} height={5} />
           <View style={styles.stack}>

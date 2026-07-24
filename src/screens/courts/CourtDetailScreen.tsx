@@ -7,6 +7,7 @@ import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCourt } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -18,6 +19,7 @@ type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
 
 export function CourtDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
   const profile = useAuthStore((state) => state.profile);
@@ -37,7 +39,7 @@ export function CourtDetailScreen() {
         <AppText variant="h3">Court</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (
         <View style={styles.empty}>
           <AppText variant="bodyMuted">Could not load this court.</AppText>
@@ -62,7 +64,7 @@ export function CourtDetailScreen() {
               {court.availabilityLabel}
             </Badge>
           </View>
-          <View style={styles.metaCard}>
+          <View style={[styles.metaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Meta label="Sport" value={court.sport} />
             <Meta label="Surface" value={court.surface} />
             <Meta label="Rating" value={court.rating.toFixed(1)} />

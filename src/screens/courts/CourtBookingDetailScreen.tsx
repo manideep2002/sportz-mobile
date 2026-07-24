@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { CalendarX, ChevronLeft } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useCancelCourtBooking, useCourtBooking } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -22,6 +23,7 @@ const statusTone = (status: CourtBooking['status']) => {
 
 export function CourtBookingDetailScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const bookingQuery = useCourtBooking(route.params.bookingId);
   const cancelBooking = useCancelCourtBooking(route.params.bookingId);
@@ -70,7 +72,7 @@ export function CourtBookingDetailScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {bookingQuery.isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {bookingQuery.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {bookingQuery.isError ? (
         <View style={styles.state}>
           <AppText variant="bodyMuted">
@@ -90,7 +92,7 @@ export function CourtBookingDetailScreen() {
             <Badge tone={statusTone(booking.status)}>{booking.status}</Badge>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Detail
               label="Date"
               value={formatCourtDate(booking.startsAt, booking.court.timezone)}
@@ -108,14 +110,14 @@ export function CourtBookingDetailScreen() {
           </View>
 
           {booking.status === 'pending' ? (
-            <View style={styles.notice}>
+            <View style={[styles.notice, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <AppText variant="h4">Awaiting venue confirmation</AppText>
               <AppText variant="small">This pending request reserves the slot and prevents double-booking.</AppText>
             </View>
           ) : null}
 
           {booking.status !== 'cancelled' ? (
-            <View style={styles.notice}>
+            <View style={[styles.notice, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <AppText variant="small">
                 Cancellation deadline: {formatCourtDate(booking.cancellationDeadline, booking.court.timezone)}
                 {' at '}
@@ -130,7 +132,7 @@ export function CourtBookingDetailScreen() {
           ) : null}
 
           {booking.cancellationReason ? (
-            <View style={styles.notice}>
+            <View style={[styles.notice, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <AppText variant="small">Cancellation reason: {booking.cancellationReason}</AppText>
             </View>
           ) : null}

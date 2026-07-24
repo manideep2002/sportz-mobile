@@ -1,48 +1,66 @@
+import { useState } from 'react';
 import { MapPin } from 'lucide-react-native';
-import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { Court } from '@/types/domain';
 
 export function CourtMapPreview({ court }: { court?: Court }) {
+  const { colors: theme } = useAppTheme();
+  const [opening, setOpening] = useState(false);
+
   const openMaps = async () => {
-    if (!court) return;
-    const query = encodeURIComponent(`${court.latitude},${court.longitude}`);
-    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    if (!court || opening) return;
+    const coordinates = `${court.latitude},${court.longitude}`;
+    const label = encodeURIComponent(court.name);
+    const webUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
+    const nativeUrl = Platform.select({
+      ios: `maps://?q=${label}&ll=${coordinates}`,
+      android: `geo:${coordinates}?q=${coordinates}(${label})`,
+      default: webUrl
+    }) ?? webUrl;
+
+    setOpening(true);
     try {
-      if (!(await Linking.canOpenURL(url))) {
-        throw new Error('No compatible maps application is available.');
+      await Linking.openURL(nativeUrl);
+    } catch {
+      try {
+        if (nativeUrl === webUrl) throw new Error('No compatible maps application is available.');
+        await Linking.openURL(webUrl);
+      } catch (error) {
+        Alert.alert(
+          'Could not open maps',
+          error instanceof Error ? error.message : 'Copy the court address and try another maps application.'
+        );
       }
-      await Linking.openURL(url);
-    } catch (error) {
-      Alert.alert(
-        'Could not open maps',
-        error instanceof Error ? error.message : 'Copy the court address and try another maps application.'
-      );
+    } finally {
+      setOpening(false);
     }
   };
 
   return (
-    <View style={styles.preview}>
-      <View style={styles.icon}>
-        <MapPin size={30} color={colors.orange[500]} />
+    <View style={[styles.preview, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.icon, { backgroundColor: theme.accentSoft }]}>
+        <MapPin size={30} color={theme.accent} />
       </View>
       <View style={styles.content}>
-        <AppText style={styles.title}>{court?.name ?? 'Court location'}</AppText>
+        <AppText style={[styles.title, { color: theme.text }]}>{court?.name ?? 'Court location'}</AppText>
         <AppText variant="small">
           {court ? court.address || court.city : 'Select a court to view its location.'}
         </AppText>
-        <AppText style={styles.disclaimer}>Single-location preview</AppText>
+        <AppText style={[styles.disclaimer, { color: theme.textSubtle }]}>Single-location preview</AppText>
       </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={court ? `Open ${court.name} in Maps` : 'Open court in Maps'}
-        style={[styles.button, !court ? styles.disabled : null]}
+        accessibilityState={{ busy: opening, disabled: !court || opening }}
+        style={[styles.button, { backgroundColor: theme.accent }, !court || opening ? styles.disabled : null]}
         onPress={() => void openMaps()}
-        disabled={!court}
+        disabled={!court || opening}
       >
-        <AppText style={styles.buttonText}>Maps</AppText>
+        <AppText style={[styles.buttonText, { color: theme.onAccent }]}>{opening ? 'Opening…' : 'Maps'}</AppText>
       </Pressable>
     </View>
   );

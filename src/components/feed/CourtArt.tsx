@@ -2,13 +2,15 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 
 import { AppText } from '@/components/ui';
-import { colors, radii, typography } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { radii, typography } from '@/design/tokens';
 
 interface CourtArtProps {
   statLine?: string;
 }
 
 export function CourtArt({ statLine }: CourtArtProps) {
+  const { colors: theme } = useAppTheme();
   return (
     <View style={styles.wrap}>
       <Svg viewBox="0 0 340 160" width="100%" height="160">
@@ -18,16 +20,16 @@ export function CourtArt({ statLine }: CourtArtProps) {
         <Circle cx="170" cy="80" r="28" fill="none" stroke="#1a3a18" strokeWidth="1.2" />
         <Rect x="20" y="42" width="56" height="76" fill="none" stroke="#1a3a18" strokeWidth="1" />
         <Rect x="264" y="42" width="56" height="76" fill="none" stroke="#1a3a18" strokeWidth="1" />
-        <Circle cx="56" cy="80" r="16" fill="none" stroke="rgba(255,90,31,0.5)" strokeWidth="1.5" />
-        <Circle cx="284" cy="80" r="16" fill="none" stroke="rgba(255,90,31,0.5)" strokeWidth="1.5" />
-        <Circle cx="165" cy="75" r="10" fill={colors.orange[500]} />
+        <Circle cx="56" cy="80" r="16" fill="none" stroke={theme.accentBorder} strokeWidth="1.5" />
+        <Circle cx="284" cy="80" r="16" fill="none" stroke={theme.accentBorder} strokeWidth="1.5" />
+        <Circle cx="165" cy="75" r="10" fill={theme.accent} />
         <Path d="M159 73 Q165 69 171 73" stroke="#0A1A08" strokeWidth="1.2" fill="none" />
         <Path d="M159 77 Q165 81 171 77" stroke="#0A1A08" strokeWidth="1.2" fill="none" />
         <Line x1="165" y1="65" x2="165" y2="85" stroke="#0A1A08" strokeWidth="1.2" />
       </Svg>
       {statLine ? (
         <View style={styles.stat}>
-          <AppText style={styles.statText}>{statLine}</AppText>
+          <AppText style={[styles.statText, { color: theme.accent }]}>{statLine}</AppText>
         </View>
       ) : null}
     </View>
@@ -51,7 +53,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4
   },
   statText: {
-    color: colors.orange[500],
     fontFamily: typography.headingBold,
     fontSize: 12
   }

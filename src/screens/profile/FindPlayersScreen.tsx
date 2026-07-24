@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-na
 
 import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
@@ -20,6 +21,7 @@ const PAGE_SIZE = 30;
 
 export function FindPlayersScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState('');
   const [sport, setSport] = useState<'All Sports' | Sport>('All Sports');
@@ -107,7 +109,7 @@ export function FindPlayersScreen() {
         <IconButton icon={SlidersHorizontal} accessibilityLabel="Reset player filters" onPress={resetFilters} />
       </View>
       <Input icon={Search} value={query} onChangeText={handleSearch} placeholder="Search by name, sport..." />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
         {sports.map((item) => (
           <Chip
             key={item}
@@ -122,8 +124,8 @@ export function FindPlayersScreen() {
           </Chip>
         ))}
       </ScrollView>
-      <View style={styles.hireBanner}>
-        <View style={styles.handshake}><AppText variant="h2">H</AppText></View>
+      <View style={[styles.hireBanner, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+        <View style={[styles.handshake, { backgroundColor: theme.accentSoft }]}><AppText variant="h2" color={theme.accent}>H</AppText></View>
         <View style={{ flex: 1 }}>
           <AppText style={styles.bannerTitle}>Hire for Your Team</AppText>
           <AppText variant="small">Browse available athletes and send offers</AppText>
@@ -131,7 +133,7 @@ export function FindPlayersScreen() {
         <Button size="sm" onPress={resetFilters}>Browse</Button>
       </View>
       {players.map((player) => (
-        <View key={player.id} style={styles.playerCard}>
+        <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.playerTop}>
             <Avatar initials={player.initials} uri={player.avatarUrl} size={54} online={player.isOnline} />
             <View style={{ flex: 1 }}>
@@ -143,7 +145,7 @@ export function FindPlayersScreen() {
               </View>
             </View>
             <View style={styles.winRate}>
-              <AppText variant="h2" color={colors.orange[500]}>{player.stats.winRate}%</AppText>
+              <AppText variant="h2" color={theme.accent}>{player.stats.winRate}%</AppText>
               <AppText variant="small">Win rate</AppText>
             </View>
           </View>
@@ -161,7 +163,7 @@ export function FindPlayersScreen() {
           </View>
         </View>
       ))}
-      {loading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {loading ? <ActivityIndicator color={theme.accent} /> : null}
       {!loading && players.length === 0 ? (
         <AppText variant="bodyMuted" style={styles.empty}>No players match your search.</AppText>
       ) : null}
@@ -182,6 +184,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
+  },
+  filterScroller: {
+    flexGrow: 0
+  },
+  filterContent: {
+    alignItems: 'flex-start'
   },
   hireBanner: {
     flexDirection: 'row',

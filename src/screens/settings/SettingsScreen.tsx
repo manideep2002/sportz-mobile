@@ -29,7 +29,6 @@ export function SettingsScreen() {
   const deleteAccount = useAuthStore((state) => state.deleteAccount);
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
-  const accentColor = useUiStore((state) => state.accentColor);
   const accountItems: SettingsItemConfig[] = [
     { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
     { label: t('settings.privacy'), detail: t('settings.privacyDetail'), icon: Lock, route: 'Privacy' },
@@ -38,10 +37,7 @@ export function SettingsScreen() {
   const preferenceItems: SettingsItemConfig[] = [
     {
       label: t('settings.appearance'),
-      detail: t('appearance.summary', {
-        theme: t(`appearance.${themeMode}`),
-        accent: t(`appearance.${accentColor}`)
-      }),
+      detail: t('appearance.summary', { theme: t(`appearance.${themeMode}`) }),
       icon: Moon,
       route: 'Appearance'
     },
@@ -112,15 +108,15 @@ export function SettingsScreen() {
       <AppText variant="caption" style={styles.sectionTitle}>{t('settings.support')}</AppText>
       <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
       <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleDeleteAccount}>
-        <View style={[styles.itemIcon, styles.dangerIcon]}><Trash2 size={18} color={colors.semantic.danger} /></View>
+        <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><Trash2 size={18} color={theme.danger} /></View>
         <View style={{ flex: 1 }}>
-          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>{t('settings.deleteAccount')}</AppText>
+          <AppText style={[styles.itemLabel, { color: theme.danger }]}>{t('settings.deleteAccount')}</AppText>
         </View>
       </Pressable>
       <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleSignOut}>
-        <View style={[styles.itemIcon, styles.dangerIcon]}><LogOut size={18} color={colors.semantic.danger} /></View>
+        <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><LogOut size={18} color={theme.danger} /></View>
         <View style={{ flex: 1 }}>
-          <AppText style={[styles.itemLabel, { color: colors.semantic.danger }]}>{t('settings.signOut')}</AppText>
+          <AppText style={[styles.itemLabel, { color: theme.danger }]}>{t('settings.signOut')}</AppText>
         </View>
       </Pressable>
     </Screen>

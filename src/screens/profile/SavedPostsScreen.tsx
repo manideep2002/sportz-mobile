@@ -7,7 +7,8 @@ import { PostCard } from '@/components/feed/PostCard';
 
 import { AppRefreshControl, AppText, Button, IconButton, Screen } from '@/components/ui';
 
-import { colors, spacing } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { spacing } from '@/design/tokens';
 import { useOptimisticPostSave, useSavedPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { openPostMedia, sharePost } from '@/utils/share';
@@ -16,6 +17,7 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function SavedPostsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const { data: posts = [], isLoading, isError, isRefetching, refetch } = useSavedPosts();
   const saveMutation = useOptimisticPostSave();
 
@@ -34,7 +36,7 @@ export function SavedPostsScreen() {
         <AppText variant="h3">Saved Posts</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (
         <View style={styles.empty}>
           <AppText variant="h4">Could not load saved posts</AppText>
@@ -43,7 +45,7 @@ export function SavedPostsScreen() {
       ) : null}
       {!isLoading && !isError && posts.length === 0 ? (
         <View style={styles.empty}>
-          <Bookmark size={34} color={colors.text.tertiary} />
+          <Bookmark size={34} color={theme.textSubtle} />
           <AppText variant="h4">No saved posts yet</AppText>
           <AppText variant="bodyMuted" style={styles.centerText}>Save posts from the feed to revisit them here.</AppText>
         </View>

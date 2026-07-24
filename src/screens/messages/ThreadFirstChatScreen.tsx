@@ -32,6 +32,7 @@ import {
 
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
 import { AppText, BottomSheet, Button, IconButton, VideoPlayer } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { messageKeys } from '@/hooks/useMessages';
 import { supabase } from '@/lib/supabase';
@@ -227,6 +228,7 @@ function MessageBubble({
   onActivateVideo: (id: string | null) => void;
   onLongPress?: () => void;
 }) {
+  const { colors: theme } = useAppTheme();
   const mine = message.senderId === currentUserId;
   const deliveryLabel =
     message.deliveryStatus === 'sending'
@@ -248,9 +250,16 @@ function MessageBubble({
         onLongPress={onLongPress}
         style={({ pressed }) => (pressed && onLongPress ? styles.bubblePressed : null)}
       >
-        <View style={[styles.bubble, mine ? styles.myBubble : styles.theirBubble, message.mediaUrl ? styles.mediaBubble : null]}>
+        <View
+          style={[
+            styles.bubble,
+            mine ? styles.myBubble : styles.theirBubble,
+            { backgroundColor: mine ? theme.accent : theme.surface },
+            message.mediaUrl ? styles.mediaBubble : null
+          ]}
+        >
           {message.messageType === 'text' ? (
-            <AppText style={[styles.messageText, mine ? styles.myMessageText : null]}>{message.body}</AppText>
+            <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
           ) : (
             <MessageMedia
               message={message}
@@ -262,10 +271,10 @@ function MessageBubble({
       </Pressable>
       {mine ? (
         <View style={styles.messageMeta}>
-          {message.deliveryStatus === 'sending' ? <Clock size={11} color={colors.text.tertiary} /> : null}
-          <AppText style={[styles.messageMetaText, showSeen ? styles.seenText : null]}>{statusLabel}</AppText>
+          {message.deliveryStatus === 'sending' ? <Clock size={11} color={theme.textSubtle} /> : null}
+          <AppText style={[styles.messageMetaText, { color: showSeen ? theme.success : theme.textSubtle }]}>{statusLabel}</AppText>
         </View>
-      ) : message.editedAt ? <AppText style={styles.messageMetaText}>Edited</AppText> : null}
+      ) : message.editedAt ? <AppText style={[styles.messageMetaText, { color: theme.textSubtle }]}>Edited</AppText> : null}
     </View>
   );
 }
@@ -279,6 +288,7 @@ export function ThreadFirstChatScreen({
   onBack,
   onLeftConversation
 }: ThreadFirstChatScreenProps) {
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const setConversationMutedLocally = useMessagingStore((state) => state.setConversationMutedLocally);
@@ -827,15 +837,15 @@ export function ThreadFirstChatScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         {onBack ? <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={onBack} /> : null}
         <View style={styles.headerCopy}>
-          <AppText style={styles.title} numberOfLines={1}>{title}</AppText>
-          <AppText style={styles.subtitle} numberOfLines={1}>{typingLabel}</AppText>
+          <AppText style={[styles.title, { color: theme.text }]} numberOfLines={1}>{title}</AppText>
+          <AppText style={[styles.subtitle, { color: theme.textSubtle }]} numberOfLines={1}>{typingLabel}</AppText>
         </View>
         <IconButton
           icon={MoreVertical}
@@ -846,7 +856,7 @@ export function ThreadFirstChatScreen({
 
       {initialLoading ? (
         <View style={styles.loadingState}>
-          <ActivityIndicator color={colors.orange[500]} />
+          <ActivityIndicator color={theme.accent} />
         </View>
       ) : (
         <FlashList
@@ -861,10 +871,10 @@ export function ThreadFirstChatScreen({
           }}
           onStartReached={() => void loadOlderMessages()}
           onStartReachedThreshold={0.25}
-          ListHeaderComponent={olderLoading ? <ActivityIndicator color={colors.orange[500]} style={styles.olderLoader} /> : null}
+          ListHeaderComponent={olderLoading ? <ActivityIndicator color={theme.accent} style={styles.olderLoader} /> : null}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <ImageIcon size={24} color={colors.text.tertiary} />
+              <ImageIcon size={24} color={theme.textSubtle} />
               <AppText variant="bodyMuted" style={styles.emptyText}>Send the first message.</AppText>
             </View>
           }
@@ -873,11 +883,11 @@ export function ThreadFirstChatScreen({
         />
       )}
 
-      <View style={styles.composerContainer}>
+      <View style={[styles.composerContainer, { borderTopColor: theme.border }]}>
         {editingMessage ? (
           <View style={styles.editBanner}>
             <View style={styles.editCopy}>
-              <AppText style={styles.editTitle}>Editing message</AppText>
+              <AppText style={[styles.editTitle, { color: theme.accent }]}>Editing message</AppText>
               <AppText variant="small" numberOfLines={1}>{editingMessage.body}</AppText>
             </View>
             <IconButton icon={X} size={32} iconSize={15} accessibilityLabel="Cancel editing" onPress={cancelEditing} />
@@ -894,8 +904,9 @@ export function ThreadFirstChatScreen({
             value={body}
             onChangeText={updateBody}
             placeholder={editingMessage ? 'Edit message...' : 'Message...'}
-            placeholderTextColor={colors.text.tertiary}
-            style={styles.input}
+            placeholderTextColor={theme.textSubtle}
+            selectionColor={theme.accent}
+            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
             multiline
           />
           <IconButton

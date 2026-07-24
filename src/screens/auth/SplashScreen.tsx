@@ -4,32 +4,37 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { AppText, Button, Screen } from '@/components/ui';
-import { colors, spacing } from '@/design/tokens';
+import { useAppTheme } from '@/design/ThemeProvider';
+import { spacing } from '@/design/tokens';
 import type { AuthStackParamList } from '@/navigation/routes';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Splash'>;
 
 export function SplashScreen({ navigation }: Props) {
+  const { colors: theme, isDark } = useAppTheme();
+  const patternStroke = theme.text;
   return (
     <Screen scroll={false} contentContainerStyle={styles.content}>
       <View style={styles.pattern}>
         <Svg viewBox="0 0 393 852" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
-          <Circle cx="196" cy="426" r="120" fill="none" stroke="white" strokeWidth="2" opacity="0.08" />
-          <Circle cx="196" cy="426" r="60" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" />
-          <Line x1="196" y1="0" x2="196" y2="852" stroke="white" strokeWidth="1" opacity="0.08" />
-          <Rect x="60" y="100" width="160" height="220" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" />
-          <Rect x="173" y="100" width="46" height="46" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" />
-          <Circle cx="196" cy="200" r="50" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" />
-          <Circle cx="196" cy="652" r="50" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" />
+          <Circle cx="196" cy="426" r="120" fill="none" stroke={patternStroke} strokeWidth="2" opacity="0.08" />
+          <Circle cx="196" cy="426" r="60" fill="none" stroke={patternStroke} strokeWidth="1.5" opacity="0.08" />
+          <Line x1="196" y1="0" x2="196" y2="852" stroke={patternStroke} strokeWidth="1" opacity="0.08" />
+          <Rect x="60" y="100" width="160" height="220" fill="none" stroke={patternStroke} strokeWidth="1.5" opacity="0.08" />
+          <Rect x="173" y="100" width="46" height="46" fill="none" stroke={patternStroke} strokeWidth="1.5" opacity="0.08" />
+          <Circle cx="196" cy="200" r="50" fill="none" stroke={patternStroke} strokeWidth="1.5" opacity="0.08" />
+          <Circle cx="196" cy="652" r="50" fill="none" stroke={patternStroke} strokeWidth="1.5" opacity="0.08" />
         </Svg>
         <LinearGradient
-          colors={['rgba(10,9,7,0.25)', 'rgba(10,9,7,0.86)', colors.dark[950]]}
+          colors={isDark
+            ? ['rgba(10,9,7,0.25)', 'rgba(10,9,7,0.86)', theme.background]
+            : ['rgba(247,243,238,0.12)', 'rgba(247,243,238,0.74)', theme.background]}
           style={StyleSheet.absoluteFill}
         />
       </View>
       <View style={styles.hero}>
         <AppText variant="hero">
-          SPORTZ<AppText variant="hero" color={colors.orange[500]}>.</AppText>
+          SPORTZ<AppText variant="hero" color={theme.accent}>.</AppText>
         </AppText>
         <AppText variant="bodyMuted" style={styles.tagline}>
           Connect. Compete. Grow.{"\n"}The sports world in your pocket.

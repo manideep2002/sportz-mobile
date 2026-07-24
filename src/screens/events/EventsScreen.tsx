@@ -250,7 +250,7 @@ export function EventsScreen() {
             action={showAllUpcoming ? t('events.showLess') : t('events.viewAll')}
             onAction={() => setShowAllUpcoming(!showAllUpcoming)}
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
             {(showAllUpcoming ? upcomingEvents : upcomingEvents.slice(0, 5)).map((event) => (
               <Pressable
                 key={event.id}

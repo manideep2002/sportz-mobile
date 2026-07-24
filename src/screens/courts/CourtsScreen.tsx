@@ -9,6 +9,7 @@ import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
 
 import { AppRefreshControl, AppText, BottomSheet, Button, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCourtDiscoveryLocation, useCourts } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -22,6 +23,7 @@ const filters: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football
 
 export function CourtsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const profileCity = useAuthStore((state) => state.profile?.city ?? '');
   const [filter, setFilter] = useState<'All Sports' | Sport>('All Sports');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -85,7 +87,7 @@ export function CourtsScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h2">
-          Courts<AppText variant="h2" color={colors.orange[500]}>.</AppText>
+          Courts<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
         <View style={styles.headerActions}>
           <IconButton
@@ -100,14 +102,14 @@ export function CourtsScreen() {
           />
         </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         {filters.map((item) => (
           <Chip key={item} selected={item === filter} onPress={() => setFilter(item)}>
             {item}
           </Chip>
         ))}
       </ScrollView>
-      <View style={styles.locationState}>
+      <View style={[styles.locationState, { backgroundColor: theme.surface }]}>
         <AppText variant="small">{locationMessage}</AppText>
       </View>
       <View style={styles.section}>
@@ -115,7 +117,7 @@ export function CourtsScreen() {
       </View>
       <View style={styles.section}>
         <SectionHeader title="Court discovery" action={`${courts.filter((court) => court.openNow).length} open now`} />
-        {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+        {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
         {isError ? (
           <View style={styles.empty}>
             <AppText variant="bodyMuted">Could not load courts.</AppText>
@@ -135,8 +137,8 @@ export function CourtsScreen() {
         ))}
       </View>
       <View style={styles.section}>
-        <View style={styles.hire}>
-          <AppText variant="caption" color={colors.orange[300]}>Team Building</AppText>
+        <View style={[styles.hire, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+          <AppText variant="caption" color={theme.accent}>Team Building</AppText>
           <AppText variant="h3" style={styles.hireTitle}>Hire Athletes for Your Squad</AppText>
           <AppText variant="bodyMuted">Browse verified athletes by sport, skill and availability.</AppText>
           <Button full style={styles.hireButton} onPress={() => navigation.navigate('FindPlayers')}>
@@ -147,7 +149,7 @@ export function CourtsScreen() {
       <BottomSheet open={filterSheetOpen} title="Court filters" onClose={() => setFilterSheetOpen(false)}>
         <View style={styles.sheetContent}>
           <Input label="City" value={city} onChangeText={setCity} placeholder="Bengaluru" />
-          <AppText style={styles.label}>Surface</AppText>
+          <AppText style={[styles.label, { color: theme.textSubtle }]}>Surface</AppText>
           <View style={styles.wrapRow}>
             {['Hardwood', 'Synthetic floor', 'Clay surface', 'Astroturf'].map((item) => (
               <Chip key={item} selected={surface === item} onPress={() => setSurface(surface === item ? undefined : item)}>{item}</Chip>
@@ -193,8 +195,12 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   filters: {
+    alignItems: 'flex-start',
     paddingHorizontal: spacing.screen,
     paddingBottom: 14
+  },
+  filterScroller: {
+    flexGrow: 0
   },
   section: {
     paddingHorizontal: spacing.screen,

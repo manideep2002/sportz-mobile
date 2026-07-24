@@ -44,7 +44,7 @@ export function Avatar({ initials, size = 42, tone = 'orange', online = false, u
     <View style={{ width: size, height: size }}>
       {showFallback ? (
         <LinearGradient colors={tone === 'orange' ? [theme.accent, theme.accentPressed] : gradients[tone]} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-          <AppText style={[styles.initials, { fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
+          <AppText style={[styles.initials, { color: tone === 'orange' ? theme.onAccent : colors.light[0], fontSize: Math.max(10, size * 0.34) }]}>{initials}</AppText>
         </LinearGradient>
       ) : (
         <Image

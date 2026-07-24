@@ -14,6 +14,7 @@ export function Chip({ children, selected = false, style, ...props }: PropsWithC
   const theme = useAppTheme();
   return (
     <Pressable
+      accessibilityRole="button"
       style={({ pressed }) => [
         styles.chip,
         selected ? styles.selected : null,
@@ -30,6 +31,8 @@ export function Chip({ children, selected = false, style, ...props }: PropsWithC
 
 const styles = StyleSheet.create({
   chip: {
+    alignSelf: 'flex-start',
+    flexShrink: 0,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: radii.pill,

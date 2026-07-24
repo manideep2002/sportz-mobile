@@ -8,6 +8,7 @@ import { ChevronLeft, ShieldAlert } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { reportService, type ReportStatus } from '@/services/reportService';
@@ -18,6 +19,7 @@ type Filter = 'open' | 'all';
 
 export function ModerationScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>('open');
   const { data: reports = [], isLoading, isError, error, isRefetching, refetch } = useQuery({
@@ -53,7 +55,7 @@ export function ModerationScreen() {
 
       <SegmentedControl value={filter} options={['open', 'all']} onChange={setFilter} />
 
-      {isLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
+      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (
         <View style={styles.empty}>
           <AppText variant="h4">Could not load reports</AppText>
@@ -66,14 +68,14 @@ export function ModerationScreen() {
 
       {!isLoading && !isError && reports.length === 0 ? (
         <View style={styles.empty}>
-          <ShieldAlert size={42} color={colors.text.tertiary} />
+          <ShieldAlert size={42} color={theme.textSubtle} />
           <AppText variant="h4">No reports</AppText>
           <AppText variant="bodyMuted">Reports from players will appear here.</AppText>
         </View>
       ) : null}
 
       {reports.map((report) => (
-        <View key={report.id} style={styles.report}>
+        <View key={report.id} style={[styles.report, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.topRow}>
             <Badge tone={report.status === 'open' ? 'orange' : 'dark'}>{report.status}</Badge>
             <AppText variant="small">{timeAgo(report.createdAt)}</AppText>

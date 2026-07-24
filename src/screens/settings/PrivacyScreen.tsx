@@ -7,6 +7,7 @@ import { ChevronLeft, Lock } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
 import { blockService } from '@/services/blockService';
@@ -18,6 +19,7 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 export function PrivacyScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const profile = useAuthStore((state) => state.profile);
   const setProfile = useAuthStore((state) => state.setProfile);
   const [blocked, setBlocked] = useState<UserProfile[]>([]);
@@ -73,20 +75,20 @@ export function PrivacyScreen() {
         <AppText variant="h3">Privacy</AppText>
         <View style={{ width: 40 }} />
       </View>
-      <Pressable style={styles.item} onPress={togglePrivate}>
-        <View style={styles.itemIcon}><Lock size={18} color={colors.orange[500]} /></View>
+      <Pressable style={[styles.item, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={togglePrivate}>
+        <View style={[styles.itemIcon, { backgroundColor: theme.accentSoft }]}><Lock size={18} color={theme.accent} /></View>
         <View style={{ flex: 1 }}>
           <AppText style={styles.itemLabel}>Private account</AppText>
           <AppText variant="small">Only followers can see public posts.</AppText>
         </View>
-        <View style={[styles.switch, privateAccount ? styles.switchActive : null]}>
+        <View style={[styles.switch, { backgroundColor: privateAccount ? theme.accent : theme.surfaceMuted }]}>
           <View style={[styles.knob, privateAccount ? styles.knobActive : null]} />
         </View>
       </Pressable>
       <AppText variant="h4">Blocked users</AppText>
       {blocked.length === 0 ? <AppText variant="bodyMuted">No blocked users.</AppText> : null}
       {blocked.map((user) => (
-        <View key={user.id} style={styles.blockedRow}>
+        <View key={user.id} style={[styles.blockedRow, { backgroundColor: theme.surface }]}>
           <Avatar initials={user.initials} uri={user.avatarUrl} size={42} />
           <View style={{ flex: 1 }}>
             <VerifiedName profile={user} style={styles.itemLabel} numberOfLines={1} />

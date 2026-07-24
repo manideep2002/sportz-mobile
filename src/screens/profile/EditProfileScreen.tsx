@@ -3,11 +3,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Camera, ChevronLeft, Image as ImageIcon } from 'lucide-react-native';
-import { InteractionManager, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { AppText, Avatar, BottomSheet, Button, Chip, IconButton, Input } from '@/components/ui';
 import { allSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -30,6 +31,7 @@ const levels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
 
 export function EditProfileScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const profile = useAuthStore((state) => state.profile);
   const setProfile = useAuthStore((state) => state.setProfile);
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
@@ -49,6 +51,7 @@ export function EditProfileScreen() {
   const [coverAsset, setCoverAsset] = useState<ImagePickerAsset | null>(null);
   const [removeCover, setRemoveCover] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pickingMedia, setPickingMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profilePhotoSheetOpen, setProfilePhotoSheetOpen] = useState(false);
   const [coverSheetOpen, setCoverSheetOpen] = useState(false);
@@ -65,6 +68,7 @@ export function EditProfileScreen() {
 
   const uploadProfileMedia = async (kind: 'avatar' | 'cover') => {
     if (!profile) return;
+    setPickingMedia(true);
     setError(null);
     try {
       const picked = await storageService.pickImage();
@@ -83,6 +87,8 @@ export function EditProfileScreen() {
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Could not update media.');
+    } finally {
+      setPickingMedia(false);
     }
   };
 
@@ -108,22 +114,16 @@ export function EditProfileScreen() {
     setProfilePhotoSheetOpen(true);
   };
 
-  const chooseNewProfilePhoto = () => {
+  const chooseNewProfilePhoto = async () => {
     setProfilePhotoSheetOpen(false);
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        void uploadProfileMedia('avatar');
-      }, 100);
-    });
+    await new Promise<void>((resolve) => setTimeout(resolve, Platform.OS === 'ios' ? 350 : 50));
+    await uploadProfileMedia('avatar');
   };
 
-  const chooseNewCover = () => {
+  const chooseNewCover = async () => {
     setCoverSheetOpen(false);
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        void uploadProfileMedia('cover');
-      }, 100);
-    });
+    await new Promise<void>((resolve) => setTimeout(resolve, Platform.OS === 'ios' ? 350 : 50));
+    await uploadProfileMedia('cover');
   };
 
   const stageCoverRemoval = () => {
@@ -174,14 +174,14 @@ export function EditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Edit Profile</AppText>
-        <Button size="sm" loading={saving} disabled={usernameAvailability.status !== 'available'} onPress={handleSave}>Save</Button>
+        <Button size="sm" loading={saving} disabled={pickingMedia || usernameAvailability.status !== 'available'} onPress={handleSave}>Save</Button>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Pressable
@@ -193,19 +193,19 @@ export function EditProfileScreen() {
           <ProfileCover uri={displayedCoverUrl} style={styles.coverPreview} testID="edit-profile-cover" />
           <View style={styles.coverAction}>
             <ImageIcon color={colors.light[0]} size={16} />
-            <AppText variant="small">{hasCover ? 'Change cover' : 'Add cover'}</AppText>
+            <AppText variant="small" color={colors.light[0]}>{hasCover ? 'Change cover' : 'Add cover'}</AppText>
           </View>
         </Pressable>
         <View style={styles.avatarContainer}>
           <Pressable style={styles.avatarEdit} onPress={showProfilePhotoOptions} accessibilityRole="button" accessibilityLabel="Change profile photo">
             <Avatar initials={profile?.initials ?? 'MK'} uri={avatarUrl} size={84} />
-            <View style={styles.camera}>
-              <Camera size={14} color={colors.light[0]} />
+            <View style={[styles.camera, { backgroundColor: theme.accent, borderColor: theme.background }]}>
+              <Camera size={14} color={theme.onAccent} />
             </View>
           </Pressable>
         </View>
         <Button variant="ghost" size="sm" style={styles.photoButton} onPress={showProfilePhotoOptions}>Change Profile Photo</Button>
-        {error ? <AppText style={styles.error}>{error}</AppText> : null}
+        {error ? <AppText style={[styles.error, { color: theme.danger }]}>{error}</AppText> : null}
         <Input label="Display Name" value={displayName} onChangeText={setDisplayName} />
         <Input label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" />
         <AppText variant="small" style={[styles.usernameHint, usernameStatusStyle]}>
@@ -213,8 +213,8 @@ export function EditProfileScreen() {
         </AppText>
         <Input label="Bio" value={bio} onChangeText={setBio} multiline numberOfLines={3} />
         <Input label="Location" value={city} onChangeText={setCity} />
-        <AppText style={styles.label}>Primary Sport</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Primary Sport</AppText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
           {sports.map((item) => (
             <Chip
               key={item}
@@ -225,7 +225,7 @@ export function EditProfileScreen() {
             </Chip>
           ))}
         </ScrollView>
-        <AppText style={styles.label}>Sports Interests</AppText>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Sports Interests</AppText>
         <View style={styles.sportsWrap}>
           {sports.map((item) => (
             <Chip
@@ -239,8 +239,8 @@ export function EditProfileScreen() {
           ))}
         </View>
         <Input label="Position / Role" value={position} onChangeText={setPosition} />
-        <AppText style={styles.label}>Skill Level</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Skill Level</AppText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
           {levels.map((item) => (
             <Chip key={item} selected={item === skillLevel} onPress={() => setSkillLevel(item)}>{item}</Chip>
           ))}
@@ -251,8 +251,9 @@ export function EditProfileScreen() {
           <Button
             variant="dark"
             full
-            disabled={saving}
-            onPress={chooseNewProfilePhoto}
+            disabled={saving || pickingMedia}
+            loading={pickingMedia}
+            onPress={() => void chooseNewProfilePhoto()}
           >
             Choose New Photo
           </Button>
@@ -265,7 +266,7 @@ export function EditProfileScreen() {
       </BottomSheet>
       <BottomSheet open={coverSheetOpen} title="Profile Cover" onClose={() => setCoverSheetOpen(false)}>
         <View style={styles.photoSheet}>
-          <Button variant="dark" full disabled={saving} onPress={chooseNewCover}>
+          <Button variant="dark" full disabled={saving || pickingMedia} loading={pickingMedia} onPress={() => void chooseNewCover()}>
             Choose New Cover
           </Button>
           {hasCover ? (
@@ -354,6 +355,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs
+  },
+  horizontalScroller: {
+    flexGrow: 0
   },
   error: {
     color: colors.semantic.danger,

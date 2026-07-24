@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform,
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 import { postSports } from '@/constants/sports';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost, useEditablePost, useUpdatePost } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -33,6 +34,7 @@ const DEFAULT_VISIBILITY_OPTIONS = ['Public', 'Followers'] as const;
 
 export function CreatePostScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const editPostId = route.params?.editPostId;
   const isEditing = Boolean(editPostId);
@@ -197,8 +199,8 @@ export function CreatePostScreen() {
 
   if (isEditing && editPostLoading && !editPost) {
     return (
-      <View style={[styles.root, styles.centeredState]}>
-        <ActivityIndicator color={colors.orange[500]} />
+      <View style={[styles.root, styles.centeredState, { backgroundColor: theme.background }]}>
+        <ActivityIndicator color={theme.accent} />
         <AppText variant="bodyMuted">Loading post…</AppText>
       </View>
     );
@@ -206,7 +208,7 @@ export function CreatePostScreen() {
 
   if (isEditing && editPostIsError && !editPost) {
     return (
-      <View style={[styles.root, styles.centeredState]}>
+      <View style={[styles.root, styles.centeredState, { backgroundColor: theme.background }]}>
         <AppText variant="h3">Could not load this post</AppText>
         <AppText variant="bodyMuted">
           {editPostError instanceof Error ? editPostError.message : 'Please try again.'}
@@ -218,7 +220,7 @@ export function CreatePostScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
     >
@@ -238,7 +240,7 @@ export function CreatePostScreen() {
             ) : (
               <AppText style={styles.authorName}>Athlete</AppText>
             )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView horizontal style={styles.chipScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContent}>
               {visibilityOptions.map((item) => (
                 <Chip
                   key={item}
@@ -251,8 +253,8 @@ export function CreatePostScreen() {
               ))}
             </ScrollView>
             {isCommunityPost ? (
-              <View style={styles.communityBanner}>
-                <AppText style={styles.communityBannerText}>
+              <View style={[styles.communityBanner, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+                <AppText style={[styles.communityBannerText, { color: theme.accent }]}>
                   Posting to community · visible to members only by default
                 </AppText>
               </View>
@@ -263,9 +265,9 @@ export function CreatePostScreen() {
           value={body}
           onChangeText={setBody}
           placeholder="What is happening on the court?"
-          placeholderTextColor={colors.text.tertiary}
+          placeholderTextColor={theme.textSubtle}
           multiline
-          style={styles.composer}
+          style={[styles.composer, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
         />
         {kind === 'stats' ? (
           <Input
@@ -277,13 +279,13 @@ export function CreatePostScreen() {
           />
         ) : null}
         {mediaUri ? (
-          <View style={styles.mediaPreview}>
+          <View style={[styles.mediaPreview, { backgroundColor: theme.surfaceMuted }]}>
             {mediaKind === 'image' || thumbnailUri ? (
               <Image source={{ uri: previewImageUri ?? mediaUri }} style={styles.previewImage} />
             ) : (
               <View style={styles.videoPreview}>
-                <View style={styles.videoIcon}>
-                  <Play size={22} color={colors.light[0]} fill={colors.light[0]} />
+                <View style={[styles.videoIcon, { backgroundColor: theme.accent }]}>
+                  <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
                 </View>
                 <AppText variant="h4">Video ready</AppText>
                 <AppText variant="small">A preview will appear after upload.</AppText>
@@ -321,24 +323,24 @@ export function CreatePostScreen() {
             }}
           />
         </View>
-        <AppText style={styles.label}>Tag Sport</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
+        <AppText style={[styles.label, { color: theme.textSubtle }]}>Tag Sport</AppText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chips, styles.chipScroller]} contentContainerStyle={styles.chipContent}>
           {sports.map((item) => (
             <Chip key={item} selected={item === sport} onPress={() => setSport(item)}>
               {item}
             </Chip>
           ))}
         </ScrollView>
-        <Pressable accessibilityRole="button" style={styles.tagPeople} onPress={() => setTagPickerOpen(true)}>
-          <Users size={16} color={colors.text.tertiary} />
-          <AppText style={styles.tagText}>
+        <Pressable accessibilityRole="button" style={[styles.tagPeople, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => setTagPickerOpen(true)}>
+          <Users size={16} color={theme.textSubtle} />
+          <AppText style={[styles.tagText, { color: theme.textSubtle }]}>
             {taggedUsers.length ? taggedUsers.map((user) => user.displayName).join(', ') : 'Tag people...'}
           </AppText>
         </Pressable>
       </ScrollView>
       <Modal visible={tagPickerOpen} transparent animationType="fade" onRequestClose={() => setTagPickerOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setTagPickerOpen(false)}>
-          <Pressable style={styles.tagPicker}>
+          <Pressable style={[styles.tagPicker, { backgroundColor: theme.surfaceElevated }]}>
             <View style={styles.tagPickerHeader}>
               <AppText variant="h3">Tag People</AppText>
               <IconButton icon={X} size={34} iconSize={16} onPress={() => setTagPickerOpen(false)} />
@@ -374,13 +376,13 @@ export function CreatePostScreen() {
                   <VerifiedName profile={user} style={styles.authorName} numberOfLines={1} />
                   <AppText variant="small">@{user.username}</AppText>
                 </View>
-                <AppText color={colors.orange[400]}>Tag</AppText>
+                <AppText color={theme.accent}>Tag</AppText>
               </Pressable>
             ))}
             {taggedUsers.map((user) => (
               <Pressable
                 key={user.id}
-                style={[styles.tagOption, styles.tagOptionSelected]}
+                style={[styles.tagOption, styles.tagOptionSelected, { backgroundColor: theme.accentSoft }]}
                 onPress={() => {
                   setTaggedUsers((old) => old.filter((taggedUser) => taggedUser.id !== user.id));
                   setBody((old) => old.replace(new RegExp(`@${user.username}\\b\\s*`, 'i'), '').trimStart());
@@ -391,7 +393,7 @@ export function CreatePostScreen() {
                   <VerifiedName profile={user} style={styles.authorName} numberOfLines={1} />
                   <AppText variant="small">@{user.username}</AppText>
                 </View>
-                <AppText color={colors.text.tertiary}>Remove</AppText>
+                <AppText color={theme.textSubtle}>Remove</AppText>
               </Pressable>
             ))}
             <Button full onPress={() => setTagPickerOpen(false)}>Done</Button>
@@ -403,10 +405,21 @@ export function CreatePostScreen() {
 }
 
 function ComposerAction({ icon: Icon, label, selected, onPress }: { icon: LucideIcon; label: string; selected?: boolean; onPress?: () => void }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <Pressable style={[styles.composerAction, selected ? styles.composerActionSelected : null]} onPress={onPress}>
-      <Icon size={20} color={selected ? colors.orange[400] : colors.text.tertiary} />
-      <AppText variant="small" color={selected ? colors.orange[400] : undefined} numberOfLines={2}>{label}</AppText>
+    <Pressable
+      style={[
+        styles.composerAction,
+        selected ? styles.composerActionSelected : null,
+        {
+          backgroundColor: selected ? theme.accentSoft : theme.surface,
+          borderColor: selected ? theme.accent : theme.border
+        }
+      ]}
+      onPress={onPress}
+    >
+      <Icon size={20} color={selected ? theme.accent : theme.textSubtle} />
+      <AppText variant="small" color={selected ? theme.accent : undefined} numberOfLines={2}>{label}</AppText>
     </Pressable>
   );
 }
@@ -522,6 +535,12 @@ const styles = StyleSheet.create({
   },
   chips: {
     marginBottom: 14
+  },
+  chipScroller: {
+    flexGrow: 0
+  },
+  chipContent: {
+    alignItems: 'flex-start'
   },
   tagPeople: {
     flexDirection: 'row',

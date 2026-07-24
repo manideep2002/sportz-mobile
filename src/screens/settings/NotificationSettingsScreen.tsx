@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Bell, ChevronLeft } from 'lucide-react-native';
 
 import { AppText, IconButton, Screen } from '@/components/ui';
+import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   defaultNotificationPreferences,
@@ -73,14 +74,15 @@ export function NotificationSettingsScreen() {
 }
 
 function ToggleRow({ label, detail, value, onPress, icon: Icon }: { label: string; detail?: string; value: boolean; onPress: () => void; icon?: typeof Bell }) {
+  const { colors: theme } = useAppTheme();
   return (
-    <Pressable style={styles.row} onPress={onPress}>
-      {Icon ? <Icon size={18} color={colors.orange[500]} /> : null}
+    <Pressable style={[styles.row, { backgroundColor: theme.surface }]} onPress={onPress}>
+      {Icon ? <Icon size={18} color={theme.accent} /> : null}
       <View style={{ flex: 1 }}>
         <AppText style={styles.label}>{label}</AppText>
         {detail ? <AppText variant="small">{detail}</AppText> : null}
       </View>
-      <View style={[styles.switch, value ? styles.switchActive : null]}>
+      <View style={[styles.switch, { backgroundColor: value ? theme.accent : theme.surfaceMuted }]}>
         <View style={[styles.knob, value ? styles.knobActive : null]} />
       </View>
     </Pressable>
