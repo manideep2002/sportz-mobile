@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
+import { feedDedupeService } from '@/services/feedDedupeService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { postService, type CreatePostInput, type FeedPage, type UpdatePostInput } from '@/services/postService';
 import { useAuthStore } from '@/store/authStore';
@@ -45,11 +46,20 @@ export const useUserPosts = (userId: string) =>
   });
 
 export const useCommunityPosts = (communityId: string, enabled = true) =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: feedKeys.communityPosts(communityId),
-    queryFn: () => postService.listCommunityPosts(communityId),
+    queryFn: ({ pageParam }) =>
+      postService.listCommunityPostsPage(communityId, pageParam as string | undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(communityId) && enabled
   });
+
+export const flattenCommunityPostPages = (data?: { pages: FeedPage[] }) =>
+  feedDedupeService.keepUnique(
+    data?.pages.flatMap((page) => page.items) ?? [],
+    (post) => post.id
+  );
 
 export const useSavedPosts = () =>
   useQuery({
@@ -107,9 +117,17 @@ export const useCreatePost = () => {
         old ? prependUniquePost(old, post) : old
       );
       if (input.communityId) {
-        queryClient.setQueryData<Post[]>(feedKeys.communityPosts(input.communityId), (old) =>
-          old ? prependUniquePost(old, post) : old
-        );
+        queryClient.setQueryData<InfiniteFeedData>(feedKeys.communityPosts(input.communityId), (old) => {
+          if (!old?.pages.length) return old;
+          const [firstPage, ...remainingPages] = old.pages;
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, items: prependUniquePost(firstPage.items, post) },
+              ...remainingPages
+            ]
+          };
+        });
       }
 
       void queryClient.invalidateQueries({ queryKey: feedKeys.infinite(post.author.id), exact: true });
@@ -444,7 +462,7 @@ export const usePostRealtimeUpdates = (postId: string) => {
       invalidateTimer = setTimeout(() => {
         invalidateTimer = null;
         void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
-        void queryClient.invalidateQueries({ queryKey: feedKeys.infiniteRoot });
+        void queryClient.invalidateQueries({ queryKey: ['feed'] });
         if (includeComments) {
           void queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) });
         }

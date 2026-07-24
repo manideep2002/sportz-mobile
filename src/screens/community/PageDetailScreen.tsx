@@ -4,13 +4,13 @@ import { ChevronLeft, MoreHorizontal, Share2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
 
-import { PostCard } from '@/components/feed/PostCard';
+import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
-import { useCommunityPosts } from '@/hooks/useFeed';
+import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -21,12 +21,18 @@ export function PageDetailScreen() {
   const route = useRoute<Route>();
   const { data: community, isLoading, isError, isRefetching, error, refetch } = useCommunity(route.params.communityId);
   const {
-    data: posts = [],
+    data: postsData,
     isLoading: postsLoading,
     isError: postsIsError,
     isRefetching: postsRefetching,
-    refetch: refetchPosts
+    error: postsError,
+    refetch: refetchPosts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError
   } = useCommunityPosts(route.params.communityId);
+  const posts = flattenCommunityPostPages(postsData);
   const followPage = useJoinCommunity(route.params.communityId);
   const unfollowPage = useLeaveCommunity(route.params.communityId);
 
@@ -130,20 +136,19 @@ export function PageDetailScreen() {
           <IconButton icon={Share2} onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })} />
         </View>
         <AppText variant="h4">Latest Posts</AppText>
-        {postsLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
-        {postsIsError ? (
-          <View style={styles.fallbackInline}>
-            <AppText variant="bodyMuted">Could not load posts.</AppText>
-            <Button size="sm" onPress={() => void refetchPosts()}>Retry</Button>
-          </View>
-        ) : null}
-        {!postsLoading && !postsIsError && posts.length === 0 ? (
-          <AppText variant="bodyMuted">No page posts yet.</AppText>
-        ) : null}
       </View>
-      {posts.slice(0, 3).map((post) => (
-        <PostCard key={post.id} post={post} onPress={() => navigation.navigate('PostDetail', { postId: post.id })} />
-      ))}
+      <CommunityPostFeed
+        posts={posts}
+        emptyMessage="No page posts yet."
+        isLoading={postsLoading}
+        isError={postsIsError}
+        error={postsError}
+        onRetry={() => void refetchPosts()}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
+        onLoadMore={() => void fetchNextPage()}
+      />
     </Screen>
   );
 }
@@ -173,15 +178,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     padding: spacing.xl
-  },
-  fallbackInline: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: 12,
-    backgroundColor: colors.dark[800],
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.dark[700],
-    padding: spacing.md
   },
   fallbackText: {
     textAlign: 'center'

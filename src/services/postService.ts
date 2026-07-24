@@ -436,19 +436,39 @@ export const postService = {
   },
 
   async listCommunityPosts(communityId: string): Promise<Post[]> {
+    const page = await this.listCommunityPostsPage(communityId, undefined, 20);
+    return page.items;
+  },
+
+  async listCommunityPostsPage(communityId: string, cursor?: string, limit = 10): Promise<FeedPage> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    let request = supabase
       .from('posts')
       .select('*, profiles:author_id(*)')
       .eq('community_id', communityId)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(limit + 1);
+
+    if (cursor) {
+      request = request.lt('created_at', cursor);
+    }
+
+    const { data, error } = await request;
 
     if (error) throw error;
 
-    const engagement = await loadPostEngagement((data ?? []).map((row: PostRow) => row.id));
-    return (data ?? []).map((row: PostRow) => mapPostRow(row, engagement));
+    const rows = (data ?? []) as PostRow[];
+    const pageRows = rows.slice(0, limit);
+    const engagement = await loadPostEngagement(pageRows.map((row) => row.id));
+    const items = pageRows.map((row) => mapPostRow(row, engagement));
+
+    return {
+      items,
+      nextCursor: rows.length > limit && pageRows.length
+        ? pageRows[pageRows.length - 1].created_at
+        : undefined
+    };
   },
 
   async listFeedPage(cursor?: string, limit = 10): Promise<FeedPage> {

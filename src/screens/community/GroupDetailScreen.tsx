@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
-import { PostCard } from '@/components/feed/PostCard';
+import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
@@ -33,7 +33,7 @@ import {
   useRespondCommunityJoinRequest,
   useUpdateCommunityMemberRole
 } from '@/hooks/useCommunities';
-import { useCommunityPosts } from '@/hooks/useFeed';
+import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
 import { useAuthStore } from '@/store/authStore';
@@ -57,12 +57,18 @@ export function GroupDetailScreen() {
   const canViewContent = Boolean(community?.canViewContent);
   const canManageMembers = Boolean(community?.canManageMembers);
   const {
-    data: posts = [],
+    data: postsData,
     isLoading: postsLoading,
     isError: postsIsError,
     isRefetching: postsRefetching,
-    refetch: refetchPosts
+    error: postsError,
+    refetch: refetchPosts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError
   } = useCommunityPosts(route.params.communityId, canViewContent);
+  const posts = flattenCommunityPostPages(postsData);
   const {
     data: members = [],
     isLoading: membersLoading,
@@ -331,27 +337,24 @@ export function GroupDetailScreen() {
 
             <View style={styles.section}>
               <AppText variant="h4">Recent Posts</AppText>
-              {postsLoading ? <ActivityIndicator color={colors.orange[500]} /> : null}
-              {postsIsError ? (
-                <View style={styles.fallbackInline}>
-                  <AppText variant="bodyMuted">Could not load posts.</AppText>
-                  <Button size="sm" onPress={() => void refetchPosts()}>Retry</Button>
-                </View>
-              ) : null}
-              {!postsLoading && !postsIsError && posts.length === 0 ? (
-                <AppText variant="bodyMuted">No posts in this group yet.</AppText>
-              ) : null}
             </View>
           </>
         )}
       </View>
-      {canViewContent ? posts.slice(0, 3).map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+      {canViewContent ? (
+        <CommunityPostFeed
+          posts={posts}
+          emptyMessage="No posts in this group yet."
+          isLoading={postsLoading}
+          isError={postsIsError}
+          error={postsError}
+          onRetry={() => void refetchPosts()}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          isFetchNextPageError={isFetchNextPageError}
+          onLoadMore={() => void fetchNextPage()}
         />
-      )) : null}
+      ) : null}
       <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => setInviteOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setInviteOpen(false)}>
           <Pressable style={styles.inviteCard}>
