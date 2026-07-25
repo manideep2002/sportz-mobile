@@ -151,7 +151,7 @@ export function FindPlayersScreen() {
                 onPress={() => navigation.navigate('UserProfile', { userId: player.id })}
               />
               <View style={styles.sportLine}>
-                <SportIcon sport={player.primarySport} size={12} color={theme.textSubtle} />
+                <SportIcon sport={player.primarySport} size={15} />
                 <AppText variant="small">{player.primarySport} - {player.position}</AppText>
               </View>
               <View style={styles.badges}>

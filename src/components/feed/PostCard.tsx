@@ -67,7 +67,7 @@ function PostCardComponent({
             <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
               <VerifiedName profile={post.author} style={styles.authorName} numberOfLines={1} />
               <View style={styles.sportMeta}>
-                <SportIcon sport={post.sport} size={12} color={theme.textSubtle} />
+                <SportIcon sport={post.sport} size={15} />
                 <AppText variant="small">{post.sport} - {timeAgo(post.createdAt)}</AppText>
               </View>
             </Pressable>

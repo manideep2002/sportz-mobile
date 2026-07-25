@@ -1,43 +1,41 @@
-import {
-  Bike,
-  CircleDot,
-  Goal,
-  PersonStanding,
-  Trophy,
-  Waves,
-  type LucideIcon
-} from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 
 import { AppText } from './AppText';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { radii, spacing, typography } from '@/design/tokens';
 import type { Sport } from '@/types/domain';
 
-const iconsBySport: Partial<Record<Sport, LucideIcon>> = {
-  Football: Goal,
-  Athletics: PersonStanding,
-  Running: PersonStanding,
-  Swimming: Waves,
-  Cycling: Bike,
-  Cricket: CircleDot,
-  Badminton: CircleDot,
-  Basketball: CircleDot,
-  Volleyball: CircleDot,
-  Tennis: CircleDot,
-  'Table Tennis': CircleDot
+const iconsBySport: Record<string, ImageSourcePropType> = {
+  Cricket: require('../../../assets/sports-3d/cricket.png'),
+  Football: require('../../../assets/sports-3d/football.png'),
+  Kabaddi: require('../../../assets/sports-3d/kabaddi.png'),
+  Badminton: require('../../../assets/sports-3d/badminton.png'),
+  Hockey: require('../../../assets/sports-3d/hockey.png'),
+  Athletics: require('../../../assets/sports-3d/athletics.png'),
+  Running: require('../../../assets/sports-3d/running.png'),
+  Basketball: require('../../../assets/sports-3d/basketball.png'),
+  Volleyball: require('../../../assets/sports-3d/volleyball.png'),
+  Tennis: require('../../../assets/sports-3d/tennis.png'),
+  'Table Tennis': require('../../../assets/sports-3d/table-tennis.png'),
+  Swimming: require('../../../assets/sports-3d/swimming.png'),
+  Cycling: require('../../../assets/sports-3d/cycling.png')
 };
 
 interface SportIconProps {
   sport: Sport | string;
-  color?: string;
   size?: number;
 }
 
-export function SportIcon({ sport, color, size = 13 }: SportIconProps) {
-  const { colors: theme } = useAppTheme();
-  const Icon = iconsBySport[sport as Sport] ?? Trophy;
-  return <Icon accessibilityLabel={`${sport} sport`} size={size} color={color ?? theme.accent} strokeWidth={2} />;
+export function SportIcon({ sport, size = 15 }: SportIconProps) {
+  const source = iconsBySport[sport] ?? iconsBySport.Athletics;
+  return (
+    <Image
+      accessibilityLabel={`${sport} sport`}
+      resizeMode="contain"
+      source={source}
+      style={{ width: size, height: size }}
+    />
+  );
 }
 
 export function SportBadge({ sport }: Pick<SportIconProps, 'sport'>) {
@@ -47,7 +45,7 @@ export function SportBadge({ sport }: Pick<SportIconProps, 'sport'>) {
       accessibilityLabel={`${sport} sport`}
       style={[styles.badge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}
     >
-      <SportIcon sport={sport} size={11} />
+      <SportIcon sport={sport} size={14} />
       <AppText style={[styles.badgeText, { color: theme.accent }]}>{sport}</AppText>
     </View>
   );

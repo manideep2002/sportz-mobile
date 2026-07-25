@@ -10,6 +10,7 @@ Production branding is configured in `app.config.js` (this project does not use 
 | `notification-icon.png` | Android status-bar notification glyph | 96x96 RGBA; white-only glyph on transparency |
 | `favicon.png` | Web browser favicon | 64x64 RGB |
 | `brand-mark.png` | Reusable source monogram | RGBA; transparent background |
+| `sports-3d/*.png` | Compact colored sport icons used in cards and sport badges | 128x128 RGBA; transparent background; keep each icon centered and readable at 14px |
 
 The master icon, adaptive foreground, splash, notification icon, and favicon are generated from `brand-mark.png` by `scripts/generate_brand_assets.py`. The script uses SPORTZ's checked-in Barlow Condensed package and requires Pillow:
 

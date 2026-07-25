@@ -19,7 +19,7 @@ export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
       <Card style={[styles.card, !court.futureBookable ? styles.disabled : null]}>
         <View style={[styles.sportIcon, { backgroundColor: theme.accentSoft }]}>
-          <SportIcon sport={court.sport} size={25} />
+          <SportIcon sport={court.sport} size={30} />
         </View>
         <View style={styles.meta}>
           <AppText style={[styles.name, { color: theme.text }]}>{court.name}</AppText>
