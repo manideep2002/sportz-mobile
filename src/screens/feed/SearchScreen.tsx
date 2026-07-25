@@ -1,23 +1,41 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View
+} from 'react-native';
 
-
-import { AppRefreshControl, AppText, Avatar, Badge, Chip, IconButton, Input, Screen, SectionHeader, VerifiedName } from '@/components/ui';
+import {
+  AppRefreshControl,
+  AppText,
+  Avatar,
+  Badge,
+  Button,
+  Chip,
+  IconButton,
+  Input,
+  Screen,
+  SectionHeader,
+  VerifiedName
+} from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useSearch, useTrendingTags } from '@/hooks/useSearch';
-import { blockService, toBlockedIdSet } from '@/services/blockService';
-import { useQuery } from '@tanstack/react-query';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { SearchResult } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const filters = ['All', 'Players', 'Events', 'Groups', 'Pages', 'Courts'];
-const filterTypes: Record<string, string | undefined> = {
+const filters = ['All', 'Players', 'Events', 'Groups', 'Pages', 'Courts'] as const;
+type FilterLabel = (typeof filters)[number];
+
+const filterTypes: Record<FilterLabel, SearchResult['type'] | undefined> = {
   All: undefined,
   Players: 'player',
   Events: 'event',
@@ -26,43 +44,102 @@ const filterTypes: Record<string, string | undefined> = {
   Courts: 'court'
 };
 
+function navigateToResult(navigation: Navigation, result: SearchResult) {
+  switch (result.type) {
+    case 'player':
+      navigation.navigate('UserProfile', { userId: result.id });
+      break;
+    case 'event':
+      navigation.navigate('EventDetail', { eventId: result.id });
+      break;
+    case 'group':
+      navigation.navigate('GroupDetail', { communityId: result.id });
+      break;
+    case 'page':
+      navigation.navigate('PageDetail', { communityId: result.id });
+      break;
+    case 'court':
+      navigation.navigate('CourtDetail', { courtId: result.id });
+      break;
+  }
+}
+
 export function SearchScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const [query, setQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('All');
-  const { data = [], isRefetching: searchRefetching, refetch: refetchSearch } = useSearch(query);
+  const [selectedFilter, setSelectedFilter] = useState<FilterLabel>('All');
+  const selectedType = filterTypes[selectedFilter];
+
+  const {
+    data,
+    isFetching,
+    isFetchingNextPage,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage
+  } = useSearch(query, selectedType);
+
   const {
     data: trendingTags = [],
-    isRefetching: trendingRefetching,
     refetch: refetchTrending
   } = useTrendingTags();
-  const {
-    data: blockedIds = [],
-    isRefetching: blockedRefetching,
-    refetch: refetchBlocked
-  } = useQuery({ queryKey: ['blocks', 'ids'], queryFn: blockService.listBlockedIds });
-  const selectedType = filterTypes[selectedFilter];
-  const blockedIdSet = toBlockedIdSet(blockedIds);
-  const visibleData = data.filter((result) => !(result.type === 'player' && blockedIdSet.has(result.id)));
-  const filteredData = selectedType ? visibleData.filter((result) => result.type === selectedType) : visibleData;
+
+  // Flatten pages and deduplicate by id (handles cursor-boundary overlaps).
+  const seenIds = new Set<string>();
+  const allResults: SearchResult[] = [];
+  for (const page of data?.pages ?? []) {
+    for (const item of page.items) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        allResults.push(item);
+      }
+    }
+  }
+
+  const isInitialLoading = isFetching && !data;
+  const isLoadingMore = isFetchingNextPage;
+
+  const handleLoadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleRefresh = useCallback(() => {
+    void Promise.all([refetch(), refetchTrending()]);
+  }, [refetch, refetchTrending]);
+
+  const handleClear = useCallback(() => {
+    setQuery('');
+    setSelectedFilter('All');
+  }, []);
 
   return (
     <Screen
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl
-          refreshing={searchRefetching || trendingRefetching || blockedRefetching}
-          onRefresh={() => void Promise.all([refetchSearch(), refetchTrending(), refetchBlocked()])}
+          refreshing={isFetching && Boolean(data) && !isFetchingNextPage}
+          onRefresh={handleRefresh}
         />
       }
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={styles.searchBox}>
-          <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search everything..." autoFocus />
+          <Input
+            icon={Search}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search everything..."
+            autoFocus
+          />
         </View>
       </View>
+
       <FlatList
         horizontal
         style={styles.horizontalScroller}
@@ -71,62 +148,123 @@ export function SearchScreen() {
         keyExtractor={(item) => item}
         contentContainerStyle={styles.filterRow}
         renderItem={({ item }) => (
-          <Chip selected={item === selectedFilter} onPress={() => setSelectedFilter(item)}>
+          <Chip
+            selected={item === selectedFilter}
+            onPress={() => setSelectedFilter(item)}
+          >
             {item}
           </Chip>
         )}
       />
+
       <View style={styles.section}>
         <SectionHeader title="Trending" />
         <View style={styles.trending}>
           {trendingTags.map((tag) => (
-            <Pressable key={tag} accessibilityRole="button" onPress={() => setQuery(tag.replace('#', ''))}>
+            <Pressable
+              key={tag}
+              accessibilityRole="button"
+              onPress={() => setQuery(tag.replace('#', ''))}
+            >
               <Badge>{tag}</Badge>
             </Pressable>
           ))}
         </View>
       </View>
+
       <View style={styles.section}>
         <SectionHeader
-          title={`Results (${filteredData.length})`}
+          title={
+            isInitialLoading
+              ? 'Searching…'
+              : `Results (${allResults.length}${hasNextPage ? '+' : ''})`
+          }
           action={query || selectedFilter !== 'All' ? 'Clear' : undefined}
-          onAction={() => {
-            setQuery('');
-            setSelectedFilter('All');
-          }}
+          onAction={handleClear}
         />
       </View>
-      {filteredData.map((result, index) => (
-        <Pressable
-          key={`${result.type}-${result.id}`}
-          style={[styles.result, { borderBottomColor: theme.border }]}
-          onPress={() => {
-            if (result.type === 'player') navigation.navigate('UserProfile', { userId: result.id });
-            if (result.type === 'event') navigation.navigate('EventDetail', { eventId: result.id });
-            if (result.type === 'group') navigation.navigate('GroupDetail', { communityId: result.id });
-            if (result.type === 'page') navigation.navigate('PageDetail', { communityId: result.id });
-            if (result.type === 'court') navigation.navigate('Courts');
-          }}
-        >
-          <Avatar initials={result.title.slice(0, 2).toUpperCase()} size={46} tone={index % 2 === 0 ? 'orange' : 'green'} />
-          <View style={styles.resultMeta}>
-            {result.type === 'player' ? (
-              <VerifiedName
-                profile={{ displayName: result.title, skillLevel: result.skillLevel ?? 'Intermediate' }}
-                style={styles.resultTitle}
-                numberOfLines={1}
+
+      {/* Loading state */}
+      {isInitialLoading ? (
+        <View style={styles.stateBox}>
+          <ActivityIndicator color={theme.accent} />
+        </View>
+      ) : null}
+
+      {/* Error state */}
+      {isError && !isInitialLoading ? (
+        <View style={styles.stateBox}>
+          <AppText variant="bodyMuted" style={styles.stateText}>
+            {error instanceof Error
+              ? error.message
+              : 'Search failed. Please try again.'}
+          </AppText>
+          <Button size="sm" onPress={() => void refetch()}>
+            Retry
+          </Button>
+        </View>
+      ) : null}
+
+      {/* Results */}
+      {!isInitialLoading && !isError
+        ? allResults.map((result, index) => (
+            <Pressable
+              key={`${result.type}-${result.id}`}
+              style={[styles.result, { borderBottomColor: theme.border }]}
+              onPress={() => navigateToResult(navigation, result)}
+            >
+              <Avatar
+                initials={result.title.slice(0, 2).toUpperCase()}
+                size={46}
+                tone={index % 2 === 0 ? 'orange' : 'green'}
               />
-            ) : (
-              <AppText style={styles.resultTitle} numberOfLines={1}>{result.title}</AppText>
-            )}
-            <AppText variant="small">{result.subtitle}</AppText>
-          </View>
-          <Badge tone={result.type === 'event' ? 'green' : 'dark'}>{result.type}</Badge>
+              <View style={styles.resultMeta}>
+                {result.type === 'player' ? (
+                  <VerifiedName
+                    profile={{
+                      displayName: result.title,
+                      skillLevel: result.skillLevel ?? 'Intermediate'
+                    }}
+                    style={styles.resultTitle}
+                    numberOfLines={1}
+                  />
+                ) : (
+                  <AppText style={styles.resultTitle} numberOfLines={1}>
+                    {result.title}
+                  </AppText>
+                )}
+                <AppText variant="small">{result.subtitle}</AppText>
+              </View>
+              <Badge tone={result.type === 'event' ? 'green' : 'dark'}>
+                {result.type}
+              </Badge>
+            </Pressable>
+          ))
+        : null}
+
+      {/* Empty state — only when query has settled and server returned no results */}
+      {!isInitialLoading && !isError && allResults.length === 0 ? (
+        <View style={styles.stateBox}>
+          <AppText variant="bodyMuted">No results match your search.</AppText>
+        </View>
+      ) : null}
+
+      {/* Load more */}
+      {hasNextPage && !isLoadingMore ? (
+        <Pressable
+          style={styles.loadMore}
+          onPress={handleLoadMore}
+          accessibilityRole="button"
+        >
+          <AppText variant="small" style={{ color: theme.accent }}>
+            Load more results
+          </AppText>
         </Pressable>
-      ))}
-      {filteredData.length === 0 ? (
-        <View style={styles.empty}>
-          <AppText variant="bodyMuted">No results match your search and filter.</AppText>
+      ) : null}
+
+      {isLoadingMore ? (
+        <View style={styles.loadMoreLoading}>
+          <ActivityIndicator color={theme.accent} size="small" />
         </View>
       ) : null}
     </Screen>
@@ -180,8 +318,20 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold,
     fontSize: 14
   },
-  empty: {
+  stateBox: {
     alignItems: 'center',
-    padding: spacing.xl
+    padding: spacing.xl,
+    gap: spacing.sm
+  },
+  stateText: {
+    textAlign: 'center'
+  },
+  loadMore: {
+    alignItems: 'center',
+    paddingVertical: spacing.md
+  },
+  loadMoreLoading: {
+    alignItems: 'center',
+    paddingVertical: spacing.md
   }
 });

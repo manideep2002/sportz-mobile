@@ -1,69 +1,69 @@
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
-import type { SearchResult } from '@/types/domain';
+import type { SearchResult, SkillLevel } from '@/types/domain';
+
+export const SEARCH_PAGE_SIZE = 20;
+
+export interface SearchPage {
+  items: SearchResult[];
+  /** true when there may be more results to fetch */
+  hasMore: boolean;
+  /** offset of the next page */
+  nextOffset: number;
+}
+
+interface SearchRpcRow {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  skill_level: string | null;
+}
+
+function mapRpcRow(row: SearchRpcRow): SearchResult {
+  return {
+    id: row.id,
+    type: row.type as SearchResult['type'],
+    title: row.title ?? '',
+    subtitle: row.subtitle ?? '',
+    ...(row.skill_level ? { skillLevel: row.skill_level as SkillLevel } : {})
+  };
+}
 
 export const searchService = {
-  async search(query: string): Promise<SearchResult[]> {
+  /**
+   * Search using the server-side `search_content` RPC.
+   *
+   * - All user input is passed as bind parameters — no string interpolation.
+   * - Type filtering and pagination happen in the database.
+   * - Blocked users and private profiles are filtered server-side.
+   */
+  async search(
+    query: string,
+    filterType: SearchResult['type'] | undefined,
+    offset = 0,
+    limit = SEARCH_PAGE_SIZE
+  ): Promise<SearchPage> {
     assertSupabaseConfigured();
 
-    const normalized = query.trim();
-    const pattern = normalized ? `%${normalized}%` : '%';
+    const { data, error } = await supabase.rpc('search_content', {
+      search_query: query,
+      filter_type: filterType ?? null,
+      result_limit: limit + 1, // fetch one extra to detect hasMore
+      result_offset: offset
+    });
 
-    const [profiles, sportEvents, sportCourts, communities] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, display_name, primary_sport, city, skill_level')
-        .or(`display_name.ilike.${pattern},username.ilike.${pattern},primary_sport.ilike.${pattern}`)
-        .limit(10),
-      supabase
-        .from('sport_events')
-        .select('id, title, event_type, sport, location_name')
-        .or(`title.ilike.${pattern},event_type.ilike.${pattern},sport.ilike.${pattern},location_name.ilike.${pattern}`)
-        .limit(10),
-      supabase
-        .from('courts')
-        .select('id, name, sport, city')
-        .or(`name.ilike.${pattern},sport.ilike.${pattern},city.ilike.${pattern}`)
-        .limit(10),
-      supabase
-        .from('communities')
-        .select('id, type, name, sport, city')
-        .or(`name.ilike.${pattern},sport.ilike.${pattern},city.ilike.${pattern}`)
-        .limit(10)
-    ]);
+    if (error) throw error;
 
-    if (profiles.error) throw profiles.error;
-    if (sportEvents.error) throw sportEvents.error;
-    if (sportCourts.error) throw sportCourts.error;
-    if (communities.error) throw communities.error;
+    const rows = (data ?? []) as SearchRpcRow[];
+    const hasMore = rows.length > limit;
+    const items = rows.slice(0, limit).map(mapRpcRow);
 
-    return [
-      ...(profiles.data ?? []).map((profile) => ({
-        id: profile.id,
-        type: 'player' as const,
-        title: profile.display_name,
-        subtitle: `${profile.primary_sport ?? 'Athlete'} - ${profile.city ?? ''}`,
-        skillLevel: profile.skill_level
-      })),
-      ...(sportEvents.data ?? []).map((event) => ({
-        id: event.id,
-        type: 'event' as const,
-        title: event.title,
-        subtitle: `${event.event_type ?? 'Event'} - ${event.sport} - ${event.location_name}`
-      })),
-      ...(communities.data ?? []).map((community) => ({
-        id: community.id,
-        type: community.type as 'group' | 'page',
-        title: community.name,
-        subtitle: `${community.sport} - ${community.city ?? ''}`
-      })),
-      ...(sportCourts.data ?? []).map((court) => ({
-        id: court.id,
-        type: 'court' as const,
-        title: court.name,
-        subtitle: `${court.sport} - ${court.city}`
-      }))
-    ];
+    return {
+      items,
+      hasMore,
+      nextOffset: offset + items.length
+    };
   },
 
   async getTrending(): Promise<string[]> {
@@ -79,7 +79,9 @@ export const searchService = {
 
     const counts = new Map<string, number>();
     for (const post of data ?? []) {
-      const tags = ((post.body as string).match(/#[A-Za-z0-9_]+/g) ?? []).map((tag: string) => tag.toLowerCase());
+      const tags = ((post.body as string).match(/#[A-Za-z0-9_]+/g) ?? []).map((tag: string) =>
+        tag.toLowerCase()
+      );
       for (const tag of tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
 
