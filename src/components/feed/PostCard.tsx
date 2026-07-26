@@ -3,7 +3,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Bookmark, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
-import { Avatar, Badge, Button, Card, AppText, MediaViewerModal, SportIcon, VerifiedName } from '@/components/ui';
+import { Avatar, Badge, Card, AppText, MediaViewerModal, SportIcon, VerifiedName } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -207,11 +207,6 @@ function PostCardComponent({
                 fill={post.savedByMe ? theme.accent : 'transparent'}
               />
             </Pressable>
-            {post.kind === 'stats' ? (
-              <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
-                View Athlete
-              </Button>
-            ) : null}
           </View>
           <View style={styles.footer}>
             <AppText variant="bodyMuted">
@@ -390,9 +385,6 @@ const styles = StyleSheet.create({
   actionText: {
     color: colors.text.tertiary,
     fontSize: 13
-  },
-  join: {
-    marginLeft: 'auto'
   },
   footer: {
     paddingHorizontal: 14,

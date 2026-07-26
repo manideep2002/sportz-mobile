@@ -1,7 +1,7 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { ChevronLeft, MapPin } from 'lucide-react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Calendar, ChevronLeft, MapPin } from 'lucide-react-native';
 
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
 
@@ -13,6 +13,7 @@ import { useCourt } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { currency } from '@/utils/format';
+import { openCourtInMaps } from '@/utils/maps';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
@@ -58,7 +59,10 @@ export function CourtDetailScreen() {
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <AppText variant="h2">{court.name}</AppText>
-              <AppText variant="bodyMuted">{court.city}</AppText>
+              <Pressable style={styles.locationRow} onPress={() => void openCourtInMaps(court)}>
+                <MapPin size={14} color={colors.orange[500]} />
+                <AppText variant="bodyMuted" style={styles.locationText}>{court.city} • Open Maps</AppText>
+              </Pressable>
             </View>
             <Badge tone={court.openNow ? 'green' : court.futureBookable ? 'orange' : 'red'}>
               {court.availabilityLabel}
@@ -83,7 +87,7 @@ export function CourtDetailScreen() {
           <Button
             full
             size="lg"
-            icon={MapPin}
+            icon={Calendar}
             disabled={!court.futureBookable}
             onPress={() => navigation.navigate('CourtBooking', { courtId: court.id })}
           >
@@ -130,6 +134,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     alignItems: 'center'
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2
+  },
+  locationText: {
+    color: colors.orange[400]
   },
   metaCard: {
     backgroundColor: colors.dark[800],

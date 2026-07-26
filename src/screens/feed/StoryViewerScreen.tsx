@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Trash2, Volume2, VolumeX, X } from 'lucide-react-native';
 import {
   Alert,
+  Animated,
   AppState,
   type AppStateStatus,
   Image,
@@ -17,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { StoryReactionOverlay, type StoryReactionOverlayRef } from '@/components/feed/StoryReactionOverlay';
 import { AppText, Avatar, IconButton, ProgressBar, VerifiedName, VideoPlayer } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -37,6 +39,55 @@ type Route = RouteProp<AppStackParamList, 'StoryViewer'>;
 /** Duration for image stories (ms). Video stories use actual playback duration. */
 const IMAGE_STORY_DURATION_MS = 5000;
 
+function AnimatedReactionButton({
+  reaction,
+  disabled,
+  reducedMotion,
+  onPress
+}: {
+  reaction: string;
+  disabled: boolean;
+  reducedMotion: boolean;
+  onPress: () => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, {
+      toValue: 0.8,
+      friction: 4,
+      useNativeDriver: true
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 3,
+      tension: 100,
+      useNativeDriver: true
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`React ${reaction} to story`}
+        style={styles.reactionButton}
+        disabled={disabled}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+      >
+        <AppText style={styles.reactionText}>{reaction}</AppText>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
@@ -44,6 +95,7 @@ export function StoryViewerScreen() {
   const currentProfile = useAuthStore((state) => state.profile);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const overlayRef = useRef<StoryReactionOverlayRef>(null);
 
   const { data: stories = [] } = useStories();
   const markStorySeen = useMarkStorySeen();
@@ -444,16 +496,16 @@ export function StoryViewerScreen() {
         >
           <View style={styles.reactions}>
             {['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F44F}', '\u{1F3C6}'].map((reaction) => (
-              <Pressable
+              <AnimatedReactionButton
                 key={reaction}
-                accessibilityRole="button"
-                accessibilityLabel={`React ${reaction} to story`}
-                style={styles.reactionButton}
+                reaction={reaction}
                 disabled={sendingReply}
-                onPress={() => void sendReply(reaction, 'reaction')}
-              >
-                <AppText style={styles.reactionText}>{reaction}</AppText>
-              </Pressable>
+                reducedMotion={reducedMotion}
+                onPress={() => {
+                  overlayRef.current?.triggerReaction(reaction);
+                  void sendReply(reaction, 'reaction');
+                }}
+              />
             ))}
           </View>
           <View style={styles.replyRow}>
@@ -485,6 +537,8 @@ export function StoryViewerScreen() {
           </View>
         </KeyboardAvoidingView>
       ) : null}
+
+      <StoryReactionOverlay ref={overlayRef} />
     </View>
   );
 }

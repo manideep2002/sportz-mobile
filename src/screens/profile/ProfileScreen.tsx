@@ -279,7 +279,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
 
   return (
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.highlightScroll}>
         {[
           { label: t('profile.add'), kind: null },
           { label: t('profile.season'), kind: 'stats' as const },
@@ -305,18 +305,18 @@ function HighlightsPanel({ userId }: { userId: string }) {
       <View style={styles.highlightCards}>
         <LinearGradient colors={[theme.accentSoft, theme.surfaceMuted]} style={styles.highlightCard}>
           <AppText variant="h2" color={theme.accent}>{topStats ? t('profile.top') : t('profile.add').toLocaleUpperCase()}</AppText>
-          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{topStats?.body || t('profile.shareStats')}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]} numberOfLines={2}>{topStats?.body || t('profile.shareStats')}</AppText>
           <Badge tone="orange">{topStats?.statsLine ?? t('profile.stats').toLocaleUpperCase()}</Badge>
         </LinearGradient>
         <LinearGradient colors={isDark ? ['#0A1A1A', '#0F2A2A'] : ['#ECFDF5', '#D1FAE5']} style={styles.highlightCard}>
           <AppText variant="h2" color={theme.success}>{streak}</AppText>
-          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{t('profile.activityStreak')}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]} numberOfLines={2}>{t('profile.activityStreak')}</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
       </View>
       {filteredPosts.slice(0, 4).map((post) => (
         <Pressable key={post.id} accessibilityRole="button" accessibilityLabel={`Open highlight: ${post.body}`} style={[styles.highlightListItem, { borderColor: theme.border }]} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
-          <AppText style={[styles.highlightTitle, { color: theme.text }]}>{post.body}</AppText>
+          <AppText style={[styles.highlightTitle, { color: theme.text }]} numberOfLines={2}>{post.body}</AppText>
           <Badge>{post.kind}</Badge>
         </Pressable>
       ))}
@@ -515,6 +515,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs
   },
+  highlightScroll: {
+    flexGrow: 0,
+    minHeight: 90
+  },
   highlightPill: {
     alignItems: 'center',
     gap: 6,
@@ -546,6 +550,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     justifyContent: 'flex-end',
+    overflow: 'hidden',
     gap: spacing.xs
   },
   highlightTitle: {

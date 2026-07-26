@@ -19,13 +19,13 @@ import type { Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const filters: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Badminton'];
+const filters: ('All' | Sport)[] = ['All', 'Basketball', 'Football', 'Tennis', 'Badminton'];
 
 export function CourtsScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const profileCity = useAuthStore((state) => state.profile?.city ?? '');
-  const [filter, setFilter] = useState<'All Sports' | Sport>('All Sports');
+  const [filter, setFilter] = useState<'All' | Sport>('All');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [city, setCity] = useState(profileCity);
   const [appliedCity, setAppliedCity] = useState('');
@@ -39,7 +39,7 @@ export function CourtsScreen() {
   const coordinates = manualCoordinates ?? location.data?.coordinates ?? null;
   const fallbackCity = location.data?.status === 'granted' ? appliedCity : appliedCity || profileCity;
   const { data: courts = [], isLoading, isError, isRefetching, refetch } = useCourts({
-    sport: filter === 'All Sports' ? undefined : filter,
+    sport: filter === 'All' ? undefined : filter,
     city: fallbackCity,
     maxHourlyPrice: maxPrice ? Number(maxPrice) : undefined,
     maxDistanceKm: maxDistance ? Number(maxDistance) : undefined,
@@ -187,9 +187,9 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   filters: {
-    alignItems: 'flex-start',
     paddingHorizontal: spacing.screen,
-    paddingBottom: 14
+    paddingBottom: 14,
+    alignItems: 'center'
   },
   filterScroller: {
     flexGrow: 0

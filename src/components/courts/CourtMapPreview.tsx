@@ -1,48 +1,29 @@
-import { useState } from 'react';
 import { MapPin } from 'lucide-react-native';
-import { Alert, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { Court } from '@/types/domain';
+import { openCourtInMaps } from '@/utils/maps';
 
 export function CourtMapPreview({ court }: { court?: Court }) {
   const { colors: theme } = useAppTheme();
-  const [opening, setOpening] = useState(false);
-
-  const openMaps = async () => {
-    if (opening) return;
-    const coordinates = court ? `${court.latitude},${court.longitude}` : null;
-    const query = court ? coordinates : 'sports courts near me';
-    const label = encodeURIComponent(court?.name ?? 'Sports courts near me');
-    const webUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query ?? '')}`;
-    const nativeUrl = Platform.select({
-      ios: court ? `maps://?q=${label}&ll=${coordinates}` : `maps://?q=${label}`,
-      android: court ? `geo:${coordinates}?q=${coordinates}(${label})` : `geo:0,0?q=${label}`,
-      default: webUrl
-    }) ?? webUrl;
-
-    setOpening(true);
-    try {
-      await Linking.openURL(nativeUrl);
-    } catch {
-      try {
-        if (nativeUrl === webUrl) throw new Error('No compatible maps application is available.');
-        await Linking.openURL(webUrl);
-      } catch (error) {
-        Alert.alert(
-          'Could not open maps',
-          error instanceof Error ? error.message : 'Copy the court address and try another maps application.'
-        );
-      }
-    } finally {
-      setOpening(false);
-    }
-  };
 
   return (
-    <View style={[styles.preview, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={court ? `Open ${court.name} in Maps` : 'Court location unavailable'}
+      accessibilityState={{ disabled: !court }}
+      disabled={!court}
+      style={({ pressed }) => [
+        styles.preview,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+        pressed ? styles.pressed : null,
+        !court ? styles.disabled : null
+      ]}
+      onPress={() => void openCourtInMaps(court)}
+    >
       <View style={[styles.icon, { backgroundColor: theme.accentSoft }]}>
         <MapPin size={30} color={theme.accent} />
       </View>
@@ -53,18 +34,10 @@ export function CourtMapPreview({ court }: { court?: Court }) {
         </AppText>
         <AppText style={[styles.disclaimer, { color: theme.textSubtle }]}>Single-location preview</AppText>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={court ? `Open ${court.name} in Maps` : 'Find sports courts in Maps'}
-        accessibilityState={{ busy: opening, disabled: opening }}
-        hitSlop={10}
-        style={[styles.button, { backgroundColor: theme.accent }, opening ? styles.disabled : null]}
-        onPress={() => void openMaps()}
-        disabled={opening}
-      >
-        <AppText style={[styles.buttonText, { color: theme.onAccent }]}>{opening ? 'Opening…' : 'Maps'}</AppText>
-      </Pressable>
-    </View>
+      <View style={[styles.button, { backgroundColor: theme.accent }]}>
+        <AppText style={[styles.buttonText, { color: theme.onAccent }]}>Maps</AppText>
+      </View>
+    </Pressable>
   );
 }
 
@@ -80,6 +53,12 @@ const styles = StyleSheet.create({
     borderColor: colors.dark[700],
     backgroundColor: colors.dark[800],
     padding: spacing.md
+  },
+  pressed: {
+    opacity: 0.85
+  },
+  disabled: {
+    opacity: 0.55
   },
   icon: {
     width: 54,
@@ -112,9 +91,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  disabled: {
-    opacity: 0.45
   },
   buttonText: {
     color: colors.light[0],

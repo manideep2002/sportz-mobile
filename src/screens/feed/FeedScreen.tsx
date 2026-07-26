@@ -292,9 +292,9 @@ const styles = StyleSheet.create({
     marginBottom: 14
   },
   chips: {
-    alignItems: 'flex-start',
     paddingHorizontal: spacing.screen,
-    paddingBottom: 18
+    paddingBottom: 18,
+    alignItems: 'center'
   },
   chipScroller: {
     flexGrow: 0

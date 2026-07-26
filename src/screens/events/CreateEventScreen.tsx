@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     flexGrow: 0
   },
   chipContent: {
-    alignItems: 'flex-start'
+    alignItems: 'center'
   },
   label: {
     color: colors.text.tertiary,

@@ -125,7 +125,6 @@ export function CourtBookingScreen() {
           </AppText>
         </View>
       ) : null}
-
       {availability.isLoading ? (
         <View style={styles.state}>
           <ActivityIndicator color={theme.accent} />
@@ -229,7 +228,7 @@ const styles = StyleSheet.create({
     flexGrow: 0
   },
   filterContent: {
-    alignItems: 'flex-start'
+    alignItems: 'center'
   },
   label: {
     color: colors.text.tertiary,

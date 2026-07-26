@@ -63,9 +63,9 @@ const styles = StyleSheet.create({
     opacity: 0.55
   },
   sportIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: '#0A1A08',
     alignItems: 'center',
     justifyContent: 'center'

@@ -287,7 +287,8 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     paddingHorizontal: spacing.screen,
-    paddingBottom: 16
+    paddingBottom: 16,
+    alignItems: 'center'
   },
   horizontalScroller: {
     flexGrow: 0
