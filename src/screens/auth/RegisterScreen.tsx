@@ -578,7 +578,7 @@ export function RegisterScreen({ navigation }: Props) {
           >
             Create Profile
           </Button>
-          <Pressable style={styles.switch} onPress={() => navigation.navigate('Login')}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign in to an existing account" style={styles.switch} onPress={() => navigation.navigate('Login')}>
             <AppText variant="bodyMuted">Already have an account? </AppText>
             <AppText style={[styles.link, { color: theme.accent }]}>Sign In</AppText>
           </Pressable>
@@ -716,7 +716,12 @@ function LocationPickerModal({
             Auto Detect Location
           </Button>
           {canUseTypedLocation ? (
-            <Pressable style={[styles.pickerOptionFeatured, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]} onPress={() => onSelect(typedLocation)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${typedLocation} as location`}
+              style={[styles.pickerOptionFeatured, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}
+              onPress={() => onSelect(typedLocation)}
+            >
               <AppText style={styles.pickerOptionTitle}>Use &ldquo;{typedLocation}&rdquo;</AppText>
               <AppText variant="small">Add this as your location</AppText>
             </Pressable>
@@ -733,6 +738,9 @@ function LocationPickerModal({
                     borderBottomColor: location === selectedLocation ? theme.accentBorder : theme.border
                   }
                 ]}
+                accessibilityRole="radio"
+                accessibilityLabel={location}
+                accessibilityState={{ checked: location === selectedLocation }}
                 onPress={() => onSelect(location)}
               >
                 <AppText style={styles.pickerOptionTitle}>{location}</AppText>
@@ -807,7 +815,10 @@ function SportPickerModal({
                       backgroundColor: selected ? theme.accentSoft : 'transparent',
                       borderBottomColor: selected ? theme.accentBorder : theme.border
                     }
-                  ]}
+                ]}
+                  accessibilityRole={mode === 'primary' ? "radio" : "checkbox"}
+                  accessibilityLabel={sport}
+                  accessibilityState={mode === 'primary' ? { checked: selected } : { checked: selected }}
                   onPress={() => (mode === 'primary' ? onPrimarySelect(sport) : onSecondaryToggle(sport))}
                 >
                   <AppText style={styles.pickerOptionTitle}>
@@ -886,6 +897,7 @@ function CalendarModal({ visible, selectedDate, monthDate, onMonthChange, onSele
                   ]}
                   accessibilityRole={date ? 'button' : undefined}
                   accessibilityLabel={date ? `Select ${monthNames[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}` : undefined}
+                  accessibilityState={date ? { selected: isSelected } : { disabled: true }}
                 >
                   <AppText style={[
                     styles.dayText,

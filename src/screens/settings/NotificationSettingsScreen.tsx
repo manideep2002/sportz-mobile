@@ -76,7 +76,14 @@ export function NotificationSettingsScreen() {
 function ToggleRow({ label, detail, value, onPress, icon: Icon }: { label: string; detail?: string; value: boolean; onPress: () => void; icon?: typeof Bell }) {
   const { colors: theme } = useAppTheme();
   return (
-    <Pressable style={[styles.row, { backgroundColor: theme.surface }]} onPress={onPress}>
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityHint={detail}
+      accessibilityState={{ checked: value }}
+      style={[styles.row, { backgroundColor: theme.surface }]}
+      onPress={onPress}
+    >
       {Icon ? <Icon size={18} color={theme.accent} /> : null}
       <View style={{ flex: 1 }}>
         <AppText style={styles.label}>{label}</AppText>
@@ -92,7 +99,7 @@ function ToggleRow({ label, detail, value, onPress, icon: Icon }: { label: strin
 const styles = StyleSheet.create({
   content: { gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: 14, backgroundColor: colors.dark[800] },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: 14, backgroundColor: colors.dark[800] },
   label: { color: colors.text.primary, fontFamily: typography.bodyBold, fontSize: 14 },
   switch: { width: 44, height: 26, borderRadius: 13, padding: 3, backgroundColor: colors.dark[700] },
   switchActive: { backgroundColor: colors.orange[500] },

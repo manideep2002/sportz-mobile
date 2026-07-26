@@ -100,10 +100,10 @@ export function ProfileScreen() {
           {profile.isHireable && <Badge tone="green">{t('profile.hireable')}</Badge>}
         </View>
         <View style={styles.stats}>
-          <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'followers' })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${compactNumber(profile.stats.followers)} followers`} style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'followers' })}>
             <StatCard value={compactNumber(profile.stats.followers)} label={t('profile.followers')} tone="orange" />
           </Pressable>
-          <Pressable style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'following' })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${profile.stats.following} following`} style={styles.statTap} onPress={() => navigation.navigate('Followers', { userId: profile.id, mode: 'following' })}>
             <StatCard value={profile.stats.following} label={t('profile.following')} />
           </Pressable>
           <StatCard value={profile.stats.posts} label={t('profile.posts')} />
@@ -163,6 +163,8 @@ function ProfileGrid({ userId }: { userId: string }) {
         return (
           <Pressable
             key={post.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${isStats ? "stats" : "post"} by ${post.author.displayName}`}
             onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
             style={({ pressed }) => [
               styles.gridItem,
@@ -285,6 +287,8 @@ function HighlightsPanel({ userId }: { userId: string }) {
         ].map((item, index) => (
           <Pressable
             key={item.label}
+            accessibilityRole="button"
+            accessibilityLabel={index === 0 ? "Create highlight" : `Show ${item.label} highlights`}
             style={styles.highlightPill}
             onPress={() => {
               if (index === 0) navigation.navigate('CreatePost', { initialKind: 'highlight' });
@@ -311,7 +315,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
         </LinearGradient>
       </View>
       {filteredPosts.slice(0, 4).map((post) => (
-        <Pressable key={post.id} style={[styles.highlightListItem, { borderColor: theme.border }]} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
+        <Pressable key={post.id} accessibilityRole="button" accessibilityLabel={`Open highlight: ${post.body}`} style={[styles.highlightListItem, { borderColor: theme.border }]} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
           <AppText style={[styles.highlightTitle, { color: theme.text }]}>{post.body}</AppText>
           <Badge>{post.kind}</Badge>
         </Pressable>

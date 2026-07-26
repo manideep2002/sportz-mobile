@@ -21,6 +21,7 @@ import { AppText, Avatar, IconButton, ProgressBar, VerifiedName, VideoPlayer } f
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useDeleteStory, useMarkStorySeen, useStories } from '@/hooks/useStories';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { messageService } from '@/services/messageService';
@@ -42,6 +43,7 @@ export function StoryViewerScreen() {
   const { colors: theme } = useAppTheme();
   const currentProfile = useAuthStore((state) => state.profile);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
 
   const { data: stories = [] } = useStories();
   const markStorySeen = useMarkStorySeen();
@@ -177,6 +179,7 @@ export function StoryViewerScreen() {
   // Video stories drive elapsed via onProgress from VideoPlayer.
   useEffect(() => {
     if (isVideo && !mediaFailed) return;
+    if (reducedMotion) return;
     if (!displayMediaUrl && !story) return;
     if (isInputFocused) return;
     if (!isAppActive) return;
@@ -202,6 +205,7 @@ export function StoryViewerScreen() {
     displayMediaUrl,
     isVideo,
     mediaFailed,
+    reducedMotion,
     nextStory,
     goToStory,
     story,
@@ -292,7 +296,7 @@ export function StoryViewerScreen() {
           <VideoPlayer
             uri={displayMediaUrl}
             style={StyleSheet.absoluteFill}
-            autoPlay={!videoPaused}
+            autoPlay={!videoPaused && !reducedMotion}
             paused={videoPaused}
             loop={false}
             muted={isMuted}
@@ -442,6 +446,8 @@ export function StoryViewerScreen() {
             {['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F44F}', '\u{1F3C6}'].map((reaction) => (
               <Pressable
                 key={reaction}
+                accessibilityRole="button"
+                accessibilityLabel={`React ${reaction} to story`}
                 style={styles.reactionButton}
                 disabled={sendingReply}
                 onPress={() => void sendReply(reaction, 'reaction')}
@@ -452,6 +458,7 @@ export function StoryViewerScreen() {
           </View>
           <View style={styles.replyRow}>
             <TextInput
+              accessibilityLabel="Reply to story"
               value={reply}
               onChangeText={setReply}
               onFocus={() => setIsInputFocused(true)}
@@ -463,6 +470,8 @@ export function StoryViewerScreen() {
               onSubmitEditing={() => void sendReply(reply)}
             />
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send story reply"
               style={[
                 styles.sendReply,
                 { backgroundColor: theme.accent },

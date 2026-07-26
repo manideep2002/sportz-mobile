@@ -11,7 +11,7 @@ interface InputProps extends TextInputProps {
   icon?: LucideIcon;
 }
 
-export const Input = forwardRef<TextInput, InputProps>(({ label, icon: Icon, style, ...props }, ref) => {
+export const Input = forwardRef<TextInput, InputProps>(({ label, icon: Icon, style, accessibilityLabel, ...props }, ref) => {
   const theme = useAppTheme();
   return <View style={styles.group}>
     {label ? <AppText style={[styles.label, { color: theme.colors.textSubtle }]}>{label}</AppText> : null}
@@ -19,6 +19,7 @@ export const Input = forwardRef<TextInput, InputProps>(({ label, icon: Icon, sty
       {Icon ? <Icon size={17} color={theme.colors.textSubtle} strokeWidth={2} style={styles.icon} /> : null}
       <TextInput
         ref={ref}
+        accessibilityLabel={accessibilityLabel ?? label ?? (typeof props.placeholder === 'string' ? props.placeholder : undefined)}
         placeholderTextColor={theme.colors.textSubtle}
         selectionColor={theme.colors.accent}
         style={[styles.input, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface, color: theme.colors.text }, Icon ? styles.withIcon : null, style]}

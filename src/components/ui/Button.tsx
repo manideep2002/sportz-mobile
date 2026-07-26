@@ -45,6 +45,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: loading }}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,
@@ -67,6 +68,7 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',

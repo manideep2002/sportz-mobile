@@ -137,6 +137,7 @@ export function EventChatScreen() {
       </ScrollView>
       <View style={[styles.composer, { borderTopColor: theme.border }]}>
         <TextInput
+          accessibilityLabel="Message attendees"
           value={body}
           onChangeText={setBody}
           placeholder="Message attendees..."
@@ -144,7 +145,7 @@ export function EventChatScreen() {
           style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
           onSubmitEditing={() => void send()}
         />
-        <IconButton icon={Send} filled disabled={!body.trim() || sending || isError} onPress={() => void send()} />
+        <IconButton icon={Send} filled accessibilityLabel="Send message to attendees" disabled={!body.trim() || sending || isError} onPress={() => void send()} />
       </View>
     </KeyboardAvoidingView>
   );

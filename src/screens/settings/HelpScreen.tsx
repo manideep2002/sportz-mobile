@@ -25,7 +25,14 @@ export function HelpScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}><IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} /><AppText variant="h3">Help</AppText><View style={{ width: 40 }} /></View>
       {faqs.map(([question, answer]) => (
-        <Pressable key={question} style={[styles.faq, { backgroundColor: theme.surface }]} onPress={() => setOpen(open === question ? null : question)}>
+        <Pressable
+          key={question}
+          accessibilityRole="button"
+          accessibilityLabel={question}
+          accessibilityState={{ expanded: open === question }}
+          style={[styles.faq, { backgroundColor: theme.surface }]}
+          onPress={() => setOpen(open === question ? null : question)}
+        >
           <AppText style={styles.question}>{question}</AppText>
           {open === question ? <AppText variant="bodyMuted">{answer}</AppText> : null}
         </Pressable>

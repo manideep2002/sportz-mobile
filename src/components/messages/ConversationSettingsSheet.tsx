@@ -42,6 +42,8 @@ function SettingsAction({
   detail,
   danger = false,
   loading = false,
+  toggle = false,
+  value = false,
   onPress
 }: {
   icon: LucideIcon;
@@ -49,13 +51,17 @@ function SettingsAction({
   detail: string;
   danger?: boolean;
   loading?: boolean;
+  toggle?: boolean;
+  value?: boolean;
   onPress: () => void;
 }) {
   const { colors: theme } = useAppTheme();
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={toggle ? "switch" : "button"}
       accessibilityLabel={label}
+      accessibilityHint={detail}
+      accessibilityState={toggle ? { checked: value, disabled: loading } : { disabled: loading }}
       disabled={loading}
       onPress={onPress}
       style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}
@@ -123,6 +129,8 @@ export function ConversationSettingsSheet({
             label={pinned ? 'Unpin conversation' : 'Pin conversation'}
             detail={pinned ? 'Move this chat back to all messages.' : 'Keep this chat in the pinned section.'}
             loading={busyAction === 'pin'}
+            toggle
+            value={pinned}
             onPress={onTogglePinned}
           />
           <SettingsAction
@@ -130,6 +138,8 @@ export function ConversationSettingsSheet({
             label={muted ? 'Unmute notifications' : 'Mute notifications'}
             detail={muted ? 'Allow sounds and push notifications again.' : 'Stop sounds and push notifications for this chat.'}
             loading={busyAction === 'mute'}
+            toggle
+            value={muted}
             onPress={onToggleMuted}
           />
           {canManageMembers ? (

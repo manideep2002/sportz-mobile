@@ -403,6 +403,8 @@ export function GroupDetailScreen() {
               {inviteResults.map((player) => (
                 <Pressable
                   key={player.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Invite ${player.displayName}`}
                   style={styles.inviteRow}
                   onPress={() => invitePlayer(player)}
                 >
@@ -493,8 +495,8 @@ function JoinRequestsList({
             <VerifiedName profile={request.requester} style={styles.memberName} numberOfLines={1} />
             <AppText variant="small">@{request.requester.username}</AppText>
           </View>
-          <IconButton icon={Check} size={34} iconSize={16} filled disabled={responding} onPress={() => onRespond(request.id, true)} />
-          <IconButton icon={X} size={34} iconSize={16} disabled={responding} onPress={() => onRespond(request.id, false)} />
+          <IconButton icon={Check} size={34} iconSize={16} filled accessibilityLabel={`Approve ${request.requester.displayName}'s request`} disabled={responding} onPress={() => onRespond(request.id, true)} />
+          <IconButton icon={X} size={34} iconSize={16} accessibilityLabel={`Decline ${request.requester.displayName}'s request`} disabled={responding} onPress={() => onRespond(request.id, false)} />
         </View>
       ))}
     </View>
@@ -542,10 +544,11 @@ function MemberRow({
             size={34}
             iconSize={16}
             color={member.role === 'admin' ? theme.accent : theme.textMuted}
+            accessibilityLabel={member.role === 'admin' ? `Remove admin role from ${member.profile.displayName}` : `Make ${member.profile.displayName} an admin`}
             disabled={busy}
             onPress={onToggleAdmin}
           />
-          <IconButton icon={UserMinus} size={34} iconSize={16} color={theme.danger} disabled={busy} onPress={onRemove} />
+          <IconButton icon={UserMinus} size={34} iconSize={16} color={theme.danger} accessibilityLabel={`Remove ${member.profile.displayName} from community`} disabled={busy} onPress={onRemove} />
         </View>
       ) : null}
     </View>
@@ -569,6 +572,8 @@ function Action({
   const toneColor = danger ? theme.danger : theme.accent;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={[
         styles.action,
         {

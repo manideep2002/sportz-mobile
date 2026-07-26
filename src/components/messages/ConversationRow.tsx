@@ -22,7 +22,14 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
   const title = conversation.isGroup ? conversation.title : other?.displayName ?? conversation.title;
 
   return (
-    <Pressable onPress={onPress} onLongPress={onMenuPress} style={[styles.row, { borderBottomColor: theme.border }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${conversation.unreadCount ? `${conversation.unreadCount} unread. ` : ""}Open conversation with ${title}`}
+      accessibilityHint={onMenuPress ? "Long press for conversation options" : undefined}
+      onPress={onPress}
+      onLongPress={onMenuPress}
+      style={[styles.row, { borderBottomColor: theme.border }]}
+    >
       <Avatar
         initials={avatarInitials}
         uri={conversation.isGroup ? undefined : other?.avatarUrl}

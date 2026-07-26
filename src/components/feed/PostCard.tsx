@@ -58,13 +58,26 @@ function PostCardComponent({
 
   return (
     <>
-      <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress}>
+      <Pressable
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={onPress ? `Open post by ${post.author.displayName}` : undefined}
+        onPress={onPress}
+      >
         <Card style={styles.card} padded={false}>
           <View style={styles.header}>
-            <Pressable accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View ${post.author.displayName}'s profile`}
+              onPress={(event) => runAction(event, onAuthorPress)}
+            >
               <Avatar initials={post.author.initials} uri={post.author.avatarUrl} size={40} tone="orange" online={post.author.isOnline} />
             </Pressable>
-            <Pressable style={styles.author} accessibilityRole="button" onPress={(event) => runAction(event, onAuthorPress)}>
+            <Pressable
+              style={styles.author}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${post.author.displayName}'s profile`}
+              onPress={(event) => runAction(event, onAuthorPress)}
+            >
               <VerifiedName profile={post.author} style={styles.authorName} numberOfLines={1} />
               <View style={styles.sportMeta}>
                 <SportIcon sport={post.sport} size={15} />

@@ -116,13 +116,13 @@ export function LoginScreen({ navigation }: Props) {
         </View>
         {errors.password ? <AppText style={[styles.error, { color: theme.danger }]}>{errors.password}</AppText> : null}
         {errors.form ? <AppText style={[styles.error, { color: theme.danger }]}>{errors.form}</AppText> : null}
-        <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Forgot password" onPress={() => navigation.navigate('ForgotPassword')}>
           <AppText style={[styles.forgot, { color: theme.accent }]}>Forgot password?</AppText>
         </Pressable>
         <Button full size="lg" loading={loading} onPress={handleEmailLogin}>
           Sign In
         </Button>
-        <Pressable style={styles.switch} onPress={() => navigation.navigate('Register')}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create an account" style={styles.switch} onPress={() => navigation.navigate('Register')}>
           <AppText variant="bodyMuted">Do not have an account? </AppText>
           <AppText style={[styles.link, { color: theme.accent }]}>Sign Up</AppText>
         </Pressable>

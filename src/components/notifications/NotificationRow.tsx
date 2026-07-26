@@ -52,6 +52,8 @@ export function NotificationRow({
 
   return (
     <Pressable
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${notification.read ? "" : "Unread. "}${notification.title}. ${notification.body}`}
       onPress={onPress}
       style={[
         styles.row,

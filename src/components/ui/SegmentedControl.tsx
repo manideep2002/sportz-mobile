@@ -9,17 +9,21 @@ interface SegmentedControlProps<T extends string> {
   options: T[];
   onChange: (value: T) => void;
   getLabel?: (value: T) => string;
+  accessibilityLabel?: string;
 }
 
-export function SegmentedControl<T extends string>({ value, options, onChange, getLabel }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ value, options, onChange, getLabel, accessibilityLabel = 'Options' }: SegmentedControlProps<T>) {
   const { colors: theme } = useAppTheme();
   return (
-    <View style={[styles.root, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={[styles.root, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {options.map((option) => {
         const selected = option === value;
         return (
           <Pressable
             key={option}
+            accessibilityRole="radio"
+            accessibilityLabel={getLabel?.(option) ?? option}
+            accessibilityState={{ checked: selected }}
             onPress={() => onChange(option)}
             style={[styles.item, selected ? styles.selected : null, selected ? { backgroundColor: theme.accent } : null]}
           >
@@ -42,6 +46,7 @@ const styles = StyleSheet.create({
   },
   item: {
     flex: 1,
+    minHeight: 44,
     alignItems: 'center',
     borderRadius: radii.sm,
     paddingVertical: 9

@@ -200,7 +200,7 @@ export function MessageMedia({
         />
       </Pressable>
       <Modal visible={viewerOpen} transparent animationType="fade" onRequestClose={() => setViewerOpen(false)}>
-        <Pressable style={styles.viewer} onPress={() => setViewerOpen(false)}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close photo viewer" accessibilityViewIsModal style={styles.viewer} onPress={() => setViewerOpen(false)}>
           <ExpoImage
             source={{ uri: fullUrl ?? undefined }}
             style={styles.viewerImage}
@@ -901,6 +901,7 @@ export function ThreadFirstChatScreen({
             onPress={() => void sendMedia()}
           />
           <TextInput
+            accessibilityLabel={editingMessage ? "Edit message" : "Message"}
             value={body}
             onChangeText={updateBody}
             placeholder={editingMessage ? 'Edit message...' : 'Message...'}
