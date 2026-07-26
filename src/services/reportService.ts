@@ -3,7 +3,7 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { UserProfile } from '@/types/domain';
 
-export type ReportEntityType = 'user' | 'post' | 'comment' | 'event' | 'community';
+export type ReportEntityType = 'user' | 'post' | 'comment' | 'event' | 'community' | 'team_offer';
 export type ReportStatus = 'open' | 'reviewed' | 'dismissed' | 'actioned';
 
 export interface ModerationReport {

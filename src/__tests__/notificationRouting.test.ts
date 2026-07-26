@@ -161,6 +161,14 @@ describe('navigateFromNotificationData', () => {
     });
   });
 
+  it('routes a team offer notification to OfferDetail', () => {
+    navigate({ entityType: 'team_offer', entityId: 'offer-1' });
+    expect(mockNavigate).toHaveBeenCalledWith('App', {
+      screen: 'OfferDetail',
+      params: { offerId: 'offer-1' }
+    });
+  });
+
   // ── User profile ─────────────────────────────────────────────────────────────
 
   it('routes to UserProfile via profileId', () => {
@@ -380,6 +388,16 @@ describe('notificationToRouteData', () => {
       entityId: 'bk-9'
     });
     expect(data.bookingId).toBe('bk-9');
+  });
+
+  it('maps team_offer to offerId', () => {
+    const data = notificationToRouteData({
+      ...base,
+      kind: 'invite',
+      entityType: 'team_offer',
+      entityId: 'offer-9'
+    });
+    expect(data.offerId).toBe('offer-9');
   });
 
   it('sets kind and type from notification.kind', () => {

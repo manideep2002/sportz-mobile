@@ -49,8 +49,6 @@ export function mapProfileRow(
       posts: Number(row?.posts_count ?? counts.posts ?? 0),
       games: Number(row?.games_played ?? 0),
       winRate: Number(row?.win_rate ?? 0),
-      bestPoints: row?.best_points ?? undefined,
-      avgRebounds: row?.avg_rebounds === null || row?.avg_rebounds === undefined ? undefined : Number(row.avg_rebounds),
       ...counts
     }
   };

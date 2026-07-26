@@ -8,13 +8,13 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } fro
 import { useAppTranslation } from '@/i18n';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
+import { StructuredStatsPanel } from '@/components/profile/StructuredStatsPanel';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
-import type { UserProfile } from '@/types/domain';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/authService';
 import { compactNumber } from '@/utils/format';
@@ -109,9 +109,14 @@ export function ProfileScreen() {
           <StatCard value={profile.stats.posts} label={t('profile.posts')} />
           <StatCard value={`${profile.stats.winRate}%`} label={t('profile.winRate')} tone="green" />
         </View>
-        <Button variant="dark" size="sm" icon={Bookmark} onPress={() => navigation.navigate('SavedPosts')}>
-          {t('profile.savedPosts')}
-        </Button>
+        <View style={styles.profileActions}>
+          <Button style={styles.profileAction} variant="dark" size="sm" icon={Bookmark} onPress={() => navigation.navigate('SavedPosts')}>
+            {t('profile.savedPosts')}
+          </Button>
+          <Button style={styles.profileAction} variant="ghost" size="sm" onPress={() => navigation.navigate('Offers')}>
+            Team Offers
+          </Button>
+        </View>
       </View>
       <View style={styles.tabs}>
         <SegmentedControl
@@ -122,7 +127,7 @@ export function ProfileScreen() {
         />
       </View>
       {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
-      {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
+      {tab === 'Stats' ? <StructuredStatsPanel profile={profile} /> : null}
       {tab === 'Highlights' ? <HighlightsPanel userId={profile.id} /> : null}
     </Screen>
   );
@@ -215,41 +220,6 @@ function ProfileGrid({ userId }: { userId: string }) {
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-function StatsPanel({ profile }: { profile: UserProfile }) {
-  const { t } = useAppTranslation();
-  const { colors: theme } = useAppTheme();
-  const statLines = [
-    [t('profile.gamesPlayed'), profile.stats.games],
-    [t('profile.winRate'), profile.stats.winRate],
-    [t('profile.bestPoints'), profile.stats.bestPoints ?? 0],
-    [t('profile.avgRebounds'), profile.stats.avgRebounds ?? 0]
-  ] as const;
-
-  const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
-
-  return (
-    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <AppText variant="h4">{t('profile.seasonStats', { year: 2026 })}</AppText>
-      {statLines.map(([label, value]) => (
-        <View key={label} style={styles.statLine}>
-          <View style={styles.statLineTop}>
-            <AppText variant="small">{label}</AppText>
-            <AppText style={[styles.statValue, { color: theme.text }]}>{value}</AppText>
-          </View>
-          <View style={[styles.track, { backgroundColor: theme.surfaceMuted }]}>
-            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%`, backgroundColor: theme.accent }]} />
-          </View>
-        </View>
-      ))}
-      <View style={styles.threeStats}>
-        <StatCard value={profile.stats.bestPoints?.toString() ?? '—'} label={t('profile.bestPts')} tone="orange" />
-        <StatCard value={profile.stats.avgRebounds?.toString() ?? '—'} label={t('profile.avgReb')} />
-        <StatCard value={profile.stats.games.toString()} label={t('profile.games')} tone="green" />
-      </View>
     </View>
   );
 }
@@ -348,6 +318,13 @@ const styles = StyleSheet.create({
   profileInfo: {
     padding: spacing.screen,
     gap: spacing.sm
+  },
+  profileActions: {
+    flexDirection: 'row',
+    gap: spacing.xs
+  },
+  profileAction: {
+    flex: 1
   },
   nameRow: {
     flexDirection: 'row',

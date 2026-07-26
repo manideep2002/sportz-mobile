@@ -29,14 +29,154 @@ export interface UserProfile {
   stats: ProfileStats;
 }
 
+export type TeamManagerRole = 'owner' | 'manager' | 'coach' | 'recruiter';
+export type TeamRosterRole = 'player' | 'captain' | 'reserve';
+
+export interface Team {
+  id: ID;
+  communityId?: ID | null;
+  name: string;
+  sport: Sport;
+  city?: string | null;
+  createdBy?: ID | null;
+  managerRole?: TeamManagerRole;
+  canSendOffers?: boolean;
+}
+
+export type TeamOfferStatus =
+  | 'draft'
+  | 'sent'
+  | 'accepted'
+  | 'declined'
+  | 'withdrawn'
+  | 'expired';
+
+export type CompensationPeriod = 'one_time' | 'match' | 'week' | 'month' | 'season' | 'year';
+
+export interface TeamOffer {
+  id: ID;
+  sender: UserProfile;
+  recipient: UserProfile;
+  team: Team;
+  sport: Sport;
+  position: string;
+  terms: string;
+  compensationAmount?: number | null;
+  compensationCurrency?: string | null;
+  compensationPeriod?: CompensationPeriod | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  expiresAt: string;
+  status: TeamOfferStatus;
+  sentAt?: string | null;
+  acceptedAt?: string | null;
+  declinedAt?: string | null;
+  withdrawnAt?: string | null;
+  expiredAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamOfferHistoryEntry {
+  id: ID;
+  offerId: ID;
+  actor?: UserProfile;
+  fromStatus?: TeamOfferStatus | null;
+  toStatus: TeamOfferStatus;
+  event: string;
+  createdAt: string;
+}
+
+export type StructuredSport = 'basketball' | 'football' | 'cricket';
+export type MatchOutcome = 'win' | 'loss' | 'draw' | 'no_result';
+export type StatVerificationStatus = 'self_reported' | 'pending' | 'verified' | 'rejected';
+
+export interface AthleteSeason {
+  id: ID;
+  athleteId: ID;
+  sport: StructuredSport;
+  label: string;
+  startsOn: string;
+  endsOn: string;
+  createdAt: string;
+}
+
+export interface SportStatDefinition {
+  id: ID;
+  sport: StructuredSport;
+  key: string;
+  label: string;
+  valueType: 'integer' | 'decimal';
+  unit?: string | null;
+  aggregation: 'sum' | 'average' | 'maximum' | 'minimum';
+  required: boolean;
+  minimum?: number | null;
+  maximum?: number | null;
+  displayOrder: number;
+}
+
+export interface AthleteMatchStat {
+  definitionId: ID;
+  key: string;
+  label: string;
+  unit?: string | null;
+  value: number;
+}
+
+export interface AthleteMatch {
+  id: ID;
+  athleteId: ID;
+  seasonId: ID;
+  sport: StructuredSport;
+  playedOn: string;
+  teamName: string;
+  opponentName: string;
+  teamScore?: number | null;
+  opponentScore?: number | null;
+  outcome: MatchOutcome;
+  verificationStatus: StatVerificationStatus;
+  verificationSource?: string | null;
+  stats: AthleteMatchStat[];
+  createdAt: string;
+}
+
+export interface AthleteStatMetric {
+  key: string;
+  label: string;
+  unit?: string | null;
+  aggregation: SportStatDefinition['aggregation'];
+  matchCount: number;
+  value: number;
+  personalBest: number;
+}
+
+export interface AthleteAchievement {
+  id: ID;
+  title: string;
+  description: string;
+  badge: string;
+  progress: number;
+  awardedAt: string;
+}
+
+export interface AthleteStatSummary {
+  athleteId: ID;
+  sport: StructuredSport;
+  season?: AthleteSeason;
+  matchCount: number;
+  wins: number;
+  winRate: number;
+  verifiedMatchCount: number;
+  metrics: AthleteStatMetric[];
+  achievements: AthleteAchievement[];
+}
+
 export interface ProfileStats {
   followers: number;
   following: number;
   posts: number;
   winRate: number;
   games: number;
-  bestPoints?: number;
-  avgRebounds?: number;
 }
 
 export interface Story {
@@ -245,7 +385,7 @@ export interface SportzNotification {
   lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
-  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking';
+  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer';
   data?: Record<string, unknown>;
 }
 

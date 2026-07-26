@@ -82,6 +82,15 @@ export function ModerationScreen() {
           </View>
           <AppText style={styles.reason}>{report.reason}</AppText>
           <AppText variant="bodyMuted">{report.entityType} - {report.entityId}</AppText>
+          {report.entityType === 'team_offer' ? (
+            <Button
+              size="sm"
+              variant="dark"
+              onPress={() => navigation.navigate('OfferDetail', { offerId: report.entityId })}
+            >
+              Review Private Offer
+            </Button>
+          ) : null}
           <View style={styles.reporter}>
             <Avatar initials={report.reporter.initials} uri={report.reporter.avatarUrl} size={34} />
             <View style={{ flex: 1 }}>

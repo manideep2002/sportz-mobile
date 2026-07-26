@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
+import { StructuredStatsPanel } from '@/components/profile/StructuredStatsPanel';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -14,7 +15,6 @@ import { colors, spacing, typography } from '@/design/tokens';
 import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
-import type { UserProfile } from '@/types/domain';
 import { messageService } from '@/services/messageService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { compactNumber } from '@/utils/format';
@@ -311,12 +311,21 @@ export function UserProfileScreen() {
           >
             Message
           </Button>
+          {profile.isHireable && !isBlocked ? (
+            <Button
+              style={styles.actionButton}
+              variant="ghost"
+              onPress={() => navigation.navigate('CreateOffer', { recipientId: profile.id })}
+            >
+              Offer
+            </Button>
+          ) : null}
           <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
         </View>
 
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
         {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
-        {tab === 'Stats' ? <StatsPanel profile={profile} /> : null}
+        {tab === 'Stats' ? <StructuredStatsPanel profile={profile} /> : null}
         {tab === 'Highlights' ? <HighlightsPanel userId={profile.id} /> : null}
       </View>
     </Screen>
@@ -405,53 +414,6 @@ function ProfileGrid({ userId }: { userId: string }) {
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-// -- StatsPanel ---------------------------------------------------------------
-
-function StatsPanel({ profile }: { profile: UserProfile }) {
-  const { colors: theme } = useAppTheme();
-  const statLines = [
-    ['Games Played', profile.stats.games],
-    ['Win Rate', profile.stats.winRate],
-    ['Best Points', profile.stats.bestPoints ?? 0],
-    ['Avg Rebounds', profile.stats.avgRebounds ?? 0]
-  ] as const;
-
-  const maxVal = Math.max(...statLines.map(([, v]) => v), 1);
-
-  return (
-    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <AppText variant="h4">Season Stats - 2026</AppText>
-      {statLines.map(([label, value]) => (
-        <View key={label} style={styles.statLine}>
-          <View style={styles.statLineTop}>
-            <AppText variant="small">{label}</AppText>
-            <AppText style={[styles.statValue, { color: theme.text }]}>{value}</AppText>
-          </View>
-          <View style={[styles.track, { backgroundColor: theme.surfaceMuted }]}>
-            <View style={[styles.fill, { width: `${Math.round((value / maxVal) * 100)}%`, backgroundColor: theme.accent }]} />
-          </View>
-        </View>
-      ))}
-      <View style={styles.threeStats}>
-        <StatCard
-          value={profile.stats.bestPoints?.toString() ?? '-'}
-          label="Best PTS"
-          tone="orange"
-        />
-        <StatCard
-          value={profile.stats.avgRebounds?.toString() ?? '-'}
-          label="Avg REB"
-        />
-        <StatCard
-          value={profile.stats.games.toString()}
-          label="Games"
-          tone="green"
-        />
-      </View>
     </View>
   );
 }

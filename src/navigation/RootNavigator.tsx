@@ -27,6 +27,11 @@ import { UserProfileScreen } from '@/screens/profile/UserProfileScreen';
 import { ChatScreen } from '@/screens/messages/ChatScreen';
 import { NewMessageScreen } from '@/screens/messages/NewMessageScreen';
 import { FindPlayersScreen } from '@/screens/profile/FindPlayersScreen';
+import { CreateOfferScreen } from '@/screens/offers/CreateOfferScreen';
+import { OffersScreen } from '@/screens/offers/OffersScreen';
+import { OfferDetailScreen } from '@/screens/offers/OfferDetailScreen';
+import { StatsEntryScreen } from '@/screens/stats/StatsEntryScreen';
+import { MatchHistoryScreen } from '@/screens/stats/MatchHistoryScreen';
 import { CreatePostScreen } from '@/screens/feed/CreatePostScreen';
 import { PostDetailScreen } from '@/screens/feed/PostDetailScreen';
 import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
@@ -75,7 +80,8 @@ const linking: LinkingOptions<RootStackParamList> = {
           PostDetail: 'post/:postId',
           UserProfile: 'profile/:userId',
           EventDetail: 'event/:eventId',
-          CourtBookingDetail: 'booking/:bookingId'
+          CourtBookingDetail: 'booking/:bookingId',
+          OfferDetail: 'offer/:offerId'
         }
       }
     }
@@ -125,6 +131,11 @@ function AppNavigator() {
       <App.Screen name="NewMessage" component={NewMessageScreen} />
       <App.Screen name="Chat" component={ChatScreen} getId={({ params }) => params.conversationId} />
       <App.Screen name="FindPlayers" component={FindPlayersScreen} />
+      <App.Screen name="CreateOffer" component={CreateOfferScreen} />
+      <App.Screen name="Offers" component={OffersScreen} />
+      <App.Screen name="OfferDetail" component={OfferDetailScreen} />
+      <App.Screen name="StatsEntry" component={StatsEntryScreen} />
+      <App.Screen name="MatchHistory" component={MatchHistoryScreen} />
       <App.Screen name="CreatePost" component={CreatePostScreen} />
       <App.Screen name="PostDetail" component={PostDetailScreen} />
       <App.Screen name="GroupDetail" component={GroupDetailScreen} />

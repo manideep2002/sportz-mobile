@@ -135,7 +135,7 @@ export function FindPlayersScreen() {
           <AppText style={styles.bannerTitle}>Hire for Your Team</AppText>
           <AppText variant="small">Browse available athletes and send offers</AppText>
         </View>
-        <Button size="sm" onPress={resetFilters}>Browse</Button>
+        <Button size="sm" onPress={() => navigation.navigate('Offers')}>Offers</Button>
       </View>
       {players.map((player) => (
         <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -180,6 +180,16 @@ export function FindPlayersScreen() {
             >
               Message
             </Button>
+            {player.isHireable ? (
+              <Button
+                style={styles.actionButton}
+                size="sm"
+                variant="ghost"
+                onPress={() => navigation.navigate('CreateOffer', { recipientId: player.id })}
+              >
+                Offer
+              </Button>
+            ) : null}
           </View>
         </View>
       ))}

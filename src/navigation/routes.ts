@@ -36,6 +36,15 @@ export type AppStackParamList = {
   NewMessage: { addToConversationId?: string } | undefined;
   Chat: { conversationId: string; targetUserId?: string; openSettings?: boolean };
   FindPlayers: undefined;
+  CreateOffer: { recipientId: string };
+  Offers: { initialDirection?: 'incoming' | 'outgoing' } | undefined;
+  OfferDetail: { offerId: string };
+  StatsEntry: { sport?: 'basketball' | 'football' | 'cricket' } | undefined;
+  MatchHistory: {
+    userId?: string;
+    sport?: 'basketball' | 'football' | 'cricket';
+    seasonId?: string;
+  } | undefined;
   CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight'; communityId?: string; editPostId?: string } | undefined;
   PostDetail: { postId: string; commentId?: string };
   GroupDetail: { communityId: string };
