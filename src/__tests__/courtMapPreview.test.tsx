@@ -32,10 +32,12 @@ describe('CourtMapPreview', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Open Indiranagar Arena in Maps' }));
 
     await waitFor(() => expect(openUrl).toHaveBeenCalledTimes(1));
-    expect(openUrl.mock.calls[0][0]).toMatch(
+    expect(openUrl.mock.calls[0][0]).toBe(
       Platform.OS === 'ios'
-        ? /^maps:\/\/\?q=Indiranagar%20Arena&ll=12\.9,77\.6$/
-        : /^geo:12\.9,77\.6\?q=12\.9,77\.6\(Indiranagar%20Arena\)$/
+        ? 'https://maps.apple.com/?q=Indiranagar%20Arena%2C%20Bengaluru&ll=12.9,77.6'
+        : Platform.OS === 'android'
+          ? 'geo:12.9,77.6?q=Indiranagar%20Arena%2C%20Bengaluru'
+          : 'https://www.google.com/maps/search/?api=1&query=Indiranagar%20Arena%2C%20Bengaluru%20(12.9%2C77.6)'
     );
   });
 
@@ -52,18 +54,12 @@ describe('CourtMapPreview', () => {
     ));
   });
 
-  it('opens a nearby-courts search when discovery has no selected court', async () => {
+  it('announces an unavailable location when discovery has no selected court', async () => {
     const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     await render(<CourtMapPreview />);
 
-    const mapsButton = screen.getByRole('button', { name: 'Find sports courts in Maps' });
-    expect(mapsButton.props.accessibilityState.disabled).toBe(false);
-    await fireEvent.press(mapsButton);
-
-    await waitFor(() => expect(openUrl).toHaveBeenCalledWith(
-      Platform.OS === 'ios'
-        ? 'maps://?q=Sports%20courts%20near%20me'
-        : 'geo:0,0?q=Sports%20courts%20near%20me'
-    ));
+    const mapsButton = screen.getByRole('button', { name: 'Court location unavailable' });
+    expect(mapsButton.props.accessibilityState.disabled).toBe(true);
+    expect(openUrl).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,13 @@
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  createEdgeObservability,
+  edgeJsonResponse,
+  type EdgeObservabilityContext
+} from '../_shared/observability.ts';
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
 
 type SocialEventType = 'like' | 'comment' | 'follow';
 
@@ -290,7 +297,7 @@ const drainQueueOnce = async () => {
   };
 };
 
-const runQueueConsumer = async () => {
+const runQueueConsumer = async (observability: EdgeObservabilityContext) => {
   let read = 0;
   let recorded = 0;
   let archived = 0;
@@ -313,46 +320,47 @@ const runQueueConsumer = async () => {
     secondFlush = await flushDueBundles();
   }
 
-  console.log(
-    JSON.stringify({
-      stage: 'process-social-events',
-      read,
-      recorded,
-      archived,
-      poisoned,
-      delivered: firstFlush.delivered + secondFlush.delivered,
-      failed: firstFlush.failed + secondFlush.failed
-    })
-  );
+  const failed = firstFlush.failed + secondFlush.failed;
+  observability.log(failed > 0 || poisoned > 0 ? 'warn' : 'info', 'social_queue.completed', {
+    read,
+    recorded,
+    archived,
+    poisoned,
+    delivered: firstFlush.delivered + secondFlush.delivered,
+    failed
+  });
 };
 
 Deno.serve(async (request) => {
+  const observability = createEdgeObservability(request, 'process-social-events');
+
   if (request.method !== 'POST') {
-    return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
+    return edgeJsonResponse(observability, { ok: false, error: 'Method not allowed' }, { status: 405 });
   }
 
   let webhookSecret: string | null;
   try {
     webhookSecret = await getWebhookSecret();
   } catch (error) {
-    return Response.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : 'Webhook secret lookup failed.'
-      },
-      { status: 500 }
-    );
+    observability.log('error', 'webhook.secret_lookup_failed', {
+      error: error instanceof Error ? error.message : 'Webhook secret lookup failed'
+    });
+    return edgeJsonResponse(observability, { ok: false, error: 'Server misconfiguration' }, { status: 500 });
   }
 
   if (!webhookSecret || request.headers.get('x-supabase-webhook-secret') !== webhookSecret) {
-    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    observability.log('warn', 'webhook.unauthorized');
+    return edgeJsonResponse(observability, { ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   EdgeRuntime.waitUntil(
-    runQueueConsumer().catch((error) => {
-      console.error('process-social-events background failure', error);
+    runQueueConsumer(observability).catch((error) => {
+      observability.log('error', 'social_queue.background_failed', {
+        error: error instanceof Error ? error.message : 'Unknown background failure'
+      });
     })
   );
 
-  return Response.json({ ok: true, accepted: true });
+  observability.log('info', 'social_queue.accepted');
+  return edgeJsonResponse(observability, { ok: true, accepted: true });
 });

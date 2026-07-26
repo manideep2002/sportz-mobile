@@ -1,7 +1,7 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 const tanstackLegacyBuilds = {
   '@tanstack/query-async-storage-persister': 'node_modules/@tanstack/query-async-storage-persister/build/legacy/index.cjs',

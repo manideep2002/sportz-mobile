@@ -1,4 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  createEdgeObservability,
+  edgeJsonResponse
+} from '../_shared/observability.ts';
 
 type NotificationKind =
   | 'like'
@@ -324,35 +328,43 @@ const markNotificationAttempt = async (
 };
 
 Deno.serve(async (request) => {
+  const observability = createEdgeObservability(request, 'notification-dispatcher');
+
   if (request.method !== 'POST') {
-    return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
+    return edgeJsonResponse(observability, { ok: false, error: 'Method not allowed' }, { status: 405 });
   }
 
   let webhookSecret: string | null;
   try {
     webhookSecret = await getWebhookSecret();
   } catch (error) {
-    return Response.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : 'Webhook secret lookup failed.'
-      },
-      { status: 500 }
-    );
+    observability.log('error', 'webhook.secret_lookup_failed', {
+      error: error instanceof Error ? error.message : 'Webhook secret lookup failed'
+    });
+    return edgeJsonResponse(observability, { ok: false, error: 'Server misconfiguration' }, { status: 500 });
   }
 
   if (!webhookSecret || request.headers.get('x-supabase-webhook-secret') !== webhookSecret) {
-    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    observability.log('warn', 'webhook.unauthorized');
+    return edgeJsonResponse(observability, { ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const payload = (await request.json()) as WebhookPayload;
+  let payload: WebhookPayload;
+  try {
+    payload = (await request.json()) as WebhookPayload;
+  } catch (error) {
+    observability.log('warn', 'webhook.invalid_payload', {
+      error: error instanceof Error ? error.message : 'Invalid JSON payload'
+    });
+    return edgeJsonResponse(observability, { ok: false, error: 'Invalid webhook payload' }, { status: 400 });
+  }
   if (payload.type !== 'INSERT' || payload.schema !== 'public' || payload.table !== 'notifications') {
-    return Response.json({ ok: true, sent: 0, skipped: 0 });
+    return edgeJsonResponse(observability, { ok: true, sent: 0, skipped: 0 });
   }
 
   const notification = payload.record;
   if (!notification || notification.push_sent_at) {
-    return Response.json({ ok: true, sent: 0, skipped: 1 });
+    return edgeJsonResponse(observability, { ok: true, sent: 0, skipped: 1 });
   }
 
   const [{ data: tokenRows, error: tokenError }, { data: profileRows }, { data: preferenceRow }] =
@@ -377,7 +389,8 @@ Deno.serve(async (request) => {
     ]);
 
   if (tokenError) {
-    return Response.json({ ok: false, error: tokenError.message }, { status: 500 });
+    observability.log('error', 'push.token_query_failed', { error: tokenError.message });
+    return edgeJsonResponse(observability, { ok: false, error: 'Push token lookup failed' }, { status: 500 });
   }
 
   const preferences = preferenceRow as NotificationPreferenceRow | null;
@@ -392,7 +405,10 @@ Deno.serve(async (request) => {
       pushTicketIds: []
     });
 
-    return Response.json({
+    observability.log('info', 'push.skipped', {
+      reason: activeTokens.length === 0 ? 'no_active_tokens' : 'preference_disabled'
+    });
+    return edgeJsonResponse(observability, {
       ok: true,
       sent: 0,
       skipped: activeTokens.length === 0 ? 1 : activeTokens.length
@@ -440,13 +456,24 @@ Deno.serve(async (request) => {
     pushTicketIds: result.ticketIds
   });
 
-  return Response.json(
+  observability.log(fatalError ? 'error' : result.errors.length ? 'warn' : 'info', fatalError
+    ? 'push.delivery_failed'
+    : 'push.delivery_completed', {
+    attempted: messages.length,
+    tickets: result.ticketIds.length,
+    invalid_tokens: result.invalidTokenIds.length,
+    error_count: result.errors.length,
+    attempt: (notification.push_attempts ?? 0) + 1
+  });
+
+  return edgeJsonResponse(
+    observability,
     {
       ok: !fatalError,
       sent: fatalError ? 0 : messages.length - result.invalidTokenIds.length,
       skipped: result.invalidTokenIds.length,
       tickets: result.ticketIds.length,
-      error: result.errors[0] ?? null
+      error: fatalError ? 'Push delivery failed' : null
     },
     { status: fatalError ? 502 : 200 }
   );

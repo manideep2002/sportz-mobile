@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
+import { captureUnexpectedError } from '@/lib/monitoring';
 import type { ChatParticipantRole, Conversation, Message, UserProfile } from '@/types/domain';
 import type { ChatMessageType, ThreadChatMessage, ThreadChatParticipant } from '@/types/threadFirstChat';
 
@@ -467,7 +468,16 @@ export const threadFirstChatService = {
         target_media_mime_type: message.mediaMimeType
       });
 
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, {
+        operation: 'chat.send',
+        extra: {
+          roomId: message.roomId,
+          messageType: message.messageType
+        }
+      });
+      throw error;
+    }
     return mapMessageRow(data as ChatMessageRow);
   },
 
@@ -612,27 +622,38 @@ export const threadFirstChatService = {
       };
     }
 
-    const { ext, mime } = resolveExtAndMime(asset);
-    const safeExt = ext === 'quicktime' ? 'mov' : ext;
-    const path = `${roomId}/${userId}/${messageId}.${safeExt}`;
-    const fileData = await readFileAsArrayBuffer(asset.uri);
+    try {
+      const { ext, mime } = resolveExtAndMime(asset);
+      const safeExt = ext === 'quicktime' ? 'mov' : ext;
+      const path = `${roomId}/${userId}/${messageId}.${safeExt}`;
+      const fileData = await readFileAsArrayBuffer(asset.uri);
 
-    const { error } = await supabase.storage.from(CHAT_MEDIA_BUCKET).upload(path, fileData, {
-      cacheControl: '31536000',
-      contentType: VIDEO_EXTS.has(safeExt) ? mimeFromExt(safeExt) : mime,
-      upsert: false
-    });
+      const { error } = await supabase.storage.from(CHAT_MEDIA_BUCKET).upload(path, fileData, {
+        cacheControl: '31536000',
+        contentType: VIDEO_EXTS.has(safeExt) ? mimeFromExt(safeExt) : mime,
+        upsert: false
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const { data } = supabase.storage.from(CHAT_MEDIA_BUCKET).getPublicUrl(path);
-    return {
-      mediaUrl: data.publicUrl,
-      mediaPath: path,
-      mediaWidth: asset.width ?? null,
-      mediaHeight: asset.height ?? null,
-      mediaMimeType: mime
-    };
+      const { data } = supabase.storage.from(CHAT_MEDIA_BUCKET).getPublicUrl(path);
+      return {
+        mediaUrl: data.publicUrl,
+        mediaPath: path,
+        mediaWidth: asset.width ?? null,
+        mediaHeight: asset.height ?? null,
+        mediaMimeType: mime
+      };
+    } catch (error) {
+      captureUnexpectedError(error, {
+        operation: 'chat.media_upload',
+        extra: {
+          roomId,
+          mediaKind: asset.type === 'video' ? 'video' : 'image'
+        }
+      });
+      throw error;
+    }
   },
 
   getBubbleImageUrl(mediaPath: string | null, fallbackUrl: string | null) {

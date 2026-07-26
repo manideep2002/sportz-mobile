@@ -12,6 +12,7 @@ import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { useRealtimeNotifications } from '@/hooks/useNotifications';
+import { captureUnexpectedError } from '@/lib/monitoring';
 
 export const usePushNotifications = () => {
   const userId = useAuthStore((state) => state.user?.id);
@@ -41,10 +42,14 @@ export const usePushNotifications = () => {
     // Push token registration is native-only; guarded inside the function as well,
     // but the explicit check here makes the intent clear to future readers.
     if (isNativePlatform()) {
-      void registerForPushNotificationsAsync().catch(() => {});
+      void registerForPushNotificationsAsync().catch((error) => {
+        captureUnexpectedError(error, { operation: 'push.registration' });
+      });
     }
 
-    void notificationService.countUnread().then(setNotificationUnreadCount).catch(() => {});
+    void notificationService.countUnread().then(setNotificationUnreadCount).catch((error) => {
+      captureUnexpectedError(error, { operation: 'notifications.count_unread' });
+    });
   }, [setNotificationUnreadCount, userId]);
 
   useEffect(() => {
@@ -65,7 +70,9 @@ export const usePushNotifications = () => {
           handleNotificationResponse(response);
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        captureUnexpectedError(error, { operation: 'push.last_response' });
+      });
 
     return () => {
       // Both subscriptions were created together; remove them together.

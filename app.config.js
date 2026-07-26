@@ -65,7 +65,8 @@ module.exports = {
           sounds: []
         }
       ],
-      '@react-native-community/datetimepicker'
+      '@react-native-community/datetimepicker',
+      '@sentry/react-native/expo'
     ],
     web: {
       bundler: 'metro',
@@ -81,7 +82,10 @@ module.exports = {
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
       EXPO_PUBLIC_APP_SCHEME: process.env.EXPO_PUBLIC_APP_SCHEME,
-      EXPO_PUBLIC_MAP_PROVIDER: process.env.EXPO_PUBLIC_MAP_PROVIDER
+      EXPO_PUBLIC_MAP_PROVIDER: process.env.EXPO_PUBLIC_MAP_PROVIDER,
+      EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+      EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
+      EXPO_PUBLIC_ENABLE_DEV_MONITORING: process.env.EXPO_PUBLIC_ENABLE_DEV_MONITORING
     },
     updates: {
       url: 'https://u.expo.dev/2961c035-fb1f-4581-8f72-798e998d175a'

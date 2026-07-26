@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
+import { captureUnexpectedError } from '@/lib/monitoring';
 import {
   buildStorageObjectName,
   resolveAssetExtAndMime,
@@ -19,6 +20,19 @@ export interface StoredProfileCover {
 export interface StoredEventCover {
   bucket: 'event-covers';
   objectName: string;
+}
+
+async function observeUpload<T>(
+  operation: string,
+  extra: Record<string, unknown>,
+  action: () => Promise<T>
+): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    captureUnexpectedError(error, { operation, extra });
+    throw error;
+  }
 }
 
 async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
@@ -193,18 +207,23 @@ export const storageService = {
 
     if (!env.isSupabaseConfigured) return pickerAsset.uri;
 
-    const { ext, mime } = resolveAssetExtAndMime(pickerAsset);
-    const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const fileData = await readFileAsArrayBuffer(pickerAsset.uri);
+    return observeUpload('media.upload', {
+      bucket,
+      mediaKind: pickerAsset.type === 'video' ? 'video' : 'image'
+    }, async () => {
+      const { ext, mime } = resolveAssetExtAndMime(pickerAsset);
+      const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const fileData = await readFileAsArrayBuffer(pickerAsset.uri);
 
-    const { error } = await supabase.storage.from(bucket).upload(path, fileData, {
-      contentType: mime,
-      upsert: false
+      const { error } = await supabase.storage.from(bucket).upload(path, fileData, {
+        contentType: mime,
+        upsert: false
+      });
+      if (error) throw error;
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      return data.publicUrl;
     });
-    if (error) throw error;
-
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
   },
 
   async uploadProfileCover(
@@ -218,16 +237,21 @@ export const storageService = {
 
     if (!env.isSupabaseConfigured) return asset.uri;
 
-    const { ext, mime } = resolveAssetExtAndMime(asset);
-    const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const fileData = await readFileAsArrayBuffer(asset.uri);
-    const { error } = await supabase.storage.from('profile-covers').upload(path, fileData, {
-      contentType: mime,
-      cacheControl: '31536000',
-      upsert: false
+    return observeUpload('media.upload_profile_cover', {
+      bucket: 'profile-covers',
+      mediaKind: 'image'
+    }, async () => {
+      const { ext, mime } = resolveAssetExtAndMime(asset);
+      const path = `${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const fileData = await readFileAsArrayBuffer(asset.uri);
+      const { error } = await supabase.storage.from('profile-covers').upload(path, fileData, {
+        contentType: mime,
+        cacheControl: '31536000',
+        upsert: false
+      });
+      if (error) throw error;
+      return path;
     });
-    if (error) throw error;
-    return path;
   },
 
   async removeProfileCover(value: string): Promise<void> {
@@ -251,21 +275,24 @@ export const storageService = {
     const { ext } = resolveAssetExtAndMime(asset);
     const objectName = buildStorageObjectName(ownerId, ext, postId);
 
-    return resumableUploadService.uploadAsset(asset, {
+    return observeUpload('media.upload_resumable', {
       bucket: 'post-media',
-      ownerId,
-      objectName,
-      cacheControl: '31536000',
-      metadata: {
-        ...(postId ? { postId } : {}),
+      mediaKind: asset.type === 'video' ? 'video' : 'image'
+    }, () => resumableUploadService.uploadAsset(asset, {
+        bucket: 'post-media',
         ownerId,
-        mediaKind: asset.type === 'video' ? 'video' : 'image',
-        width: asset.width,
-        height: asset.height,
-        uploadIntent: 'post-media'
-      },
-      onProgress
-    });
+        objectName,
+        cacheControl: '31536000',
+        metadata: {
+          ...(postId ? { postId } : {}),
+          ownerId,
+          mediaKind: asset.type === 'video' ? 'video' : 'image',
+          width: asset.width,
+          height: asset.height,
+          uploadIntent: 'post-media'
+        },
+        onProgress
+      }));
   },
 
   async removePostMedia(objectName: string): Promise<void> {

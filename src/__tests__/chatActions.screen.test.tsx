@@ -187,10 +187,10 @@ describe('ChatScreen actions', () => {
 
     await screen.findByText('Send the first message.');
     await fireEvent.press(screen.getByRole('button', { name: 'Conversation settings' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Pin conversation' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Pin conversation' }));
     await waitFor(() => expect(mockSetPinned).toHaveBeenCalledWith('room-1', true));
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Mute notifications' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Mute notifications' }));
     await waitFor(() => expect(mockSetMuted).toHaveBeenCalledWith('room-1', true));
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add members' }));

@@ -3,6 +3,7 @@ import { formatLocalizedCurrency, i18n } from '@/i18n';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
+import { captureUnexpectedError } from '@/lib/monitoring';
 import type { EventCreateVisibility } from '@/constants/events';
 import type { EventInvitation, EventInvitationStatus, EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
 
@@ -329,13 +330,25 @@ export const eventService = {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
+    if (authError) {
+      captureUnexpectedError(authError, {
+        operation: 'event.join',
+        extra: { eventId }
+      });
+      throw authError;
+    }
     if (!authData.user) throw new Error('You must be signed in to join events.');
 
     const { data, error } = await supabase.rpc('join_sport_event', {
       target_event_id: eventId
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, {
+        operation: 'event.join',
+        extra: { eventId }
+      });
+      throw error;
+    }
     return data === 'waitlisted' ? 'waitlisted' : 'going';
   },
 

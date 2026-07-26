@@ -10,6 +10,7 @@ import {
   type RegisterInput
 } from '@/schemas/registrationSchema';
 import type { UserProfile } from '@/types/domain';
+import { captureUnexpectedError } from '@/lib/monitoring';
 
 export interface AuthResult {
   session: Session | null;
@@ -31,7 +32,10 @@ export const authService = {
       SESSION_CACHE_KEY,
       async () => {
         const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        if (error) {
+          captureUnexpectedError(error, { operation: 'auth.get_session' });
+          throw error;
+        }
         return {
           session: data.session,
           user: data.session?.user ?? null
@@ -45,7 +49,10 @@ export const authService = {
     assertSupabaseConfigured();
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, { operation: 'auth.sign_in_password' });
+      throw error;
+    }
     const result = { session: data.session, user: data.user };
     await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
     return result;
@@ -80,7 +87,10 @@ export const authService = {
         }
       }
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, { operation: 'auth.sign_up' });
+      throw error;
+    }
     const result = { session: data.session, user: data.user };
     await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
     return result;
@@ -93,7 +103,10 @@ export const authService = {
       provider,
       token: idToken
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, { operation: `auth.sign_in_${provider}` });
+      throw error;
+    }
     const result = { session: data.session, user: data.user };
     await hotCacheService.set(SESSION_CACHE_KEY, result, { ttlMs: SESSION_CACHE_TTL_MS, persist: false });
     return result;

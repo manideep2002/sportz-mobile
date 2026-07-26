@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { Court, CourtAvailabilitySlot, CourtBooking, Sport } from '@/types/domain';
+import { captureUnexpectedError } from '@/lib/monitoring';
 
 export interface CourtCoordinates {
   latitude: number;
@@ -271,7 +272,13 @@ export const courtService = {
       target_starts_at: startsAt,
       target_ends_at: endsAt
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, {
+        operation: 'court.booking',
+        extra: { courtId }
+      });
+      throw error;
+    }
     const row = ((data ?? []) as Record<string, unknown>[])[0];
     if (!row) throw new Error('Booking could not be created.');
     return {

@@ -25,6 +25,7 @@ import { AppText } from '@/components/ui';
 import { colors } from '@/design/tokens';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { useAppTranslation } from '@/i18n';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -84,7 +85,9 @@ export default function App() {
 
   return (
     <AppProviders>
-      {ready ? <AppContent /> : <LoadingSplash />}
+      <AppErrorBoundary>
+        {ready ? <AppContent /> : <LoadingSplash />}
+      </AppErrorBoundary>
     </AppProviders>
   );
 }

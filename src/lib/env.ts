@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { resolveMonitoringEnvironment } from '@/lib/monitoringPrivacy';
 
 const runtimeEnv = Constants.expoConfig?.extra ?? {};
 
@@ -29,5 +30,12 @@ export const env = {
   googleWebClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
   appScheme: getProcessEnv('EXPO_PUBLIC_APP_SCHEME') ?? getRuntimeEnv('EXPO_PUBLIC_APP_SCHEME') ?? 'sportz',
   mapProvider: getProcessEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? getRuntimeEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? 'apple',
+  appEnvironment: resolveMonitoringEnvironment(
+    getProcessEnv('EXPO_PUBLIC_APP_ENV') ?? getRuntimeEnv('EXPO_PUBLIC_APP_ENV')
+  ),
+  sentryDsn: getProcessEnv('EXPO_PUBLIC_SENTRY_DSN') ?? getRuntimeEnv('EXPO_PUBLIC_SENTRY_DSN'),
+  enableDevelopmentMonitoring:
+    (getProcessEnv('EXPO_PUBLIC_ENABLE_DEV_MONITORING') ??
+      getRuntimeEnv('EXPO_PUBLIC_ENABLE_DEV_MONITORING')) === 'true',
   isSupabaseConfigured: isConfiguredValue(supabaseUrl) && isConfiguredValue(supabasePublishableKey)
 };

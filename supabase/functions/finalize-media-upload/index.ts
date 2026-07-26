@@ -1,4 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  createEdgeObservability,
+  edgeJsonResponse,
+  type EdgeObservabilityContext
+} from '../_shared/observability.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -22,19 +27,20 @@ if (!supabaseUrl || !serviceRoleKey) {
   throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (auto-set by Supabase).');
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+const requiredSupabaseUrl = supabaseUrl;
+const requiredServiceRoleKey = serviceRoleKey;
+
+const supabase = createClient(requiredSupabaseUrl, requiredServiceRoleKey, {
   auth: { persistSession: false }
 });
 
 async function resolveWebhookSecret(): Promise<string | null> {
   if (envWebhookSecret) return envWebhookSecret;
-  const { data } = await supabase
-    .schema('private')
-    .from('edge_function_secrets')
-    .select('secret_value')
-    .eq('name', 'finalize_media_upload_webhook')
-    .maybeSingle();
-  return typeof data?.secret_value === 'string' ? data.secret_value : null;
+  const { data, error } = await supabase.rpc('get_edge_function_secret', {
+    secret_name: 'finalize_media_upload_webhook'
+  });
+  if (error) throw error;
+  return typeof data === 'string' ? data : null;
 }
 
 const corsHeaders = {
@@ -110,7 +116,7 @@ function encodedObjectPath(bucketId: string, objectName: string) {
 }
 
 function renderUrl(bucketId: string, objectName: string) {
-  const url = new URL(supabaseUrl);
+  const url = new URL(requiredSupabaseUrl);
   url.pathname = `/storage/v1/render/image/public/${encodedObjectPath(bucketId, objectName)}`;
   url.searchParams.set('width', '10');
   url.searchParams.set('height', '10');
@@ -131,22 +137,25 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
-async function generateTinyPlaceholder(bucketId: string, objectName: string, contentType: string | null) {
+async function generateTinyPlaceholder(
+  bucketId: string,
+  objectName: string,
+  contentType: string | null,
+  observability: EdgeObservabilityContext
+) {
   if (!contentType?.startsWith('image/')) return null;
 
   const response = await fetch(renderUrl(bucketId, objectName), {
     headers: {
-      authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey
+      authorization: `Bearer ${requiredServiceRoleKey}`,
+      apikey: requiredServiceRoleKey
     }
   });
 
   if (!response.ok) {
-    console.warn('placeholder transform failed', {
-      bucketId,
-      objectName,
-      status: response.status,
-      body: await response.text()
+    observability.log('warn', 'media.placeholder_failed', {
+      bucket: bucketId,
+      status: response.status
     });
     return null;
   }
@@ -158,7 +167,11 @@ async function generateTinyPlaceholder(bucketId: string, objectName: string, con
   return `data:${transformedType};base64,${arrayBufferToBase64(buffer)}`;
 }
 
-async function finalizeObject(bucketId: string, objectName: string) {
+async function finalizeObject(
+  bucketId: string,
+  objectName: string,
+  observability: EdgeObservabilityContext
+) {
   if (bucketId !== 'post-media' || objectName.startsWith('__placeholders/')) {
     return { skipped: true, reason: 'not post media' };
   }
@@ -179,7 +192,7 @@ async function finalizeObject(bucketId: string, objectName: string) {
   const height = numericValue(customMetadata.height) ?? numericValue(customMetadata.mediaHeight);
   const mediaKind = contentType?.startsWith('video/') ? 'video' : contentType?.startsWith('image/') ? 'image' : 'unknown';
   const { data: publicUrlData } = supabase.storage.from(bucketId).getPublicUrl(objectName);
-  const mediaPlaceholder = await generateTinyPlaceholder(bucketId, objectName, contentType);
+  const mediaPlaceholder = await generateTinyPlaceholder(bucketId, objectName, contentType, observability);
 
   const assetPayload = {
     post_id: postId,
@@ -229,35 +242,82 @@ async function finalizeObject(bucketId: string, objectName: string) {
 }
 
 Deno.serve(async (request) => {
+  const observability = createEdgeObservability(request, 'finalize-media-upload');
+
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', {
+      headers: {
+        ...corsHeaders,
+        'x-correlation-id': observability.correlationId
+      }
+    });
   }
 
-  const webhookSecret = await resolveWebhookSecret();
+  let webhookSecret: string | null;
+  try {
+    webhookSecret = await resolveWebhookSecret();
+  } catch (error) {
+    observability.log('error', 'webhook.secret_lookup_failed', {
+      error: error instanceof Error ? error.message : 'Webhook secret lookup failed'
+    });
+    return edgeJsonResponse(observability, { ok: false, error: 'Server misconfiguration' }, {
+      status: 500,
+      headers: corsHeaders
+    });
+  }
   if (!webhookSecret) {
-    console.error('finalize-media-upload: webhook secret not configured');
-    return Response.json({ ok: false, error: 'Server misconfiguration' }, { status: 500, headers: corsHeaders });
+    observability.log('error', 'webhook.secret_missing');
+    return edgeJsonResponse(observability, { ok: false, error: 'Server misconfiguration' }, {
+      status: 500,
+      headers: corsHeaders
+    });
   }
 
   const suppliedSecret = request.headers.get('x-supabase-webhook-secret');
   if (suppliedSecret !== webhookSecret) {
-    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    observability.log('warn', 'webhook.unauthorized');
+    return edgeJsonResponse(observability, { ok: false, error: 'Unauthorized' }, {
+      status: 401,
+      headers: corsHeaders
+    });
   }
 
+  let objectRef: { bucketId: string; objectName: string } | null = null;
   try {
     const payload = await request.json() as JsonRecord;
-    const objectRef = objectRefFromPayload(payload);
+    objectRef = objectRefFromPayload(payload);
     if (!objectRef) {
-      return Response.json({ ok: false, error: 'Missing storage object reference.' }, { status: 400, headers: corsHeaders });
+      return edgeJsonResponse(observability, { ok: false, error: 'Missing storage object reference.' }, {
+        status: 400,
+        headers: corsHeaders
+      });
     }
 
-    const result = await finalizeObject(objectRef.bucketId, objectRef.objectName);
-    return Response.json({ ok: true, result }, { headers: corsHeaders });
+    const result = await finalizeObject(objectRef.bucketId, objectRef.objectName, observability);
+    observability.log('info', 'media.processing_completed', {
+      bucket: objectRef.bucketId,
+      media_kind: 'mediaKind' in result ? result.mediaKind : 'unknown',
+      skipped: result.skipped
+    });
+    return edgeJsonResponse(observability, { ok: true, result }, { headers: corsHeaders });
   } catch (error) {
-    console.error('finalize-media-upload failed', error);
-    return Response.json({
+    if (objectRef) {
+      await supabase
+        .from('post_media_assets')
+        .update({
+          status: 'failed',
+          error: 'Media processing failed'
+        })
+        .eq('bucket_id', objectRef.bucketId)
+        .eq('object_name', objectRef.objectName);
+    }
+    observability.log('error', 'media.processing_failed', {
+      bucket: objectRef?.bucketId,
+      error: error instanceof Error ? error.message : 'Media finalization failed'
+    });
+    return edgeJsonResponse(observability, {
       ok: false,
-      error: error instanceof Error ? error.message : 'Media finalization failed.'
+      error: 'Media finalization failed.'
     }, { status: 500, headers: corsHeaders });
   }
 });

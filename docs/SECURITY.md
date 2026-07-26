@@ -32,3 +32,9 @@
 - `court_bookings_no_overlap` remains the final database-level conflict guarantee for pending and confirmed bookings. The booking RPC additionally locks the court row to serialize competing slot requests.
 - User cancellation is limited to pending or confirmed bookings before the court-specific notice deadline. Administrators may cancel active bookings but cannot reopen cancelled bookings.
 - SPORTZ does not process court payments. A court must declare `external` payment or `not_required`.
+
+## Operational monitoring
+
+Crash and delivery monitoring follows the data-minimization and redaction rules
+in [OBSERVABILITY.md](./OBSERVABILITY.md). Monitoring must never be used to
+collect chat content, credentials, contact details, or private media locations.

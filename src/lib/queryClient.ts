@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { QueryClient, onlineManager } from '@tanstack/react-query';
+import { MutationCache, QueryClient, onlineManager } from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { captureUnexpectedError } from '@/lib/monitoring';
 
 onlineManager.setEventListener((setOnline) => {
   // Fetch the initial network state so React Query doesn't start in an
@@ -14,6 +15,16 @@ onlineManager.setEventListener((setOnline) => {
 });
 
 export const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      captureUnexpectedError(error, {
+        operation: 'query.mutation',
+        extra: {
+          mutationKey: mutation.options.mutationKey
+        }
+      });
+    }
+  }),
   defaultOptions: {
     queries: {
       gcTime: 1000 * 60 * 60 * 24,
@@ -30,10 +41,14 @@ export const queryClient = new QueryClient({
   }
 });
 
-// Log query errors to the console so they appear in Metro/device logs.
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type === 'updated' && event.action.type === 'error') {
-    console.error('[React Query] Query failed:', event.query.queryKey, event.action.error);
+    captureUnexpectedError(event.action.error, {
+      operation: 'query.fetch',
+      extra: {
+        queryKey: event.query.queryKey
+      }
+    });
   }
 });
 

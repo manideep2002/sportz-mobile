@@ -50,6 +50,10 @@ import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/
 import { AppText } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
 import { useAppTranslation } from '@/i18n';
+import {
+  recordNavigationRoute,
+  registerNavigationContainer
+} from '@/lib/monitoring';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -161,7 +165,18 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} theme={theme} linking={linking}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={theme}
+      linking={linking}
+      onReady={() => {
+        registerNavigationContainer(navigationRef);
+        recordNavigationRoute(navigationRef.getCurrentRoute()?.name);
+      }}
+      onStateChange={() => {
+        recordNavigationRoute(navigationRef.getCurrentRoute()?.name);
+      }}
+    >
       <Root.Navigator screenOptions={{ headerShown: false }}>
         {authenticated ? (
           <Root.Screen name="App" component={AppNavigator} navigationKey="signed-in" />
