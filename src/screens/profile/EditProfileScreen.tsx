@@ -166,14 +166,24 @@ export function EditProfileScreen() {
         <Input label="Bio" value={bio} onChangeText={setBio} multiline numberOfLines={3} />
         <Input label="Location" value={city} onChangeText={setCity} />
         <AppText style={styles.label}>Primary Sport</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+          style={styles.chipList}
+        >
           {sports.map((item) => (
             <Chip key={item} selected={item === sport} onPress={() => setSport(item)}>{item}</Chip>
           ))}
         </ScrollView>
         <Input label="Position / Role" value={position} onChangeText={setPosition} />
         <AppText style={styles.label}>Skill Level</AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+          style={styles.chipList}
+        >
           {levels.map((item) => (
             <Chip key={item} selected={item === skillLevel} onPress={() => setSkillLevel(item)}>{item}</Chip>
           ))}
@@ -267,5 +277,11 @@ const styles = StyleSheet.create({
   },
   usernameHint: {
     marginTop: -10
+  },
+  chipRow: {
+    alignItems: 'center'
+  },
+  chipList: {
+    flexGrow: 0
   }
 });

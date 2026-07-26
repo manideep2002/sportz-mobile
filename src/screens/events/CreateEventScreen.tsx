@@ -244,7 +244,12 @@ export function CreateEventScreen() {
 
         <View style={styles.group}>
           <AppText style={styles.label}>Sport</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+            style={styles.chipList}
+          >
             {sports.map((item) => (
               <Chip key={item} selected={item === sport} onPress={() => setSport(item)}>
                 {item}
@@ -331,7 +336,12 @@ export function CreateEventScreen() {
 
         <View style={styles.group}>
           <AppText style={styles.label}>Event Type</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+            style={styles.chipList}
+          >
             {eventTypes.map((item) => (
               <Chip key={item} selected={item === eventType} onPress={() => setEventType(item)}>
                 {item}
@@ -342,7 +352,12 @@ export function CreateEventScreen() {
 
         <View style={styles.group}>
           <AppText style={styles.label}>Visibility</AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+            style={styles.chipList}
+          >
             {eventVisibilityOptions.map((option) => (
               <Chip
                 key={option.value}
@@ -420,6 +435,12 @@ const styles = StyleSheet.create({
   },
   group: {
     gap: 8
+  },
+  chipRow: {
+    alignItems: 'center'
+  },
+  chipList: {
+    flexGrow: 0
   },
   label: {
     color: colors.text.tertiary,

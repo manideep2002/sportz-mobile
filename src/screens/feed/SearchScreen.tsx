@@ -67,6 +67,7 @@ export function SearchScreen() {
         data={filters}
         keyExtractor={(item) => item}
         contentContainerStyle={styles.filterRow}
+        style={styles.filterList}
         renderItem={({ item }) => (
           <Chip selected={item === selectedFilter} onPress={() => setSelectedFilter(item)}>
             {item}
@@ -146,7 +147,11 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     paddingHorizontal: spacing.screen,
-    paddingBottom: 16
+    paddingBottom: 16,
+    alignItems: 'center'
+  },
+  filterList: {
+    flexGrow: 0
   },
   section: {
     paddingHorizontal: spacing.screen,

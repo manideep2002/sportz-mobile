@@ -16,7 +16,7 @@ export function CourtCard({ court, onBook, onPress }: CourtCardProps) {
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${court.name}`} onPress={onPress}>
       <Card style={[styles.card, !court.availableNow ? styles.disabled : null]}>
         <View style={styles.sportIcon}>
-          <AppText variant="h2">{court.sport.slice(0, 1)}</AppText>
+          <AppText variant="h3">{court.sport.slice(0, 1)}</AppText>
         </View>
         <View style={styles.meta}>
           <AppText style={styles.name}>{court.name}</AppText>
@@ -58,9 +58,9 @@ const styles = StyleSheet.create({
     opacity: 0.55
   },
   sportIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: '#0A1A08',
     alignItems: 'center',
     justifyContent: 'center'

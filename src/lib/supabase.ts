@@ -5,6 +5,13 @@ import { createClient, processLock } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 import { env } from './env';
+
+if (typeof globalThis.WebSocket === 'undefined') {
+  // Provide dummy WebSocket constructor for Node test environment when native WebSocket is absent
+  // @ts-ignore
+  globalThis.WebSocket = class DummyWebSocket {};
+}
+
 export const supabase = createClient(env.supabaseUrl, env.supabasePublishableKey, {
   auth: {
     ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),

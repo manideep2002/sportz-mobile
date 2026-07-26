@@ -139,7 +139,12 @@ export function FeedScreen() {
         </View>
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+        style={styles.chipList}
+      >
         {sportsFilters.map((sport) => (
           <Chip key={sport} selected={sport === selectedSport} onPress={() => setSelectedSport(sport)}>
             {sport}
@@ -281,7 +286,11 @@ const styles = StyleSheet.create({
   },
   chips: {
     paddingHorizontal: spacing.screen,
-    paddingBottom: 18
+    paddingBottom: 18,
+    alignItems: 'center'
+  },
+  chipList: {
+    flexGrow: 0
   },
   sectionHeader: {
     paddingHorizontal: spacing.screen

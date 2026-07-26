@@ -16,18 +16,18 @@ import type { Sport } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const filters: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football', 'Tennis', 'Badminton'];
+const filters: ('All' | Sport)[] = ['All', 'Basketball', 'Football', 'Tennis', 'Badminton'];
 
 export function CourtsScreen() {
   const navigation = useNavigation<Navigation>();
-  const [filter, setFilter] = useState<'All Sports' | Sport>('All Sports');
+  const [filter, setFilter] = useState<'All' | Sport>('All');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [city, setCity] = useState('');
   const [surface, setSurface] = useState<string | undefined>();
   const [maxPrice, setMaxPrice] = useState('');
   const [availableOnly, setAvailableOnly] = useState(false);
   const { data: courts = [], isLoading, isError, isRefetching, refetch } = useCourts({
-    sport: filter === 'All Sports' ? undefined : filter,
+    sport: filter === 'All' ? undefined : filter,
     city,
     surface,
     maxHourlyPrice: maxPrice ? Number(maxPrice) : undefined,
@@ -51,7 +51,12 @@ export function CourtsScreen() {
         </AppText>
         <IconButton icon={SlidersHorizontal} onPress={() => setFilterSheetOpen(true)} />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filters}
+        style={styles.filterList}
+      >
         {filters.map((item) => (
           <Chip key={item} selected={item === filter} onPress={() => setFilter(item)}>
             {item}
@@ -123,7 +128,11 @@ const styles = StyleSheet.create({
   },
   filters: {
     paddingHorizontal: spacing.screen,
-    paddingBottom: 14
+    paddingBottom: 14,
+    alignItems: 'center'
+  },
+  filterList: {
+    flexGrow: 0
   },
   section: {
     paddingHorizontal: spacing.screen,

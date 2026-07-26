@@ -107,7 +107,12 @@ export function FindPlayersScreen() {
         <IconButton icon={SlidersHorizontal} accessibilityLabel="Reset player filters" onPress={resetFilters} />
       </View>
       <Input icon={Search} value={query} onChangeText={handleSearch} placeholder="Search by name, sport..." />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+        style={styles.chipList}
+      >
         {sports.map((item) => (
           <Chip
             key={item}
@@ -182,6 +187,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
+  },
+  chipRow: {
+    paddingBottom: spacing.sm,
+    alignItems: 'center'
+  },
+  chipList: {
+    flexGrow: 0,
+    marginVertical: spacing.xs
   },
   hireBanner: {
     flexDirection: 'row',

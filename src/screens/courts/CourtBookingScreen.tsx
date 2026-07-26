@@ -84,7 +84,12 @@ export function CourtBookingScreen() {
         </View>
       ) : null}
       <AppText style={styles.label}>Date</AppText>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+        style={styles.chipList}
+      >
         {days.map((day, index) => (
           <Chip key={day.toISOString()} selected={selectedDayOffset === index} onPress={() => setSelectedDayOffset(index)}>
             {format(day, 'EEE d')}
@@ -122,6 +127,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
+  },
+  chipRow: {
+    paddingBottom: spacing.xs,
+    alignItems: 'center'
+  },
+  chipList: {
+    flexGrow: 0
   },
   label: {
     color: colors.text.tertiary,
