@@ -179,11 +179,6 @@ function PostCardComponent({
                 fill={post.savedByMe ? colors.orange[400] : 'transparent'}
               />
             </Pressable>
-            {post.kind === 'stats' ? (
-              <Button size="sm" style={styles.join} onPress={(event) => runAction(event, onPrimaryAction)}>
-                View Athlete
-              </Button>
-            ) : null}
           </View>
           <View style={styles.footer}>
             <AppText variant="bodyMuted">
@@ -343,12 +338,6 @@ const styles = StyleSheet.create({
   actionText: {
     color: colors.text.tertiary,
     fontSize: 13
-  },
-  actionActive: {
-    color: colors.orange[400]
-  },
-  join: {
-    marginLeft: 'auto'
   },
   footer: {
     paddingHorizontal: 14,

@@ -1,19 +1,23 @@
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { AppText } from '@/components/ui';
 import { colors, radii, typography } from '@/design/tokens';
 import type { Court } from '@/types/domain';
+import { openCourtInMaps } from '@/utils/maps';
 
 export function CourtMapPreview({ court }: { court?: Court }) {
-  const openMaps = () => {
-    if (!court) return;
-    const query = encodeURIComponent(`${court.latitude},${court.longitude}`);
-    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  const handleOpenMaps = () => {
+    void openCourtInMaps(court);
   };
 
   return (
-    <View style={styles.map}>
+    <Pressable
+      style={({ pressed }) => [styles.map, pressed && styles.pressed]}
+      onPress={handleOpenMaps}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${court?.name ?? 'court location'} on maps`}
+    >
       <Svg viewBox="0 0 350 160" width="100%" height="160">
         <Rect width="350" height="160" fill="#0F1420" />
         {[40, 80, 120].map((y) => (
@@ -38,10 +42,10 @@ export function CourtMapPreview({ court }: { court?: Court }) {
       <View style={styles.count}>
         <AppText style={styles.countText}>{court?.name ?? 'Court location'}</AppText>
       </View>
-      <Pressable style={styles.expand} onPress={openMaps} disabled={!court}>
+      <View style={styles.expand}>
         <AppText style={styles.expandText}>View on Maps</AppText>
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -53,6 +57,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.dark[700],
     backgroundColor: colors.dark[800]
+  },
+  pressed: {
+    opacity: 0.85
   },
   count: {
     position: 'absolute',
@@ -83,3 +90,4 @@ const styles = StyleSheet.create({
     fontSize: 12
   }
 });
+

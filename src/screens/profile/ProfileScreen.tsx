@@ -259,7 +259,7 @@ function HighlightsPanel({ userId }: { userId: string }) {
 
   return (
     <View style={styles.panel}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.highlightScroll}>
         {[
           { label: 'Add', kind: null },
           { label: 'Season', kind: 'stats' as const },
@@ -283,18 +283,18 @@ function HighlightsPanel({ userId }: { userId: string }) {
       <View style={styles.highlightCards}>
         <LinearGradient colors={['#1A0800', '#2A1200']} style={styles.highlightCard}>
           <AppText variant="h2" color={colors.orange[500]}>{topStats ? 'TOP' : 'ADD'}</AppText>
-          <AppText style={styles.highlightTitle}>{topStats?.body || 'Share a stats post'}</AppText>
+          <AppText style={styles.highlightTitle} numberOfLines={2}>{topStats?.body || 'Share a stats post'}</AppText>
           <Badge tone="orange">{topStats?.statsLine ?? 'STATS'}</Badge>
         </LinearGradient>
         <LinearGradient colors={['#0A1A1A', '#0F2A2A']} style={styles.highlightCard}>
           <AppText variant="h2" color={colors.semantic.success}>{streak}</AppText>
-          <AppText style={styles.highlightTitle}>Day Activity Streak</AppText>
+          <AppText style={styles.highlightTitle} numberOfLines={2}>Day Activity Streak</AppText>
           <Badge tone="green">STREAK</Badge>
         </LinearGradient>
       </View>
       {filteredPosts.slice(0, 4).map((post) => (
         <Pressable key={post.id} style={styles.highlightListItem} onPress={() => navigation.navigate('PostDetail', { postId: post.id })}>
-          <AppText style={styles.highlightTitle}>{post.body}</AppText>
+          <AppText style={styles.highlightTitle} numberOfLines={2}>{post.body}</AppText>
           <Badge>{post.kind}</Badge>
         </Pressable>
       ))}
@@ -506,6 +506,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs
   },
+  highlightScroll: {
+    flexGrow: 0,
+    height: 90
+  },
   highlightPill: {
     alignItems: 'center',
     gap: 6,
@@ -534,6 +538,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     justifyContent: 'flex-end',
+    overflow: 'hidden',
     gap: spacing.xs
   },
   highlightTitle: {

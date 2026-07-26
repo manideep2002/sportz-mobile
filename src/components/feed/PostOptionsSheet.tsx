@@ -48,8 +48,8 @@ export function PostOptionsSheet({
 
   const options: PostOption[] = [
     {
-      label: post.author.id.startsWith('page-') ? 'View page' : 'View athlete',
-      detail: post.author.id.startsWith('page-') ? 'See page details and updates' : 'See athlete profile and stats',
+      label: post.author.id.startsWith('page-') ? 'View page' : 'View profile',
+      detail: post.author.id.startsWith('page-') ? 'See page details and updates' : 'See profile and stats',
       icon: UserRound,
       onPress: () => {
         onClose();
