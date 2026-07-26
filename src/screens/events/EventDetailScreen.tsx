@@ -195,7 +195,7 @@ export function EventDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={Share2} onPress={handleShare} />
+        <IconButton accessibilityLabel="Share event" icon={Share2} onPress={handleShare} />
       </View>
       <View style={styles.hero}>
         {event.coverUrl ? (

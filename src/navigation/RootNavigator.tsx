@@ -1,6 +1,11 @@
-import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  type LinkingOptions,
+  type NavigatorScreenParams
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 
 import { createNavigationTheme } from '@/design/theme';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -38,6 +43,8 @@ import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
 import { StoryViewerScreen } from '@/screens/feed/StoryViewerScreen';
 import { GroupDetailScreen } from '@/screens/community/GroupDetailScreen';
 import { PageDetailScreen } from '@/screens/community/PageDetailScreen';
+import { CommunityAdminScreen } from '@/screens/community/CommunityAdminScreen';
+import { CommunityInvitationScreen } from '@/screens/community/CommunityInvitationScreen';
 import { SavedPostsScreen } from '@/screens/profile/SavedPostsScreen';
 import { FollowersScreen } from '@/screens/profile/FollowersScreen';
 import { FollowRequestsScreen } from '@/screens/profile/FollowRequestsScreen';
@@ -59,13 +66,37 @@ import {
   recordNavigationRoute,
   registerNavigationContainer
 } from '@/lib/monitoring';
+import { env } from '@/lib/env';
+import {
+  parseCanonicalDestination,
+  pendingCanonicalDestination
+} from '@/services/canonicalLinkService';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
 const App = createNativeStackNavigator<AppStackParamList>();
 
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['sportz://'],
+  prefixes: [`${env.appScheme}://`, env.canonicalWebUrl],
+  async getInitialURL() {
+    const url = await Linking.getInitialURL();
+    if (!url || !parseCanonicalDestination(url)) return url;
+    if (useAuthStore.getState().authStatus !== 'signedIn') {
+      await pendingCanonicalDestination.save(url);
+      return null;
+    }
+    return url;
+  },
+  subscribe(listener) {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (parseCanonicalDestination(url) && useAuthStore.getState().authStatus !== 'signedIn') {
+        void pendingCanonicalDestination.save(url);
+        return;
+      }
+      listener(url);
+    });
+    return () => subscription.remove();
+  },
   config: {
     screens: {
       Auth: {
@@ -77,9 +108,13 @@ const linking: LinkingOptions<RootStackParamList> = {
       },
       App: {
         screens: {
-          PostDetail: 'post/:postId',
-          UserProfile: 'profile/:userId',
-          EventDetail: 'event/:eventId',
+          PostDetail: 'posts/:postId',
+          UserProfile: 'profiles/:userId',
+          EventDetail: 'events/:eventId',
+          CourtDetail: 'courts/:courtId',
+          GroupDetail: 'groups/:communityId',
+          PageDetail: 'pages/:communityId',
+          CommunityInvitation: 'invitations/community/:inviteId',
           CourtBookingDetail: 'booking/:bookingId',
           OfferDetail: 'offer/:offerId'
         }
@@ -140,6 +175,8 @@ function AppNavigator() {
       <App.Screen name="PostDetail" component={PostDetailScreen} />
       <App.Screen name="GroupDetail" component={GroupDetailScreen} />
       <App.Screen name="PageDetail" component={PageDetailScreen} />
+      <App.Screen name="CommunityAdmin" component={CommunityAdminScreen} />
+      <App.Screen name="CommunityInvitation" component={CommunityInvitationScreen} />
       <App.Screen name="SavedPosts" component={SavedPostsScreen} />
       <App.Screen name="Followers" component={FollowersScreen} />
       <App.Screen name="FollowRequests" component={FollowRequestsScreen} />
@@ -166,6 +203,24 @@ export function RootNavigator() {
   const { t } = useAppTranslation();
   const authenticated = authStatus === 'signedIn' && Boolean(session && profile);
 
+  const openPendingDestination = async () => {
+    if (!authenticated || !navigationRef.isReady()) return;
+    const url = await pendingCanonicalDestination.consume();
+    if (!url) return;
+    const destination = parseCanonicalDestination(url);
+    if (!destination) return;
+    navigationRef.navigate('App', {
+      screen: destination.screen,
+      params: destination.params
+    } as NavigatorScreenParams<AppStackParamList>);
+  };
+
+  useEffect(() => {
+    void openPendingDestination();
+    // Navigation readiness is handled by onReady; this effect handles login/profile completion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
+
   if (authStatus === 'initializing' || authStatus === 'loadingProfile') {
     return (
       <View style={[styles.authLoading, { backgroundColor: appTheme.colors.background }]}>
@@ -183,6 +238,7 @@ export function RootNavigator() {
       onReady={() => {
         registerNavigationContainer(navigationRef);
         recordNavigationRoute(navigationRef.getCurrentRoute()?.name);
+        void openPendingDestination();
       }}
       onStateChange={() => {
         recordNavigationRoute(navigationRef.getCurrentRoute()?.name);

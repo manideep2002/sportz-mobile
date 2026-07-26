@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, ChevronLeft, Heart, MessageCircle, MessageSquare, MoreHorizontal, Trophy, UserCheck, UserPlus, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { StructuredStatsPanel } from '@/components/profile/StructuredStatsPanel';
@@ -15,6 +15,7 @@ import { colors, spacing, typography } from '@/design/tokens';
 import { useProfile, useFollowRequestStatus, useIsBlocked, useIsFollowing, useToggleBlock, useToggleFollow } from '@/hooks/useProfile';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 import { messageService } from '@/services/messageService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { compactNumber } from '@/utils/format';
@@ -147,7 +148,12 @@ export function UserProfileScreen() {
         },
         (index) => {
           if (index === 0) {
-            void Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` });
+            if (profile) void shareCanonicalEntity('profile', profile.id, {
+              title: profile.isPrivate ? 'SPORTZ athlete' : profile.displayName,
+              message: profile.isPrivate
+                ? 'Open this private athlete profile on SPORTZ. Follow access rules apply.'
+                : `Check out ${profile.displayName}'s profile on SPORTZ.`
+            });
           } else if (index === 1) {
             reportProfile();
           } else if (index === 2) {
@@ -157,7 +163,15 @@ export function UserProfileScreen() {
       );
     } else {
       Alert.alert('Options', undefined, [
-        { text: 'Share Profile', onPress: () => Share.share({ message: `Check out ${profile?.displayName}'s profile on Sportz!` }) },
+        {
+          text: 'Share Profile',
+          onPress: () => profile ? shareCanonicalEntity('profile', profile.id, {
+            title: profile.isPrivate ? 'SPORTZ athlete' : profile.displayName,
+            message: profile.isPrivate
+              ? 'Open this private athlete profile on SPORTZ. Follow access rules apply.'
+              : `Check out ${profile.displayName}'s profile on SPORTZ.`
+          }) : undefined
+        },
         { text: 'Report User', onPress: reportProfile },
         { text: blockOption, style: isBlocked ? 'default' : 'destructive', onPress: handleBlockToggle },
         { text: 'Cancel', style: 'cancel' }

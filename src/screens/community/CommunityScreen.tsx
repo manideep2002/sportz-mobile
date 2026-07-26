@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, Plus } from 'lucide-react-native';
+import { ChevronLeft, Plus, Search } from 'lucide-react-native';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
 import { CommunityCard } from '@/components/community/CommunityCard';
 
-import { AppRefreshControl, AppText, Avatar, Button, Card, IconButton, Screen, SegmentedControl, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, Card, IconButton, Input, Screen, SegmentedControl, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
@@ -16,16 +16,24 @@ import type { AppStackParamList } from '@/navigation/routes';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Tab = 'Groups' | 'Pages';
+type Scope = 'Discover' | 'Mine';
 
 export function CommunityScreen() {
   const navigation = useNavigation<Navigation>();
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
   const [tab, setTab] = useState<Tab>('Groups');
-  const { data: communities = [], isLoading, isError, isRefetching, refetch } = useCommunities();
+  const [scope, setScope] = useState<Scope>('Discover');
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(25);
+  const { data: communities = [], isLoading, isError, isRefetching, refetch } = useCommunities({
+    type: tab === 'Groups' ? 'group' : 'page',
+    onlyMine: scope === 'Mine',
+    query,
+    limit
+  });
   const { data: pendingInvites = [], isLoading: invitesLoading, refetch: refetchInvites } = usePendingCommunityInvites();
   const respondInvite = useRespondCommunityInvite();
-  const filtered = communities.filter((community) => (tab === 'Groups' ? community.type === 'group' : community.type === 'page'));
   const openCommunity = (community: (typeof communities)[number]) => {
     if (community.type === 'group') navigation.navigate('GroupDetail', { communityId: community.id });
     else navigation.navigate('PageDetail', { communityId: community.id });
@@ -52,7 +60,29 @@ export function CommunityScreen() {
         value={tab}
         options={['Groups', 'Pages']}
         getLabel={(value) => t(value === 'Groups' ? 'community.groups' : 'community.pages')}
-        onChange={setTab}
+        onChange={(value) => {
+          setTab(value);
+          setLimit(25);
+        }}
+      />
+      <SegmentedControl
+        value={scope}
+        options={['Discover', 'Mine']}
+        getLabel={(value) => value === 'Discover' ? 'Discover' : 'My Communities'}
+        onChange={(value) => {
+          setScope(value);
+          setLimit(25);
+        }}
+      />
+      <Input
+        accessibilityLabel={`Search ${tab.toLowerCase()}`}
+        icon={Search}
+        placeholder={`Search ${tab.toLowerCase()} by name`}
+        value={query}
+        onChangeText={(value) => {
+          setQuery(value);
+          setLimit(25);
+        }}
       />
       {tab === 'Groups' ? (
         <View style={styles.invites}>
@@ -141,19 +171,21 @@ export function CommunityScreen() {
             <Button size="sm" onPress={() => void refetch()}>{t('common.retry')}</Button>
           </View>
         ) : null}
-        {!isLoading && !isError && filtered.length === 0 ? (
+        {!isLoading && !isError && communities.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.emptyText}>
-            {t(tab === 'Groups' ? 'community.noGroups' : 'community.noPages')}
+            {scope === 'Mine'
+              ? `You have not joined any ${tab.toLowerCase()} matching this search.`
+              : t(tab === 'Groups' ? 'community.noGroups' : 'community.noPages')}
           </AppText>
         ) : null}
-        {filtered.map((community) => (
+        {communities.map((community) => (
           <CommunityCard
             key={community.id}
             community={community}
             onPress={() => openCommunity(community)}
             onViewPosts={() => openCommunity(community)}
             onAction={() => {
-              if ((community.type === 'group' && community.isMember) || community.isAdmin) {
+              if (community.canPost) {
                 navigation.navigate('CreatePost', { communityId: community.id });
               } else {
                 openCommunity(community);
@@ -161,6 +193,11 @@ export function CommunityScreen() {
             }}
           />
         ))}
+        {communities.length >= limit ? (
+          <Button size="sm" variant="dark" onPress={() => setLimit((value) => value + 25)}>
+            Load more
+          </Button>
+        ) : null}
       </View>
     </Screen>
   );

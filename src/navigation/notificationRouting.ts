@@ -27,6 +27,8 @@ export type PushNotificationRouteData = {
   room_id?: unknown;
   communityId?: unknown;
   community_id?: unknown;
+  inviteId?: unknown;
+  invite_id?: unknown;
   bookingId?: unknown;
   booking_id?: unknown;
   offerId?: unknown;
@@ -138,6 +140,14 @@ export function navigateFromNotificationData(
     stringValue(data.communityId) ??
     stringValue(data.community_id) ??
     (entityType === 'group' || entityType === 'page' ? entityId : undefined);
+  const inviteId = stringValue(data.inviteId) ?? stringValue(data.invite_id);
+  if (inviteId && (entityType === 'group' || entityType === 'page')) {
+    navigationRef.navigate('App', {
+      screen: 'CommunityInvitation',
+      params: { inviteId }
+    });
+    return true;
+  }
   if (communityId || ((screen === '/group/[id]' || screen === '/page/[id]') && entityId)) {
     navigationRef.navigate('App', {
       screen: screen === '/page/[id]' || entityType === 'page' ? 'PageDetail' : 'GroupDetail',

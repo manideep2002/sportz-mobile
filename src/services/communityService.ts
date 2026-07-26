@@ -3,11 +3,13 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type {
   Community,
+  CommunityAdminAuditEntry,
   CommunityInvite,
   CommunityJoinRequest,
   CommunityMember,
   CommunityMemberRole,
-  CommunityMembershipStatus
+  CommunityMembershipStatus,
+  CommunityPostingPermission
 } from '@/types/domain';
 
 interface CommunityRow {
@@ -19,6 +21,12 @@ interface CommunityRow {
   sport: string;
   city: string | null;
   is_private?: boolean | null;
+  rules?: string | null;
+  avatar_path?: string | null;
+  cover_path?: string | null;
+  join_approval_required?: boolean | null;
+  posting_permission?: CommunityPostingPermission | null;
+  archived_at?: string | null;
   is_verified: boolean | null;
   member_count: number | null;
   follower_count: number | null;
@@ -31,6 +39,30 @@ export interface CreateCommunityInput {
   city: string;
   description: string;
   isPrivate?: boolean;
+}
+
+export interface CommunityListOptions {
+  query?: string;
+  type?: Community['type'];
+  onlyMine?: boolean;
+  limit?: number;
+}
+
+export interface UpdateCommunitySettingsInput {
+  name: string;
+  description: string;
+  city: string;
+  sport: string;
+  isPrivate: boolean;
+  rules: string;
+  joinApprovalRequired: boolean;
+  postingPermission: CommunityPostingPermission;
+}
+
+export interface CommunityMemberPage {
+  items: CommunityMember[];
+  total: number;
+  hasMore: boolean;
 }
 
 type JoinCommunityResult = 'joined' | 'requested';
@@ -75,6 +107,12 @@ const fallbackCommunityRow = (name = 'Community'): CommunityRow => ({
   sport: 'Basketball',
   city: null,
   is_private: false,
+  rules: '',
+  avatar_path: null,
+  cover_path: null,
+  join_approval_required: false,
+  posting_permission: 'members',
+  archived_at: null,
   is_verified: false,
   member_count: 0,
   follower_count: 0
@@ -97,6 +135,12 @@ const membershipStatusFor = (state: MembershipState): CommunityMembershipStatus 
   return 'none';
 };
 
+const brandingUrl = (path?: string | null) => {
+  if (!path) return null;
+  if (path.includes('://')) return path;
+  return supabase.storage.from('community-media').getPublicUrl(path).data.publicUrl;
+};
+
 const mapCommunityRow = (row: CommunityRow, extras: Partial<Community> = {}): Community => {
   const state: MembershipState = {
     role: extras.membershipRole,
@@ -106,6 +150,14 @@ const mapCommunityRow = (row: CommunityRow, extras: Partial<Community> = {}): Co
   const membershipStatus = extras.membershipStatus ?? membershipStatusFor(state);
   const isMember = extras.isMember ?? Boolean(state.role);
   const isAdmin = extras.isAdmin ?? (state.role === 'owner' || state.role === 'admin');
+  const isOwner = extras.isOwner ?? state.role === 'owner';
+  const isArchived = Boolean(row.archived_at);
+  const postingPermission = row.posting_permission ?? (row.type === 'page' ? 'admins' : 'members');
+  const canPost = !isArchived && Boolean(
+    row.type === 'page'
+      ? isAdmin
+      : state.role && state.role !== 'follower' && (postingPermission === 'members' || isAdmin)
+  );
 
   return {
     id: row.id,
@@ -116,11 +168,22 @@ const mapCommunityRow = (row: CommunityRow, extras: Partial<Community> = {}): Co
     sport: row.sport,
     city: row.city ?? '',
     isPrivate: Boolean(row.is_private),
+    rules: row.rules ?? '',
+    avatarPath: row.avatar_path ?? null,
+    coverPath: row.cover_path ?? null,
+    avatarUrl: brandingUrl(row.avatar_path),
+    coverUrl: brandingUrl(row.cover_path),
+    joinApprovalRequired: Boolean(row.join_approval_required),
+    postingPermission,
+    archivedAt: row.archived_at ?? null,
+    isArchived,
     isVerified: Boolean(row.is_verified),
     memberCount: row.member_count ?? 0,
     followerCount: row.follower_count ?? 0,
     isMember,
     isAdmin,
+    isOwner,
+    canPost,
     canViewContent: extras.canViewContent ?? (row.type === 'page' ? true : isMember),
     canManageMembers: extras.canManageMembers ?? isAdmin,
     membershipRole: state.role ?? null,
@@ -140,6 +203,7 @@ const mapStateExtras = (row: CommunityRow, state: MembershipState): Partial<Comm
     pendingRequestId: state.pendingRequestId,
     membershipStatus: membershipStatusFor(state),
     isAdmin,
+    isOwner: role === 'owner',
     isMember,
     canManageMembers: isAdmin,
     canViewContent: row.type === 'page' ? true : isMember
@@ -147,14 +211,36 @@ const mapStateExtras = (row: CommunityRow, state: MembershipState): Partial<Comm
 };
 
 export const communityService = {
-  async listCommunities(): Promise<Community[]> {
+  async listCommunities(options: CommunityListOptions = {}): Promise<Community[]> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+
+    let memberCommunityIds: string[] | undefined;
+    if (options.onlyMine) {
+      if (!authData.user) return [];
+      const { data: memberships, error: membershipsError } = await supabase
+        .from('community_members')
+        .select('community_id')
+        .eq('user_id', authData.user.id);
+      if (membershipsError) throw membershipsError;
+      memberCommunityIds = (memberships ?? []).map((row) => row.community_id as string);
+      if (!memberCommunityIds.length) return [];
+    }
+
+    let query = supabase
       .from('communities')
-      .select('*')
+      .select('*');
+    if (options.type) query = query.eq('type', options.type);
+    if (options.query?.trim()) query = query.ilike('name', `%${options.query.trim()}%`);
+    if (options.onlyMine && memberCommunityIds) query = query.in('id', memberCommunityIds);
+    else query = query.is('archived_at', null);
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(limit);
 
     if (error) throw error;
 
@@ -162,8 +248,6 @@ export const communityService = {
     const ids = rows.map((row) => row.id);
     if (!ids.length) return [];
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
     if (!authData.user) return rows.map((row) => mapCommunityRow(row));
 
     const [memberResult, inviteResult, requestResult] = await Promise.all([
@@ -283,28 +367,16 @@ export const communityService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to create a community.');
 
-    const { data, error } = await supabase
-      .from('communities')
-      .insert({
-        type: input.type,
-        name: input.name.trim(),
-        slug: `${slugify(input.name)}-${Date.now().toString(36)}`,
-        description: input.description.trim(),
-        sport: input.sport,
-        city: input.city.trim(),
-        is_private: input.type === 'group' ? Boolean(input.isPrivate) : false,
-        created_by: authData.user.id
-      })
-      .select('*')
-      .single();
-    if (error) throw error;
-
-    const { error: memberError } = await supabase.from('community_members').insert({
-      community_id: data.id,
-      user_id: authData.user.id,
-      role: 'owner'
+    const { data, error } = await supabase.rpc('create_community', {
+      community_type: input.type,
+      community_name: input.name.trim(),
+      community_slug: `${slugify(input.name)}-${Date.now().toString(36)}`,
+      community_description: input.description.trim(),
+      community_sport: input.sport,
+      community_city: input.city.trim(),
+      community_is_private: input.type === 'group' ? Boolean(input.isPrivate) : false
     });
-    if (memberError) throw memberError;
+    if (error) throw error;
 
     return mapCommunityRow(data as CommunityRow, {
       memberCount: 1,
@@ -312,7 +384,9 @@ export const communityService = {
       membershipRole: 'owner',
       membershipStatus: 'owner',
       isAdmin: true,
+      isOwner: true,
       isMember: true,
+      canPost: true,
       canManageMembers: true,
       canViewContent: true
     });
@@ -450,21 +524,40 @@ export const communityService = {
   },
 
   async listMembers(communityId: string): Promise<CommunityMember[]> {
+    return (await this.listMembersPage(communityId)).items;
+  },
+
+  async listMembersPage(
+    communityId: string,
+    options: { query?: string; offset?: number; limit?: number } = {}
+  ): Promise<CommunityMemberPage> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    const offset = Math.max(options.offset ?? 0, 0);
+    const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
+    let query = supabase
       .from('community_members')
-      .select('user_id, role, created_at, profiles:user_id(*)')
+      .select('user_id, role, created_at, profiles:user_id!inner(*)', { count: 'exact' })
       .eq('community_id', communityId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (options.query?.trim()) {
+      query = query.ilike('profiles.display_name', `%${options.query.trim()}%`);
+    }
+
+    const { data, error, count } = await query;
     if (error) throw error;
 
-    return (data ?? []).map((row) => ({
+    const items = (data ?? []).map((row) => ({
       userId: (row as { user_id: string }).user_id,
       role: (row as { role: CommunityMemberRole }).role,
       joinedAt: (row as { created_at: string }).created_at,
-      profile: mapProfileRow((row as { profiles: Record<string, any> | null }).profiles)
+      profile: mapProfileRow(firstRelation((row as unknown as {
+        profiles: Record<string, any> | Record<string, any>[] | null;
+      }).profiles))
     }));
+    const total = count ?? items.length;
+    return { items, total, hasMore: offset + items.length < total };
   },
 
   async listJoinRequests(communityId: string): Promise<CommunityJoinRequest[]> {
@@ -526,5 +619,130 @@ export const communityService = {
       target_user_id: userId
     });
     if (error) throw error;
+  },
+
+  async updateSettings(communityId: string, input: UpdateCommunitySettingsInput): Promise<Community> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('update_community_settings', {
+      target_community_id: communityId,
+      community_name: input.name,
+      community_description: input.description,
+      community_city: input.city,
+      community_sport: input.sport,
+      community_is_private: input.isPrivate,
+      community_rules: input.rules,
+      require_join_approval: input.joinApprovalRequired,
+      community_posting_permission: input.postingPermission
+    });
+    if (error) throw error;
+    return mapCommunityRow(data as CommunityRow, {
+      membershipRole: 'owner',
+      membershipStatus: 'owner',
+      isAdmin: true,
+      isOwner: true,
+      isMember: true,
+      canManageMembers: true,
+      canViewContent: true
+    });
+  },
+
+  async updateBranding(
+    communityId: string,
+    kind: 'avatar' | 'cover',
+    path: string | null
+  ): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('update_community_branding', {
+      target_community_id: communityId,
+      target_kind: kind,
+      storage_path: path
+    });
+    if (error) throw error;
+  },
+
+  async transferOwnership(communityId: string, userId: string): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('transfer_community_ownership', {
+      target_community_id: communityId,
+      target_user_id: userId
+    });
+    if (error) throw error;
+  },
+
+  async setArchived(communityId: string, archived: boolean): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('set_community_archived', {
+      target_community_id: communityId,
+      archive: archived
+    });
+    if (error) throw error;
+  },
+
+  async deleteCommunity(communityId: string): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('delete_community', {
+      target_community_id: communityId
+    });
+    if (error) throw error;
+  },
+
+  async removePost(communityId: string, postId: string, reason = 'Community rules'): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('remove_community_post', {
+      target_community_id: communityId,
+      target_post_id: postId,
+      removal_reason: reason
+    });
+    if (error) throw error;
+  },
+
+  async listAuditLog(communityId: string, limit = 50): Promise<CommunityAdminAuditEntry[]> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase
+      .from('community_admin_audit_log')
+      .select('id, community_id, actor_id, action, target_user_id, metadata, created_at')
+      .eq('community_id', communityId)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 100));
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      communityId: row.community_id as string | null,
+      actorId: row.actor_id as string | null,
+      action: row.action as CommunityAdminAuditEntry['action'],
+      targetUserId: row.target_user_id as string | null,
+      metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      createdAt: row.created_at as string
+    }));
+  },
+
+  async getInvite(inviteId: string): Promise<CommunityInvite | null> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase
+      .from('community_invites')
+      .select('id, status, created_at, community:community_id(*), inviter:inviter_id(*)')
+      .eq('id', inviteId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const row = data as unknown as {
+      id: string;
+      status: CommunityInvite['status'];
+      created_at: string;
+      community: CommunityRow | CommunityRow[] | null;
+      inviter: Record<string, any> | Record<string, any>[] | null;
+    };
+    const community = firstRelation(row.community);
+    if (!community) return null;
+    return {
+      id: row.id,
+      status: row.status,
+      createdAt: row.created_at,
+      inviter: firstRelation(row.inviter) ? mapProfileRow(firstRelation(row.inviter)) : undefined,
+      community: mapCommunityRow(community, {
+        pendingInviteId: row.id,
+        membershipStatus: row.status === 'pending' ? 'invited' : 'none'
+      })
+    };
   }
 };

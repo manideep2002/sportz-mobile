@@ -21,6 +21,10 @@ const getRuntimeEnv = (key: string): string | undefined => {
 
 const supabaseUrl = getProcessEnv('EXPO_PUBLIC_SUPABASE_URL') ?? getRuntimeEnv('EXPO_PUBLIC_SUPABASE_URL') ?? 'https://example.supabase.co';
 const supabasePublishableKey = getProcessEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ?? getRuntimeEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ?? 'sb_publishable_replace_me';
+const canonicalWebUrl =
+  getProcessEnv('EXPO_PUBLIC_CANONICAL_WEB_URL') ??
+  getRuntimeEnv('EXPO_PUBLIC_CANONICAL_WEB_URL') ??
+  'https://sportz.app';
 
 export const env = {
   supabaseUrl,
@@ -29,6 +33,15 @@ export const env = {
   googleAndroidClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID'),
   googleWebClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
   appScheme: getProcessEnv('EXPO_PUBLIC_APP_SCHEME') ?? getRuntimeEnv('EXPO_PUBLIC_APP_SCHEME') ?? 'sportz',
+  canonicalWebUrl,
+  appStoreUrl:
+    getProcessEnv('EXPO_PUBLIC_APP_STORE_URL') ??
+    getRuntimeEnv('EXPO_PUBLIC_APP_STORE_URL') ??
+    'https://apps.apple.com/app/sportz',
+  playStoreUrl:
+    getProcessEnv('EXPO_PUBLIC_PLAY_STORE_URL') ??
+    getRuntimeEnv('EXPO_PUBLIC_PLAY_STORE_URL') ??
+    'https://play.google.com/store/apps/details?id=com.sportz.mobile',
   mapProvider: getProcessEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? getRuntimeEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? 'apple',
   appEnvironment: resolveMonitoringEnvironment(
     getProcessEnv('EXPO_PUBLIC_APP_ENV') ?? getRuntimeEnv('EXPO_PUBLIC_APP_ENV')

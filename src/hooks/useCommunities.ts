@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
-import { communityService, type CreateCommunityInput } from '@/services/communityService';
+import {
+  communityService,
+  type CommunityListOptions,
+  type CreateCommunityInput,
+  type UpdateCommunitySettingsInput
+} from '@/services/communityService';
 import type { CommunityMemberRole } from '@/types/domain';
 
 export const communityKeys = {
@@ -8,7 +13,9 @@ export const communityKeys = {
   detail: (id: string) => ['communities', id] as const,
   invites: ['communities', 'invites'] as const,
   members: (id: string) => ['communities', id, 'members'] as const,
-  requests: (id: string) => ['communities', id, 'requests'] as const
+  requests: (id: string) => ['communities', id, 'requests'] as const,
+  audit: (id: string) => ['communities', id, 'audit'] as const,
+  invite: (id: string) => ['communities', 'invite', id] as const
 };
 
 const invalidateCommunity = (queryClient: QueryClient, communityId?: string) => {
@@ -19,14 +26,15 @@ const invalidateCommunity = (queryClient: QueryClient, communityId?: string) => 
     void queryClient.invalidateQueries({ queryKey: communityKeys.detail(communityId) });
     void queryClient.invalidateQueries({ queryKey: communityKeys.members(communityId) });
     void queryClient.invalidateQueries({ queryKey: communityKeys.requests(communityId) });
+    void queryClient.invalidateQueries({ queryKey: communityKeys.audit(communityId) });
     void queryClient.invalidateQueries({ queryKey: ['feed', 'community', communityId] });
   }
 };
 
-export const useCommunities = () =>
+export const useCommunities = (options: CommunityListOptions = {}) =>
   useQuery({
-    queryKey: communityKeys.all,
-    queryFn: communityService.listCommunities
+    queryKey: [...communityKeys.all, options],
+    queryFn: () => communityService.listCommunities(options)
   });
 
 export const useCommunity = (communityId: string) =>
@@ -141,3 +149,58 @@ export const useRemoveCommunityMember = (communityId: string) => {
     }
   });
 };
+
+export const useUpdateCommunitySettings = (communityId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateCommunitySettingsInput) => communityService.updateSettings(communityId, input),
+    onSuccess: () => invalidateCommunity(queryClient, communityId)
+  });
+};
+
+export const useTransferCommunityOwnership = (communityId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => communityService.transferOwnership(communityId, userId),
+    onSuccess: () => invalidateCommunity(queryClient, communityId)
+  });
+};
+
+export const useSetCommunityArchived = (communityId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (archived: boolean) => communityService.setArchived(communityId, archived),
+    onSuccess: () => invalidateCommunity(queryClient, communityId)
+  });
+};
+
+export const useDeleteCommunity = (communityId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => communityService.deleteCommunity(communityId),
+    onSuccess: () => invalidateCommunity(queryClient, communityId)
+  });
+};
+
+export const useRemoveCommunityPost = (communityId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, reason }: { postId: string; reason?: string }) =>
+      communityService.removePost(communityId, postId, reason),
+    onSuccess: () => invalidateCommunity(queryClient, communityId)
+  });
+};
+
+export const useCommunityAuditLog = (communityId: string, enabled = true) =>
+  useQuery({
+    queryKey: communityKeys.audit(communityId),
+    queryFn: () => communityService.listAuditLog(communityId),
+    enabled: Boolean(communityId) && enabled
+  });
+
+export const useCommunityInvite = (inviteId: string) =>
+  useQuery({
+    queryKey: communityKeys.invite(inviteId),
+    queryFn: () => communityService.getInvite(inviteId),
+    enabled: Boolean(inviteId)
+  });

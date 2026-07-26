@@ -8,6 +8,7 @@ import {
   LogOut,
   MoreHorizontal,
   Plus,
+  Settings,
   Shield,
   UserMinus,
   UserPlus,
@@ -15,7 +16,8 @@ import {
   type LucideIcon
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
@@ -39,6 +41,7 @@ import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import { useCommunityEvents } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
 import { profileService } from '@/services/profileService';
+import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 import { useAuthStore } from '@/store/authStore';
 import type { CommunityJoinRequest, CommunityMember, CommunityMemberRole, UserProfile } from '@/types/domain';
 
@@ -222,15 +225,29 @@ export function GroupDetailScreen() {
         <View style={{ flex: 1 }} />
         <IconButton
           icon={MoreHorizontal}
-          accessibilityLabel="Group options"
-          onPress={() => void Share.share({ message: `Join ${community.name} on SPORTZ.` })}
+          accessibilityLabel="Share group"
+          onPress={() => void shareCanonicalEntity('group', community.id, {
+            title: community.isPrivate ? 'SPORTZ group' : community.name,
+            message: community.isPrivate
+              ? 'Open this private SPORTZ group. Membership access rules apply.'
+              : `Join ${community.name} on SPORTZ.`
+          })}
         />
       </View>
-      <LinearGradient colors={['#0A1A08', '#1a3a18', '#0A1A08']} style={styles.cover}>
-        <AppText variant="hero" style={styles.coverMark}>
-          {community.name.charAt(0).toUpperCase()}
-        </AppText>
-      </LinearGradient>
+      {community.coverUrl ? (
+        <ExpoImage
+          accessibilityLabel={`${community.name} cover`}
+          source={{ uri: community.coverUrl }}
+          contentFit="cover"
+          style={styles.cover}
+        />
+      ) : (
+        <LinearGradient colors={['#0A1A08', '#1a3a18', '#0A1A08']} style={styles.cover}>
+          <AppText variant="hero" style={styles.coverMark}>
+            {community.name.charAt(0).toUpperCase()}
+          </AppText>
+        </LinearGradient>
+      )}
       <View style={styles.body}>
         <AppText variant="h2">{community.name}</AppText>
         <AppText variant="bodyMuted">
@@ -239,11 +256,24 @@ export function GroupDetailScreen() {
         <View style={styles.badges}>
           {community.isPrivate ? <Badge tone="yellow">Private</Badge> : <Badge tone="green">Public</Badge>}
           {statusBadge ? <Badge tone={community.isAdmin ? 'orange' : 'blue'}>{statusBadge}</Badge> : null}
+          {community.isArchived ? <Badge tone="yellow">Archived</Badge> : null}
           <Badge>{community.memberCount} Members</Badge>
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
+        {community.rules ? (
+          <View style={[styles.membershipPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <AppText variant="h4">Community rules</AppText>
+            <AppText variant="bodyMuted">{community.rules}</AppText>
+          </View>
+        ) : null}
+        {community.isArchived ? (
+          <View style={[styles.membershipPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <AppText variant="h4">This group is archived</AppText>
+            <AppText variant="bodyMuted">Existing content remains available to members, but new activity is disabled.</AppText>
+          </View>
+        ) : null}
 
-        {!community.isMember ? (
+        {!community.isMember && !community.isArchived ? (
           <MembershipPanel
             status={membershipStatus}
             isPrivate={Boolean(community.isPrivate)}
@@ -256,10 +286,11 @@ export function GroupDetailScreen() {
 
         {community.isMember ? (
           <View style={styles.quickActions}>
-            <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent', { communityId: community.id })} />
-            <Action icon={Plus} label="New Post" primary onPress={() => navigation.navigate('CreatePost', { communityId: community.id })} />
-            {community.isAdmin ? <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} /> : null}
-            <Action icon={LogOut} label="Leave" danger onPress={handleLeave} />
+            {!community.isArchived ? <Action icon={CalendarDays} label="Schedule" onPress={() => navigation.navigate('CreateEvent', { communityId: community.id })} /> : null}
+            {community.canPost ? <Action icon={Plus} label="New Post" primary onPress={() => navigation.navigate('CreatePost', { communityId: community.id })} /> : null}
+            {community.isAdmin && !community.isArchived ? <Action icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} /> : null}
+            {community.isAdmin ? <Action icon={Settings} label="Manage" onPress={() => navigation.navigate('CommunityAdmin', { communityId: community.id })} /> : null}
+            {!community.isOwner ? <Action icon={LogOut} label="Leave" danger onPress={handleLeave} /> : null}
           </View>
         ) : null}
 
@@ -313,7 +344,7 @@ export function GroupDetailScreen() {
                 <MemberRow
                   key={member.userId}
                   member={member}
-                  canManage={Boolean(community.isAdmin) && member.userId !== currentUserId && member.role !== 'owner'}
+                  canManage={Boolean(community.isOwner) && member.userId !== currentUserId && member.role !== 'owner'}
                   busy={updateMemberRole.isPending || removeMember.isPending}
                   onToggleAdmin={() => updateMemberRole.mutate(
                     { userId: member.userId, role: member.role === 'admin' ? 'member' : 'admin' },

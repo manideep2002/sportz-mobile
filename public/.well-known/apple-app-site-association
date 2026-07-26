@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "${IOS_TEAM_ID}.com.sportz.mobile"
+        ],
+        "components": [
+          { "/": "/posts/*" },
+          { "/": "/profiles/*" },
+          { "/": "/events/*" },
+          { "/": "/courts/*" },
+          { "/": "/groups/*" },
+          { "/": "/pages/*" },
+          { "/": "/invitations/community/*" }
+        ]
+      }
+    ]
+  }
+}

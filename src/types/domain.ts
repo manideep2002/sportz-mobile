@@ -400,8 +400,19 @@ export interface Community {
   memberCount: number;
   followerCount?: number;
   isPrivate?: boolean;
+  rules?: string;
+  avatarUrl?: string | null;
+  coverUrl?: string | null;
+  avatarPath?: string | null;
+  coverPath?: string | null;
+  joinApprovalRequired?: boolean;
+  postingPermission?: CommunityPostingPermission;
+  archivedAt?: string | null;
+  isArchived?: boolean;
   isAdmin?: boolean;
+  isOwner?: boolean;
   isMember?: boolean;
+  canPost?: boolean;
   canViewContent?: boolean;
   canManageMembers?: boolean;
   membershipRole?: CommunityMemberRole | null;
@@ -413,6 +424,7 @@ export interface Community {
 }
 
 export type CommunityMemberRole = 'owner' | 'admin' | 'member' | 'follower';
+export type CommunityPostingPermission = 'members' | 'admins';
 
 export type CommunityMembershipStatus = 'none' | 'joined' | 'admin' | 'owner' | 'invited' | 'requested';
 
@@ -436,6 +448,27 @@ export interface CommunityJoinRequest {
   communityId: ID;
   requester: UserProfile;
   status: 'pending' | 'approved' | 'declined' | 'cancelled';
+  createdAt: string;
+}
+
+export interface CommunityAdminAuditEntry {
+  id: ID;
+  communityId?: ID | null;
+  actorId?: ID | null;
+  action:
+    | 'created'
+    | 'settings_updated'
+    | 'branding_updated'
+    | 'branding_removed'
+    | 'member_promoted'
+    | 'member_demoted'
+    | 'member_removed'
+    | 'ownership_transferred'
+    | 'content_removed'
+    | 'archived'
+    | 'deleted';
+  targetUserId?: ID | null;
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 

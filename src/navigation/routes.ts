@@ -49,6 +49,8 @@ export type AppStackParamList = {
   PostDetail: { postId: string; commentId?: string };
   GroupDetail: { communityId: string };
   PageDetail: { communityId: string };
+  CommunityAdmin: { communityId: string };
+  CommunityInvitation: { inviteId: string };
   SavedPosts: undefined;
   Followers: { userId: string; mode: 'followers' | 'following' };
   FollowRequests: undefined;

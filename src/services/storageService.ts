@@ -22,6 +22,11 @@ export interface StoredEventCover {
   objectName: string;
 }
 
+export interface CommunityBrandingUpload {
+  path: string;
+  publicUrl: string;
+}
+
 async function observeUpload<T>(
   operation: string,
   extra: Record<string, unknown>,
@@ -252,6 +257,47 @@ export const storageService = {
       if (error) throw error;
       return path;
     });
+  },
+
+  async uploadCommunityBranding(
+    asset: ImagePicker.ImagePickerAsset,
+    communityId: string,
+    kind: 'avatar' | 'cover'
+  ): Promise<CommunityBrandingUpload> {
+    this.validateMediaAsset(asset, {
+      maxSizeMb: 10,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+    });
+
+    if (!env.isSupabaseConfigured) {
+      return { path: asset.uri, publicUrl: asset.uri };
+    }
+
+    return observeUpload('media.upload_community_branding', {
+      bucket: 'community-media',
+      kind,
+      mediaKind: 'image'
+    }, async () => {
+      const { ext, mime } = resolveAssetExtAndMime(asset);
+      const path = `${communityId}/${kind}-${Date.now()}.${ext}`;
+      const fileData = await readFileAsArrayBuffer(asset.uri);
+      const { error } = await supabase.storage.from('community-media').upload(path, fileData, {
+        contentType: mime,
+        cacheControl: '31536000',
+        upsert: false
+      });
+      if (error) throw error;
+      return {
+        path,
+        publicUrl: supabase.storage.from('community-media').getPublicUrl(path).data.publicUrl
+      };
+    });
+  },
+
+  async removeCommunityBranding(path?: string | null): Promise<void> {
+    if (!env.isSupabaseConfigured || !path || path.includes('://')) return;
+    const { error } = await supabase.storage.from('community-media').remove([path]);
+    if (error) throw error;
   },
 
   async removeProfileCover(value: string): Promise<void> {

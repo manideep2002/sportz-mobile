@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "jest",
+    "links:associations": "node scripts/generate-association-files.mjs",
     "supabase:types": "supabase gen types typescript --local > src/types/database.generated.ts"
   },
   "dependencies": {

@@ -1,8 +1,9 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronLeft, MoreHorizontal, Share2 } from 'lucide-react-native';
+import { ChevronLeft, MoreHorizontal, Settings, Share2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 
@@ -13,6 +14,7 @@ import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
 import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
+import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'PageDetail'>;
@@ -92,20 +94,33 @@ export function PageDetailScreen() {
         <View style={{ flex: 1 }} />
         <IconButton
           icon={MoreHorizontal}
-          accessibilityLabel="Page options"
-          onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })}
+          accessibilityLabel="Share page"
+          onPress={() => void shareCanonicalEntity('page', community.id, {
+            title: community.name,
+            message: `Follow ${community.name} on SPORTZ.`
+          })}
         />
       </View>
-      <LinearGradient colors={[theme.accentPressed, theme.accent, theme.accentPressed]} style={styles.cover}>
-        <AppText variant="h1" color={colors.light[0]}>
-          {community.name.substring(0, 4).toUpperCase()}
-        </AppText>
-      </LinearGradient>
+      {community.coverUrl ? (
+        <ExpoImage
+          accessibilityLabel={`${community.name} cover`}
+          source={{ uri: community.coverUrl }}
+          contentFit="cover"
+          style={styles.cover}
+        />
+      ) : (
+        <LinearGradient colors={[theme.accentPressed, theme.accent, theme.accentPressed]} style={styles.cover}>
+          <AppText variant="h1" color={colors.light[0]}>
+            {community.name.substring(0, 4).toUpperCase()}
+          </AppText>
+        </LinearGradient>
+      )}
       <View style={styles.body}>
         <AppText variant="h2">{community.name}</AppText>
         <AppText variant="bodyMuted">Official Page - {community.sport}</AppText>
         <View style={styles.badges}>
           {community.isVerified && <Badge tone="blue">Verified</Badge>}
+          {community.isArchived ? <Badge tone="yellow">Archived</Badge> : null}
           <Badge>{community.followerCount} followers</Badge>
         </View>
         <AppText variant="bodyMuted">{community.description}</AppText>
@@ -113,6 +128,7 @@ export function PageDetailScreen() {
           <Button
             variant={community.isMember ? 'dark' : 'primary'}
             style={styles.actionButton}
+            disabled={community.isArchived || community.isOwner}
             loading={followPage.isPending || unfollowPage.isPending}
             onPress={() => {
               if (community.isMember) {
@@ -130,12 +146,26 @@ export function PageDetailScreen() {
               }
             }}
           >
-            {community.isMember ? 'Following' : 'Follow'}
+            {community.isOwner ? 'Owner' : community.isMember ? 'Following' : 'Follow'}
           </Button>
-          {community.isAdmin ? (
+          {community.canPost ? (
             <Button style={styles.actionButton} onPress={() => navigation.navigate('CreatePost', { communityId: community.id })}>New Post</Button>
           ) : null}
-          <IconButton icon={Share2} onPress={() => void Share.share({ message: `Follow ${community.name} on SPORTZ.` })} />
+          {community.isAdmin ? (
+            <IconButton
+              accessibilityLabel="Manage page"
+              icon={Settings}
+              onPress={() => navigation.navigate('CommunityAdmin', { communityId: community.id })}
+            />
+          ) : null}
+          <IconButton
+            accessibilityLabel="Share page"
+            icon={Share2}
+            onPress={() => void shareCanonicalEntity('page', community.id, {
+              title: community.name,
+              message: `Follow ${community.name} on SPORTZ.`
+            })}
+          />
         </View>
         <AppText variant="h4">Latest Posts</AppText>
       </View>

@@ -1,7 +1,7 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Calendar, ChevronLeft, MapPin } from 'lucide-react-native';
+import { Calendar, ChevronLeft, MapPin, Share2 } from 'lucide-react-native';
 
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
 
@@ -14,6 +14,7 @@ import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { currency } from '@/utils/format';
 import { openCourtInMaps } from '@/utils/maps';
+import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
@@ -38,7 +39,16 @@ export function CourtDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Court</AppText>
-        <View style={{ width: 40 }} />
+        {court ? (
+          <IconButton
+            accessibilityLabel="Share court"
+            icon={Share2}
+            onPress={() => void shareCanonicalEntity('court', court.id, {
+              title: court.name,
+              message: `Play at ${court.name} in ${court.city} with SPORTZ.`
+            })}
+          />
+        ) : <View style={{ width: 40 }} />}
       </View>
       {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {isError ? (

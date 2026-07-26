@@ -1,5 +1,8 @@
 require('dotenv').config({ path: '.env', debug: false, quiet: true });
 
+const canonicalWebUrl = process.env.EXPO_PUBLIC_CANONICAL_WEB_URL || 'https://sportz.app';
+const canonicalHost = new URL(canonicalWebUrl).host;
+
 module.exports = {
   expo: {
     name: 'SPORTZ',
@@ -14,6 +17,7 @@ module.exports = {
       supportsTablet: false,
       bundleIdentifier: 'com.sportz.mobile',
       usesAppleSignIn: true,
+      associatedDomains: [`applinks:${canonicalHost}`],
       infoPlist: {
         NSCameraUsageDescription: 'SPORTZ uses your camera to add profile photos, stories, posts, and event media.',
         NSMicrophoneUsageDescription: 'SPORTZ uses your microphone to record audio with camera-captured videos.',
@@ -23,6 +27,22 @@ module.exports = {
     },
     android: {
       package: 'com.sportz.mobile',
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          data: [
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/posts' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/profiles' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/events' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/courts' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/groups' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/pages' },
+            { scheme: 'https', host: canonicalHost, pathPrefix: '/invitations/community' }
+          ],
+          category: ['BROWSABLE', 'DEFAULT']
+        }
+      ],
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#0A0907'
@@ -82,6 +102,9 @@ module.exports = {
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
       EXPO_PUBLIC_APP_SCHEME: process.env.EXPO_PUBLIC_APP_SCHEME,
+      EXPO_PUBLIC_CANONICAL_WEB_URL: canonicalWebUrl,
+      EXPO_PUBLIC_APP_STORE_URL: process.env.EXPO_PUBLIC_APP_STORE_URL,
+      EXPO_PUBLIC_PLAY_STORE_URL: process.env.EXPO_PUBLIC_PLAY_STORE_URL,
       EXPO_PUBLIC_MAP_PROVIDER: process.env.EXPO_PUBLIC_MAP_PROVIDER,
       EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
       EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,

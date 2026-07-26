@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Users } from 'lucide-react-native';
 
 import { AppText, Badge, Button, Card } from '@/components/ui';
@@ -17,8 +18,12 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
   const { colors: theme } = useAppTheme();
   const isGroup = community.type === 'group';
   const actionLabel = isGroup
-    ? community.isMember
+    ? community.isArchived
+      ? 'Archived'
+      : community.canPost
       ? 'New Post'
+      : community.isMember
+        ? 'View'
       : community.membershipStatus === 'invited'
         ? 'Respond'
         : community.membershipStatus === 'requested'
@@ -26,7 +31,9 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
           : community.isPrivate
             ? 'Request'
             : 'Join'
-    : community.isAdmin
+    : community.isArchived
+      ? 'Archived'
+      : community.canPost
       ? 'New Post'
       : 'Open Page';
 
@@ -34,9 +41,18 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
     <Pressable onPress={onPress}>
       <Card style={styles.card}>
         <View style={styles.header}>
-          <View style={[styles.logo, { backgroundColor: theme.accent }]}>
-            <Users size={22} color={theme.onAccent} />
-          </View>
+          {community.avatarUrl ? (
+            <ExpoImage
+              accessibilityLabel={`${community.name} avatar`}
+              source={{ uri: community.avatarUrl }}
+              contentFit="cover"
+              style={styles.logo}
+            />
+          ) : (
+            <View style={[styles.logo, { backgroundColor: theme.accent }]}>
+              <Users size={22} color={theme.onAccent} />
+            </View>
+          )}
           <View style={styles.meta}>
             <AppText style={[styles.name, { color: theme.text }]}>{community.name}</AppText>
             <AppText variant="small">
@@ -47,6 +63,7 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
         </View>
         <View style={styles.badges}>
           {community.isPrivate ? <Badge tone="yellow">Private</Badge> : null}
+          {community.isArchived ? <Badge tone="yellow">Archived</Badge> : null}
           {community.membershipStatus === 'invited' ? <Badge tone="blue">Invited</Badge> : null}
           {community.membershipStatus === 'requested' ? <Badge tone="yellow">Requested</Badge> : null}
           {community.isMember && !community.isAdmin ? <Badge tone="green">Joined</Badge> : null}
@@ -76,7 +93,7 @@ export function CommunityCard({ community, onPress, onViewPosts, onAction }: Com
           <Button
             size="sm"
             style={styles.actionButton}
-            disabled={community.membershipStatus === 'requested'}
+            disabled={community.membershipStatus === 'requested' || community.isArchived}
             onPress={(event) => {
               event.stopPropagation();
               (onAction ?? onPress)();
