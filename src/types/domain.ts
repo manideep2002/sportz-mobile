@@ -370,6 +370,7 @@ export type NotificationKind =
   | 'event'
   | 'message'
   | 'invite'
+  | 'security'
   | 'achievement';
 
 export interface SportzNotification {
@@ -385,7 +386,7 @@ export interface SportzNotification {
   lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
-  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer';
+  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer' | 'security_event';
   data?: Record<string, unknown>;
 }
 

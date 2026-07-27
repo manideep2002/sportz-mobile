@@ -8,6 +8,7 @@ export type AuthStackParamList = {
   ResetPassword: undefined;
   ProfileCompletion: undefined;
   ProfileLoadError: undefined;
+  MfaChallenge: undefined;
 };
 
 export type MainTabParamList = {
@@ -25,6 +26,7 @@ export type AppStackParamList = {
   Community: undefined;
   Notifications: undefined;
   Settings: undefined;
+  AccountSecurity: undefined;
   EditProfile: undefined;
   EventDetail: { eventId: string };
   EventChat: { eventId: string };

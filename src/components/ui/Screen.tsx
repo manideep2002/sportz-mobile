@@ -4,6 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout, spacing } from '@/design/tokens';
 import { useAppTheme } from '@/design/ThemeProvider';
+import { useResponsiveLayout } from '@/layout/responsive';
+
+export type ScreenMaxWidth = 'form' | 'content' | 'wide' | 'none';
 
 interface ScreenProps {
   scroll?: boolean;
@@ -13,6 +16,7 @@ interface ScreenProps {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   refreshControl?: ReactElement<RefreshControlProps>;
+  maxWidth?: ScreenMaxWidth;
 }
 
 export function Screen({
@@ -23,14 +27,30 @@ export function Screen({
   keyboardOffset = Platform.OS === 'ios' ? 0 : 10,
   style,
   contentContainerStyle,
-  refreshControl
+  refreshControl,
+  maxWidth = 'content'
 }: PropsWithChildren<ScreenProps>) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsiveLayout();
   const bottomPadding = withTabPadding ? layout.tabBarHeight + spacing.md : Math.max(insets.bottom, spacing.lg);
+  const resolvedMaxWidth = maxWidth === 'none'
+    ? undefined
+    : maxWidth === 'form'
+      ? 560
+      : maxWidth === 'wide'
+        ? responsive.wideMaxWidth
+        : responsive.contentMaxWidth;
   const contentStyle = [
     styles.content,
-    { paddingTop: Math.max(insets.top, spacing.lg), paddingBottom: bottomPadding },
+    {
+      paddingTop: Math.max(insets.top, spacing.lg),
+      paddingBottom: bottomPadding,
+      paddingHorizontal: responsive.gutter,
+      maxWidth: resolvedMaxWidth,
+      alignSelf: 'center' as const,
+      width: '100%' as const
+    },
     contentContainerStyle
   ];
 
@@ -43,6 +63,7 @@ export function Screen({
       bounces
       overScrollMode="always"
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       {children}
     </ScrollView>

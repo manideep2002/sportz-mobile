@@ -27,6 +27,7 @@ import { feedDedupeService } from '@/services/feedDedupeService';
 import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 import type { Post } from '@/types/domain';
+import { useResponsiveLayout } from '@/layout/responsive';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -34,6 +35,7 @@ export function FeedScreen() {
   const navigation = useNavigation<Navigation>();
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
+  const responsive = useResponsiveLayout();
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
@@ -94,6 +96,7 @@ export function FeedScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <FlashList
+        style={{ width: '100%', maxWidth: responsive.feedMaxWidth, alignSelf: 'center' }}
         data={filteredFeed}
         keyExtractor={(item) => item.id}
         extraData={selectedSport}

@@ -152,7 +152,7 @@ export const createRegistrationSchema = (today?: Date) =>
     ),
     secondarySports: z.array(secondarySportSchema).max(allSports.length - 1, 'Too many secondary sports selected.'),
     password: z.string()
-      .min(10, 'Password must be at least 10 characters.')
+      .min(12, 'Password must be at least 12 characters.')
       .max(REGISTRATION_LIMITS.password, `Password must be ${REGISTRATION_LIMITS.password} characters or fewer.`)
       .regex(/[A-Z]/, 'Password must include an uppercase letter.')
       .regex(/[a-z]/, 'Password must include a lowercase letter.')

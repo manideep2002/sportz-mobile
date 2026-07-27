@@ -11,6 +11,7 @@ import {
 } from '@/schemas/registrationSchema';
 import type { UserProfile } from '@/types/domain';
 import { captureUnexpectedError } from '@/lib/monitoring';
+import { accountSecurityService } from '@/services/accountSecurityService';
 
 export interface AuthResult {
   session: Session | null;
@@ -113,10 +114,12 @@ export const authService = {
   },
 
   async updatePassword(newPassword: string): Promise<void> {
+    // This method is only used by the PASSWORD_RECOVERY route. Authenticated
+    // settings changes use accountSecurityService and its server-side recent-auth grant.
     assertSupabaseConfigured();
-
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
+    await accountSecurityService.recordPasswordRecovery(newPassword);
   },
 
   async resetPassword(email: string) {
@@ -136,14 +139,20 @@ export const authService = {
     await hotCacheService.clearAll();
   },
 
-  async deleteAccount() {
-    assertSupabaseConfigured();
-
-    const { error } = await supabase.functions.invoke('delete-account', {
-      method: 'POST'
-    });
-    if (error) throw error;
+  async deleteAccount(email: string) {
+    await accountSecurityService.deleteAccount(email);
     await hotCacheService.clearAll();
+  },
+
+  async needsMfaChallenge(): Promise<boolean> {
+    return accountSecurityService.needsMfaChallenge();
+  },
+
+  async verifyMfaChallenge(factorId: string, code: string): Promise<AuthResult> {
+    await accountSecurityService.verifyTotp(factorId, code);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return { session: data.session, user: data.session?.user ?? null };
   },
 
   async getCurrentProfile(): Promise<UserProfile> {

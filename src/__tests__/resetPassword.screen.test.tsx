@@ -28,7 +28,7 @@ describe('ResetPasswordScreen', () => {
     await fireEvent.changeText(screen.getByPlaceholderText('Confirm password'), 'different');
     await fireEvent.press(screen.getByRole('button', { name: 'Update Password' }));
 
-    expect(await screen.findByText('Password must be at least 8 characters.')).toBeTruthy();
+    expect(await screen.findByText('Password must be at least 12 characters.')).toBeTruthy();
     expect(screen.getByText('Passwords do not match.')).toBeTruthy();
     expect(mockUpdatePassword).not.toHaveBeenCalled();
   });

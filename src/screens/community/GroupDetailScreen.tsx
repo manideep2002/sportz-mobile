@@ -212,6 +212,7 @@ export function GroupDetailScreen() {
 
   return (
     <Screen
+      maxWidth="wide"
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl

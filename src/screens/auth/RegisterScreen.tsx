@@ -102,7 +102,7 @@ const locationSuggestions = [
 ];
 
 const passwordRules = [
-  { label: 'At least 10 characters', test: (value: string) => value.length >= 10 },
+  { label: 'At least 12 characters', test: (value: string) => value.length >= 12 },
   { label: 'One uppercase and one lowercase letter', test: (value: string) => /[A-Z]/.test(value) && /[a-z]/.test(value) },
   { label: 'One number', test: (value: string) => /\d/.test(value) },
   { label: 'One symbol, such as @ # $ %', test: (value: string) => /[^A-Za-z0-9]/.test(value) },

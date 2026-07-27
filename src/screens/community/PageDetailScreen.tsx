@@ -81,6 +81,7 @@ export function PageDetailScreen() {
 
   return (
     <Screen
+      maxWidth="wide"
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl

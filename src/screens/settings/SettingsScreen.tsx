@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, CalendarCheck, ChevronDown, ChevronLeft, ChevronUp, Heart, HelpCircle, Lock, LogOut, Moon, ShieldCheck, Trash2, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Bell, CalendarCheck, ChevronDown, ChevronLeft, ChevronUp, Heart, HelpCircle, KeyRound, Lock, LogOut, Moon, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react-native';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
@@ -27,13 +27,13 @@ export function SettingsScreen() {
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
   const signOut = useAuthStore((state) => state.signOut);
-  const deleteAccount = useAuthStore((state) => state.deleteAccount);
   const profile = useAuthStore((state) => state.profile);
   const themeMode = useUiStore((state) => state.themeMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const accountItems: SettingsItemConfig[] = [
     { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
+    { label: 'Account security', detail: 'Password, MFA, sessions, identity, and account recovery', icon: KeyRound, route: 'AccountSecurity' },
     { label: t('settings.privacy'), detail: t('settings.privacyDetail'), icon: Lock, route: 'Privacy' },
     { label: t('settings.notifications'), detail: t('settings.notificationsDetail'), icon: Bell, route: 'NotificationSettings' }
   ];
@@ -52,23 +52,6 @@ export function SettingsScreen() {
     } catch (error) {
       Alert.alert(t('settings.signOutFailed'), error instanceof Error ? error.message : t('common.retry'));
     }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(t('settings.deleteConfirmTitle'), t('settings.deleteConfirmBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteAccount();
-          } catch (error) {
-            Alert.alert(t('settings.deleteFailed'), error instanceof Error ? error.message : t('common.retry'));
-          }
-        }
-      }
-    ], { cancelable: true });
   };
 
   return (
@@ -137,12 +120,6 @@ export function SettingsScreen() {
       </View>
       <AppText variant="caption" style={styles.sectionTitle}>{t('settings.support')}</AppText>
       <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
-      <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleDeleteAccount}>
-        <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><Trash2 size={18} color={theme.danger} /></View>
-        <View style={{ flex: 1 }}>
-          <AppText style={[styles.itemLabel, { color: theme.danger }]}>{t('settings.deleteAccount')}</AppText>
-        </View>
-      </Pressable>
       <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleSignOut}>
         <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><LogOut size={18} color={theme.danger} /></View>
         <View style={{ flex: 1 }}>

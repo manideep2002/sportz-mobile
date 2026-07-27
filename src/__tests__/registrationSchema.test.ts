@@ -53,7 +53,7 @@ describe('registrationSchema', () => {
     ['mobileNumber', '12345', 'Enter a valid 10-digit Indian mobile number'],
     ['city', '', 'City is required.'],
     ['city', 'A', 'City must be at least 2 characters.'],
-    ['password', 'weak', 'Password must be at least 10 characters.'],
+    ['password', 'weak', 'Password must be at least 12 characters.'],
     ['confirmPassword', '', 'Confirm your password.']
   ])('rejects an invalid %s', (field, value, expectedMessage) => {
     expect(errorFor({ ...validInput, [field]: value }, field)).toContain(expectedMessage);
@@ -94,11 +94,11 @@ describe('registrationSchema', () => {
   });
 
   it('requires every password rule and matching confirmation', () => {
-    expect(errorFor({ ...validInput, password: 'lowercase9!' }, 'password')).toBe('Password must include an uppercase letter.');
-    expect(errorFor({ ...validInput, password: 'UPPERCASE9!' }, 'password')).toBe('Password must include a lowercase letter.');
-    expect(errorFor({ ...validInput, password: 'NoNumber!!' }, 'password')).toBe('Password must include a number.');
-    expect(errorFor({ ...validInput, password: 'NoSymbol99' }, 'password')).toBe('Password must include a symbol.');
-    expect(errorFor({ ...validInput, password: 'Has Space9!' }, 'password')).toBe('Password cannot contain spaces.');
+    expect(errorFor({ ...validInput, password: 'lowercase99!' }, 'password')).toBe('Password must include an uppercase letter.');
+    expect(errorFor({ ...validInput, password: 'UPPERCASE99!' }, 'password')).toBe('Password must include a lowercase letter.');
+    expect(errorFor({ ...validInput, password: 'NoNumber!!!!' }, 'password')).toBe('Password must include a number.');
+    expect(errorFor({ ...validInput, password: 'NoSymbol9999' }, 'password')).toBe('Password must include a symbol.');
+    expect(errorFor({ ...validInput, password: 'Has Space99!' }, 'password')).toBe('Password cannot contain spaces.');
     expect(errorFor({ ...validInput, confirmPassword: 'Different9!' }, 'confirmPassword')).toBe('Passwords do not match.');
   });
 });

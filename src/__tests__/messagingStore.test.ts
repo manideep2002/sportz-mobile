@@ -11,7 +11,32 @@ beforeEach(() => {
   useMessagingStore.setState({
     mutedConversations: {},
     readConversationIds: new Set(),
-    conversationPreviews: new Map()
+    conversationPreviews: new Map(),
+    drafts: {}
+  });
+});
+
+describe('messagingStore — responsive drafts', () => {
+  it('keeps drafts per conversation across pane remounts', () => {
+    act(() => {
+      useMessagingStore.getState().setDraft('conv-1', 'Preserve this on rotation');
+      useMessagingStore.getState().setDraft('conv-2', 'A separate draft');
+    });
+
+    expect(useMessagingStore.getState().drafts).toEqual({
+      'conv-1': 'Preserve this on rotation',
+      'conv-2': 'A separate draft'
+    });
+  });
+
+  it('removes only the draft that was sent', () => {
+    act(() => {
+      useMessagingStore.getState().setDraft('conv-1', 'sent');
+      useMessagingStore.getState().setDraft('conv-2', 'still composing');
+      useMessagingStore.getState().setDraft('conv-1', '');
+    });
+
+    expect(useMessagingStore.getState().drafts).toEqual({ 'conv-2': 'still composing' });
   });
 });
 

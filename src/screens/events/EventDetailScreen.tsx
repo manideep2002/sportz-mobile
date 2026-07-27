@@ -26,6 +26,7 @@ import { eventDate, formatTime } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
 import { shareEvent } from '@/utils/share';
 import { useAuthStore } from '@/store/authStore';
+import { useResponsiveLayout } from '@/layout/responsive';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventDetail'>;
@@ -33,6 +34,7 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
+  const responsive = useResponsiveLayout();
   const route = useRoute<Route>();
   const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
   const {
@@ -197,27 +199,30 @@ export function EventDetailScreen() {
         <View style={{ flex: 1 }} />
         <IconButton accessibilityLabel="Share event" icon={Share2} onPress={handleShare} />
       </View>
-      <View style={styles.hero}>
-        {event.coverUrl ? (
-          <Image
-            source={{ uri: coverImageUrl ?? event.coverUrl }}
-            style={styles.coverImage}
-            resizeMode="cover"
-            onError={() => {
-              if (!useRawCover && optimizedCoverUrl !== event.coverUrl) {
-                setUseRawCover(true);
-              }
-            }}
-          />
-        ) : (
-          <CourtArt />
-        )}
-        <LinearGradient colors={['transparent', theme.mediaGradientEnd]} style={styles.heroGradient} />
-        {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
-        {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
-        {(isFull || event.status === 'full') && event.status !== 'cancelled' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
-      </View>
-      <View style={styles.body}>
+      <View style={[styles.detailLayout, responsive.isExpanded ? styles.detailLayoutExpanded : null]}>
+        <View style={styles.mediaColumn}>
+          <View style={[styles.hero, responsive.isExpanded ? styles.heroExpanded : null]}>
+            {event.coverUrl ? (
+              <Image
+                source={{ uri: coverImageUrl ?? event.coverUrl }}
+                style={styles.coverImage}
+                resizeMode="cover"
+                onError={() => {
+                  if (!useRawCover && optimizedCoverUrl !== event.coverUrl) {
+                    setUseRawCover(true);
+                  }
+                }}
+              />
+            ) : (
+              <CourtArt />
+            )}
+            <LinearGradient colors={['transparent', theme.mediaGradientEnd]} style={styles.heroGradient} />
+            {event.status === 'live' && <Badge tone="red" style={styles.liveBadge}>LIVE</Badge>}
+            {event.status === 'cancelled' && <Badge tone="red" style={styles.liveBadge}>CANCELLED</Badge>}
+            {(isFull || event.status === 'full') && event.status !== 'cancelled' && <Badge tone="orange" style={styles.liveBadge}>FULL</Badge>}
+          </View>
+        </View>
+        <View style={[styles.body, responsive.isExpanded ? styles.bodyExpanded : null]}>
         <View style={styles.badges}>
           <Badge tone="orange">{event.sport}</Badge>
           <Badge tone="dark">{event.eventType}</Badge>
@@ -347,6 +352,7 @@ export function EventDetailScreen() {
         <Button full size="lg" variant="ghost" onPress={handleShare}>
           Share Event
         </Button>
+        </View>
       </View>
     </Screen>
   );
@@ -376,6 +382,24 @@ const styles = StyleSheet.create({
     marginTop: -52,
     backgroundColor: '#0A1A08'
   },
+  heroExpanded: {
+    height: 360,
+    marginTop: 0,
+    borderRadius: 18,
+    overflow: 'hidden'
+  },
+  detailLayout: {
+    gap: spacing.md
+  },
+  detailLayoutExpanded: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.screen
+  },
+  mediaColumn: {
+    flex: 0.9,
+    minWidth: 0
+  },
   coverImage: {
     width: '100%',
     height: '100%'
@@ -396,6 +420,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screen,
     gap: spacing.md,
     marginTop: -10
+  },
+  bodyExpanded: {
+    flex: 1.1,
+    minWidth: 0,
+    marginTop: 0,
+    paddingHorizontal: 0
   },
   badges: {
     flexDirection: 'row',

@@ -1,4 +1,5 @@
 export * from './AppText';
+export * from './AdaptiveSplitView';
 export * from './AppRefreshControl';
 export * from './Avatar';
 export * from './Badge';

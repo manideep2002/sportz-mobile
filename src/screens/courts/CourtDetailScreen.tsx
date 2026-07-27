@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { currency } from '@/utils/format';
 import { openCourtInMaps } from '@/utils/maps';
 import { shareCanonicalEntity } from '@/services/canonicalLinkService';
+import { useResponsiveLayout } from '@/layout/responsive';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CourtDetail'>;
@@ -25,6 +26,7 @@ export function CourtDetailScreen() {
   const route = useRoute<Route>();
   const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
   const profile = useAuthStore((state) => state.profile);
+  const responsive = useResponsiveLayout();
 
   return (
     <Screen
@@ -64,8 +66,11 @@ export function CourtDetailScreen() {
         </View>
       ) : null}
       {court ? (
-        <>
-          <CourtMapPreview court={court} />
+        <View style={[styles.detailLayout, responsive.isExpanded ? styles.detailLayoutExpanded : null]}>
+          <View style={styles.mapColumn}>
+            <CourtMapPreview court={court} />
+          </View>
+          <View style={styles.detailColumn}>
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <AppText variant="h2">{court.name}</AppText>
@@ -116,7 +121,8 @@ export function CourtDetailScreen() {
               Manage Bookings
             </Button>
           ) : null}
-        </>
+          </View>
+        </View>
       ) : null}
     </Screen>
   );
@@ -133,6 +139,22 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   content: {
+    gap: spacing.md
+  },
+  detailLayout: {
+    gap: spacing.md
+  },
+  detailLayoutExpanded: {
+    flexDirection: 'row',
+    alignItems: 'flex-start'
+  },
+  mapColumn: {
+    flex: 0.9,
+    minWidth: 0
+  },
+  detailColumn: {
+    flex: 1.1,
+    minWidth: 0,
     gap: spacing.md
   },
   header: {

@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { CreateActionSheet } from './CreateActionSheet';
 import type { MainTabParamList } from './routes';
+import { useResponsiveLayout } from '@/layout/responsive';
 
 const TAB_BAR_HEIGHT = 62;
 const TAB_BAR_RADIUS = TAB_BAR_HEIGHT / 2;
@@ -118,6 +119,7 @@ export function MainTabs() {
 function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsiveLayout();
   const [barWidth, setBarWidth] = useState(0);
   const [indicatorWidths, setIndicatorWidths] = useState<number[]>([]);
   const indicatorLeft = useRef(new Animated.Value(0)).current;
@@ -185,7 +187,15 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
   return (
     <View
       onLayout={handleBarLayout}
-      style={[styles.tabBar, { bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP) }]}
+      style={[
+        styles.tabBar,
+        {
+          bottom: Math.max(insets.bottom, TAB_BAR_MIN_BOTTOM_GAP),
+          width: Math.min(responsive.width - TAB_BAR_HORIZONTAL_INSET * 2, 720),
+          left: Math.max(TAB_BAR_HORIZONTAL_INSET, (responsive.width - 720) / 2),
+          right: undefined
+        }
+      ]}
     >
       <BlurView
         experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
@@ -313,7 +323,6 @@ const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
     left: TAB_BAR_HORIZONTAL_INSET,
-    right: TAB_BAR_HORIZONTAL_INSET,
     height: TAB_BAR_HEIGHT,
     borderRadius: TAB_BAR_RADIUS,
     ...Platform.select({

@@ -59,6 +59,8 @@ import { ModerationScreen } from '@/screens/settings/ModerationScreen';
 import { SportsInterestsScreen } from '@/screens/settings/SportsInterestsScreen';
 import { HelpScreen } from '@/screens/settings/HelpScreen';
 import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/AuthProfileGateScreens';
+import { MfaChallengeScreen } from '@/screens/auth/MfaChallengeScreen';
+import { AccountSecurityScreen } from '@/screens/settings/AccountSecurityScreen';
 import { AppText } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
 import { useAppTranslation } from '@/i18n';
@@ -127,6 +129,8 @@ function AuthNavigator() {
   const authStatus = useAuthStore((state) => state.authStatus);
   const initialRouteName = authStatus === 'passwordRecovery'
     ? 'ResetPassword'
+    : authStatus === 'mfaChallenge'
+      ? 'MfaChallenge'
     : authStatus === 'profileCompletion'
       ? 'ProfileCompletion'
       : authStatus === 'profileError'
@@ -142,6 +146,7 @@ function AuthNavigator() {
       <Auth.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Auth.Screen name="ProfileCompletion" component={ProfileCompletionScreen} />
       <Auth.Screen name="ProfileLoadError" component={ProfileLoadErrorScreen} />
+      <Auth.Screen name="MfaChallenge" component={MfaChallengeScreen} />
     </Auth.Navigator>
   );
 }
@@ -155,6 +160,7 @@ function AppNavigator() {
       <App.Screen name="Community" component={CommunityScreen} />
       <App.Screen name="Notifications" component={NotificationsScreen} />
       <App.Screen name="Settings" component={SettingsScreen} />
+      <App.Screen name="AccountSecurity" component={AccountSecurityScreen} />
       <App.Screen name="EditProfile" component={EditProfileScreen} />
       <App.Screen name="EventDetail" component={EventDetailScreen} />
       <App.Screen name="EventChat" component={EventChatScreen} />

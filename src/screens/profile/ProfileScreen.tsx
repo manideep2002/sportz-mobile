@@ -63,6 +63,7 @@ export function ProfileScreen() {
   return (
     <Screen
       withTabPadding
+      maxWidth="wide"
       contentContainerStyle={styles.content}
       refreshControl={
         <AppRefreshControl

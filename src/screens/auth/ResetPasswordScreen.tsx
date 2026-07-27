@@ -17,7 +17,7 @@ import { useAuthStore } from '@/store/authStore';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ResetPassword'>;
 
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 12;
 
 function validate(password: string, confirm: string) {
   const errors: { password?: string; confirm?: string } = {};
@@ -25,6 +25,8 @@ function validate(password: string, confirm: string) {
     errors.password = 'Password is required.';
   } else if (password.length < MIN_PASSWORD_LENGTH) {
     errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  } else if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+    errors.password = 'Use uppercase, lowercase, and a number.';
   }
   if (!confirm) {
     errors.confirm = 'Please confirm your password.';
@@ -217,9 +219,10 @@ function PasswordField({ label, value, onChangeText, show, onToggleShow, error }
 }
 
 const RULES = [
-  { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+  { label: 'At least 12 characters', test: (p: string) => p.length >= 12 },
   { label: 'Uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
-  { label: 'Number or symbol', test: (p: string) => /[0-9!@#$%^&*]/.test(p) },
+  { label: 'Lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+  { label: 'Number', test: (p: string) => /\d/.test(p) },
 ];
 
 function StrengthHints({ password }: { password: string }) {

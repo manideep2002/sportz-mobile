@@ -2,18 +2,20 @@ import { useNavigation } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw, Search } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 
-import { AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+import { AdaptiveSplitView, AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { useResponsiveLayout } from '@/layout/responsive';
+import { ThreadFirstChatScreen } from '@/screens/messages/ThreadFirstChatScreen';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -21,7 +23,9 @@ export function MessagesScreen() {
   const navigation = useNavigation<Navigation>();
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
+  const responsive = useResponsiveLayout();
   const [query, setQuery] = useState('');
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const { data: conversations = [], isLoading, isError, isRefetching, refetch } = useConversations();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const filteredConversations = useMemo(() => {
@@ -34,18 +38,17 @@ export function MessagesScreen() {
   }, [conversations, query]);
   const pinned = filteredConversations.filter((conversation) => conversation.pinned);
   const rest = filteredConversations.filter((conversation) => !conversation.pinned);
+  const selectedConversation = conversations.find((conversation) => conversation.id === selectedConversationId);
+  const openConversation = (conversationId: string) => {
+    if (responsive.supportsSplitPane) {
+      setSelectedConversationId(conversationId);
+    } else {
+      navigation.navigate('Chat', { conversationId });
+    }
+  };
 
-  return (
-    <Screen
-      withTabPadding
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <AppRefreshControl
-          refreshing={isRefetching}
-          onRefresh={() => void refetch()}
-        />
-      }
-    >
+  const conversationList = (
+    <View style={styles.content}>
       <View style={styles.header}>
         <AppText variant="h2">
           {t('messages.title')}<AppText variant="h2" color={theme.accent}>.</AppText>
@@ -70,7 +73,7 @@ export function MessagesScreen() {
               key={conversation.id}
               conversation={conversation}
               currentUserId={currentUserId}
-              onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
+              onPress={() => openConversation(conversation.id)}
               onMenuPress={() => navigation.navigate('Chat', { conversationId: conversation.id, openSettings: true })}
             />
           ))}
@@ -83,7 +86,7 @@ export function MessagesScreen() {
             key={conversation.id}
             conversation={conversation}
             currentUserId={currentUserId}
-            onPress={() => navigation.navigate('Chat', { conversationId: conversation.id })}
+            onPress={() => openConversation(conversation.id)}
             onMenuPress={() => navigation.navigate('Chat', { conversationId: conversation.id, openSettings: true })}
           />
         ))}
@@ -91,6 +94,59 @@ export function MessagesScreen() {
           <AppText variant="bodyMuted" style={styles.empty}>{t('messages.empty')}</AppText>
         ) : null}
       </View>
+    </View>
+  );
+
+  if (responsive.supportsSplitPane) {
+    return (
+      <Screen scroll={false} withTabPadding maxWidth="wide" contentContainerStyle={styles.splitScreen}>
+        <AdaptiveSplitView
+          primary={
+            <ScrollView
+              accessibilityLabel="Conversations"
+              keyboardShouldPersistTaps="handled"
+              refreshControl={<AppRefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}
+              contentContainerStyle={styles.listPane}
+            >
+              {conversationList}
+            </ScrollView>
+          }
+          secondary={
+            selectedConversation ? (
+              <ThreadFirstChatScreen
+                key={selectedConversation.id}
+                roomId={selectedConversation.id}
+                title={selectedConversation.title}
+                conversation={selectedConversation}
+                onAddMembers={() => navigation.navigate('NewMessage', { addToConversationId: selectedConversation.id })}
+                onBack={() => setSelectedConversationId(null)}
+                onLeftConversation={() => setSelectedConversationId(null)}
+              />
+            ) : (
+              <View style={[styles.threadPlaceholder, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                <AppText variant="h3">{t('messages.title')}</AppText>
+                <AppText variant="bodyMuted">Choose a conversation to open it beside the list.</AppText>
+              </View>
+            )
+          }
+          primaryStyle={[styles.listColumn, { borderColor: theme.border }]}
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen
+      withTabPadding
+      maxWidth="content"
+      refreshControl={
+        <AppRefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+        />
+      }
+    >
+      {conversationList}
     </Screen>
   );
 }
@@ -98,6 +154,24 @@ export function MessagesScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: spacing.md
+  },
+  splitScreen: {
+    paddingBottom: 88
+  },
+  listPane: {
+    paddingRight: spacing.md
+  },
+  listColumn: {
+    borderRightWidth: StyleSheet.hairlineWidth
+  },
+  threadPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: spacing.xl
   },
   header: {
     flexDirection: 'row',

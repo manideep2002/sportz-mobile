@@ -294,7 +294,9 @@ export function ThreadFirstChatScreen({
   const setConversationMutedLocally = useMessagingStore((state) => state.setConversationMutedLocally);
   const [messages, setMessages] = useState<ThreadChatMessage[]>([]);
   const [participants, setParticipants] = useState<ThreadChatParticipant[]>([]);
-  const [body, setBody] = useState('');
+  const savedDraft = useMessagingStore((state) => state.drafts?.[roomId] ?? '');
+  const setDraft = useMessagingStore((state) => state.setDraft) ?? (() => undefined);
+  const [body, setBody] = useState(savedDraft);
   const [typingUserIds, setTypingUserIds] = useState<Set<string>>(new Set());
   const [initialLoading, setInitialLoading] = useState(true);
   const [olderLoading, setOlderLoading] = useState(false);
@@ -542,6 +544,7 @@ export function ThreadFirstChatScreen({
 
   const updateBody = (value: string) => {
     setBody(value);
+    setDraft(roomId, value);
     sendTyping(value);
   };
 
@@ -564,6 +567,7 @@ export function ThreadFirstChatScreen({
   const cancelEditing = () => {
     setEditingMessage(null);
     setBody('');
+    setDraft(roomId, '');
     sendTyping('');
   };
 
@@ -581,6 +585,7 @@ export function ThreadFirstChatScreen({
       setMessages((current) => mergeThreadMessages(current, updated));
       setEditingMessage(null);
       setBody('');
+      setDraft(roomId, '');
       sendTyping('');
       await broadcast('message_updated', { message: updated } satisfies ChatMessageBroadcastPayload);
       await invalidateConversationData();
@@ -594,7 +599,9 @@ export function ThreadFirstChatScreen({
   const startEditingSelectedMessage = () => {
     if (!selectedMessage || selectedMessage.messageType !== 'text') return;
     setEditingMessage(selectedMessage);
-    setBody(selectedMessage.body ?? '');
+    const editableBody = selectedMessage.body ?? '';
+    setBody(editableBody);
+    setDraft(roomId, editableBody);
     setSelectedMessage(null);
   };
 
@@ -752,6 +759,7 @@ export function ThreadFirstChatScreen({
     };
 
     setBody('');
+    setDraft(roomId, '');
     sendTyping('');
     pendingScrollToBottomRef.current = true;
     setMessages((current) => mergeThreadMessages(current, message));

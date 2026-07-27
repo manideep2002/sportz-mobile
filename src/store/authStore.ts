@@ -13,6 +13,7 @@ export type AuthStatus =
   | 'profileCompletion'
   | 'profileError'
   | 'passwordRecovery'
+  | 'mfaChallenge'
   | 'signedIn';
 
 interface AuthState {
@@ -32,8 +33,9 @@ interface AuthState {
   signInWithIdToken: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
+  verifyMfaChallenge: (factorId: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
-  deleteAccount: () => Promise<void>;
+  deleteAccount: (email: string) => Promise<void>;
   setProfile: (profile: UserProfile) => void;
 }
 
@@ -113,6 +115,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (hadUserData) await sessionDataService.clearUserScopedData();
       return;
+    }
+
+    try {
+      if (await authService.needsMfaChallenge()) {
+        authTransitionId += 1;
+        pendingProfileSync = null;
+        set({
+          session,
+          user: session.user,
+          profile: null,
+          authStatus: 'mfaChallenge',
+          bootstrapped: true,
+          loading: false,
+          error: null
+        });
+        return;
+      }
+    } catch {
+      // AAL checks should not strand users when Auth is temporarily unavailable.
     }
 
     const sameUser = current.user?.id === session.user.id;
@@ -276,6 +297,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  verifyMfaChallenge: async (factorId, code) => {
+    set({ loading: true, error: null });
+    try {
+      const { session } = await authService.verifyMfaChallenge(factorId, code);
+      await get().handleAuthStateChange('MFA_CHALLENGE_VERIFIED', session);
+    } catch (error) {
+      set({ loading: false, error: errorMessage(error, 'Authenticator verification failed.') });
+      throw error;
+    }
+  },
+
   signOut: async () => {
     set({ loading: true, error: null });
     try {
@@ -287,10 +319,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  deleteAccount: async () => {
+  deleteAccount: async (email) => {
     set({ loading: true, error: null });
     try {
-      await authService.deleteAccount();
+      await authService.deleteAccount(email);
       if (get().authStatus !== 'signedOut') await get().handleAuthStateChange('SIGNED_OUT', null);
     } catch (error) {
       set({ loading: false, error: errorMessage(error, 'Account deletion failed.') });

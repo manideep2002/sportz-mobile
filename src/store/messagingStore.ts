@@ -11,11 +11,13 @@ interface MessagingState {
   readConversationIds: Set<string>;
   /** Optimistic last-message previews written before the server round-trip completes. */
   conversationPreviews: Map<string, ConversationPreview>;
+  drafts: Record<string, string>;
   toggleMuteConversation: (conversationId: string) => void;
   setConversationMutedLocally: (conversationId: string, muted: boolean) => void;
   markConversationReadLocally: (conversationId: string) => void;
   setConversationPreview: (conversationId: string, preview: ConversationPreview) => void;
   clearConversationPreview: (conversationId: string) => void;
+  setDraft: (conversationId: string, body: string) => void;
   resetForSession: () => void;
 }
 
@@ -23,6 +25,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
   mutedConversations: {},
   readConversationIds: new Set<string>(),
   conversationPreviews: new Map<string, ConversationPreview>(),
+  drafts: {},
 
   toggleMuteConversation: (conversationId) =>
     set((state) => ({
@@ -64,10 +67,18 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       return { conversationPreviews: next };
     }),
 
+  setDraft: (conversationId, body) =>
+    set((state) => ({
+      drafts: body
+        ? { ...state.drafts, [conversationId]: body }
+        : Object.fromEntries(Object.entries(state.drafts).filter(([id]) => id !== conversationId))
+    })),
+
   resetForSession: () =>
     set({
       mutedConversations: {},
       readConversationIds: new Set<string>(),
-      conversationPreviews: new Map<string, ConversationPreview>()
+      conversationPreviews: new Map<string, ConversationPreview>(),
+      drafts: {}
     })
 }));
