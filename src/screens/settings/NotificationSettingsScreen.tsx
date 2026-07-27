@@ -65,7 +65,17 @@ export function NotificationSettingsScreen() {
         <AppText variant="h3">Notifications</AppText>
         <View style={{ width: 40 }} />
       </View>
-      <ToggleRow label="Push notifications" detail="Allow SPORTZ to register this device" icon={Bell} value={enabled} onPress={toggleEnabled} />
+      <AppText variant="bodyMuted">
+        Activity notifications remain available in the in-app Notifications screen. These controls only change push alerts.
+      </AppText>
+      <ToggleRow
+        label="Push notifications"
+        detail="Allow SPORTZ to send activity alerts to this device"
+        icon={Bell}
+        value={enabled}
+        onPress={toggleEnabled}
+      />
+      <AppText variant="caption" style={styles.sectionTitle}>Push categories</AppText>
       {notificationTypes.map((type) => (
         <ToggleRow key={type} label={type[0].toUpperCase() + type.slice(1)} value={preferences[type]} onPress={() => void togglePreference(type)} />
       ))}
@@ -99,6 +109,7 @@ function ToggleRow({ label, detail, value, onPress, icon: Icon }: { label: strin
 const styles = StyleSheet.create({
   content: { gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { marginTop: spacing.xs },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: 14, backgroundColor: colors.dark[800] },
   label: { color: colors.text.primary, fontFamily: typography.bodyBold, fontSize: 14 },
   switch: { width: 44, height: 26, borderRadius: 13, padding: 3, backgroundColor: colors.dark[700] },

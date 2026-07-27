@@ -110,7 +110,7 @@ export const enIN = {
     privacy: 'Privacy & Security',
     privacyDetail: 'Account visibility, block list',
     notifications: 'Notifications',
-    notificationsDetail: 'Push, email, activity alerts',
+    notificationsDetail: 'Push and in-app activity alerts',
     appearance: 'Appearance',
     sports: 'Sports Interests',
     bookings: 'My Bookings',

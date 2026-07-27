@@ -30,6 +30,13 @@
 - Notifications: `src/screens/notifications`, `src/services/notificationService.ts`
 - Profiles: `src/screens/profile`, `src/services/profileService.ts`
 
+SPORTZ activity notifications use two channels: the in-app notification feed and
+optional device push alerts. Category preferences apply to push delivery; they do
+not remove activity from the in-app feed. Activity email is not a supported
+channel. Supabase Auth may still send mandatory transactional messages for account
+verification, password recovery, MFA recovery, and identity changes; those
+messages are part of account security rather than notification preferences.
+
 ## Backend
 
 Supabase tables:

@@ -106,6 +106,10 @@ describe('core-screen accessibility order and state', () => {
 
   it('announces settings toggles as checked switches', async () => {
     await renderWithTheme(<NotificationSettingsScreen />);
+    expect(
+      screen.getByText('Activity notifications remain available in the in-app Notifications screen. These controls only change push alerts.')
+    ).toBeTruthy();
+    expect(screen.queryByText(/email alerts/i)).toBeNull();
     expect(screen.getByRole('switch', { name: 'Push notifications' })).toHaveProp(
       'accessibilityState',
       { checked: true }
