@@ -578,6 +578,30 @@ export function RegisterScreen({ navigation }: Props) {
           >
             Create Profile
           </Button>
+          <View style={styles.consentNotice}>
+            <AppText variant="small" style={styles.consentText}>
+              By creating a profile, you agree to the current
+            </AppText>
+            <View style={styles.consentLinks}>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Read Terms of Service"
+                style={styles.consentLink}
+                onPress={() => navigation.navigate('TermsOfService')}
+              >
+                <AppText variant="small" style={[styles.link, { color: theme.accent }]}>Terms of Service</AppText>
+              </Pressable>
+              <AppText variant="small">and</AppText>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Read Privacy Policy"
+                style={styles.consentLink}
+                onPress={() => navigation.navigate('PrivacyPolicy')}
+              >
+                <AppText variant="small" style={[styles.link, { color: theme.accent }]}>Privacy Policy</AppText>
+              </Pressable>
+            </View>
+          </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Sign in to an existing account" style={styles.switch} onPress={() => navigation.navigate('Login')}>
             <AppText variant="bodyMuted">Already have an account? </AppText>
             <AppText style={[styles.link, { color: theme.accent }]}>Sign In</AppText>
@@ -1027,9 +1051,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center'
   },
+  consentNotice: {
+    alignItems: 'center'
+  },
+  consentText: {
+    textAlign: 'center'
+  },
+  consentLinks: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    justifyContent: 'center'
+  },
+  consentLink: {
+    justifyContent: 'center',
+    minHeight: 44
+  },
   link: {
     color: colors.orange[400],
-    fontWeight: '700'
+    fontWeight: '700',
+    textDecorationLine: 'underline'
   },
   modalBackdrop: {
     flex: 1,

@@ -61,6 +61,7 @@ import { HelpScreen } from '@/screens/settings/HelpScreen';
 import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/AuthProfileGateScreens';
 import { MfaChallengeScreen } from '@/screens/auth/MfaChallengeScreen';
 import { AccountSecurityScreen } from '@/screens/settings/AccountSecurityScreen';
+import { LegalDocumentScreen } from '@/screens/legal/LegalDocumentScreen';
 import { AppText } from '@/components/ui';
 import { colors, spacing } from '@/design/tokens';
 import { useAppTranslation } from '@/i18n';
@@ -147,6 +148,12 @@ function AuthNavigator() {
       <Auth.Screen name="ProfileCompletion" component={ProfileCompletionScreen} />
       <Auth.Screen name="ProfileLoadError" component={ProfileLoadErrorScreen} />
       <Auth.Screen name="MfaChallenge" component={MfaChallengeScreen} />
+      <Auth.Screen name="TermsOfService">
+        {({ navigation }) => <LegalDocumentScreen kind="terms" onBack={() => navigation.goBack()} />}
+      </Auth.Screen>
+      <Auth.Screen name="PrivacyPolicy">
+        {({ navigation }) => <LegalDocumentScreen kind="privacy" onBack={() => navigation.goBack()} />}
+      </Auth.Screen>
     </Auth.Navigator>
   );
 }
@@ -196,6 +203,12 @@ function AppNavigator() {
       <App.Screen name="Moderation" component={ModerationScreen} />
       <App.Screen name="SportsInterests" component={SportsInterestsScreen} />
       <App.Screen name="Help" component={HelpScreen} />
+      <App.Screen name="TermsOfService">
+        {({ navigation }) => <LegalDocumentScreen kind="terms" onBack={() => navigation.goBack()} />}
+      </App.Screen>
+      <App.Screen name="PrivacyPolicy">
+        {({ navigation }) => <LegalDocumentScreen kind="privacy" onBack={() => navigation.goBack()} />}
+      </App.Screen>
     </App.Navigator>
   );
 }

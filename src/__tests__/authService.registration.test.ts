@@ -1,3 +1,6 @@
+import { LEGAL_DOCUMENT_VERSIONS } from '@/constants/legalDocuments';
+import { authService } from '@/services/authService';
+
 const mockSupabaseSignUp = jest.fn();
 const mockCacheSet = jest.fn();
 
@@ -13,9 +16,6 @@ jest.mock('@/services/hotCacheService', () => ({
   }
 }));
 jest.mock('@/services/profileService', () => ({ profileService: {} }));
-
-// eslint-disable-next-line import/first
-import { authService } from '@/services/authService';
 
 const validInput = {
   firstName: '  Priya ',
@@ -60,7 +60,10 @@ describe('authService registration validation', () => {
           date_of_birth: '2000-01-15',
           primary_sport: 'Cricket',
           secondary_sports: ['Running'],
-          sports: ['Cricket', 'Running']
+          sports: ['Cricket', 'Running'],
+          terms_version: LEGAL_DOCUMENT_VERSIONS.terms,
+          privacy_version: LEGAL_DOCUMENT_VERSIONS.privacy,
+          consent_source: 'account_creation'
         })
       }
     });

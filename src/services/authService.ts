@@ -12,6 +12,7 @@ import {
 import type { UserProfile } from '@/types/domain';
 import { captureUnexpectedError } from '@/lib/monitoring';
 import { accountSecurityService } from '@/services/accountSecurityService';
+import { LEGAL_DOCUMENT_VERSIONS } from '@/constants/legalDocuments';
 
 export interface AuthResult {
   session: Session | null;
@@ -84,7 +85,10 @@ export const authService = {
           primary_sport_experience_level: registration.primarySportExperienceLevel,
           secondary_sports: registration.secondarySports,
           sports,
-          skill_level: registration.primarySportExperienceLevel
+          skill_level: registration.primarySportExperienceLevel,
+          terms_version: LEGAL_DOCUMENT_VERSIONS.terms,
+          privacy_version: LEGAL_DOCUMENT_VERSIONS.privacy,
+          consent_source: 'account_creation'
         }
       }
     });

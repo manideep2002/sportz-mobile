@@ -120,6 +120,8 @@ export function SettingsScreen() {
       </View>
       <AppText variant="caption" style={styles.sectionTitle}>{t('settings.support')}</AppText>
       <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
+      <SettingsItem label="Terms of Service" detail="Versioned terms for using SPORTZ" icon={HelpCircle} onPress={() => navigation.navigate('TermsOfService')} />
+      <SettingsItem label="Privacy Policy" detail="How SPORTZ handles personal information" icon={Lock} onPress={() => navigation.navigate('PrivacyPolicy')} />
       <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleSignOut}>
         <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><LogOut size={18} color={theme.danger} /></View>
         <View style={{ flex: 1 }}>
@@ -166,7 +168,12 @@ function Section({
 function SettingsItem({ label, detail, icon: Icon, onPress }: { label: string; detail?: string; icon: LucideIcon; onPress?: () => void }) {
   const { colors: theme } = useAppTheme();
   return (
-    <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={detail ? `${label}. ${detail}` : label}
+      style={[styles.item, { borderBottomColor: theme.border }]}
+      onPress={onPress}
+    >
       <View style={[styles.itemIcon, { backgroundColor: theme.accentSoft }]}><Icon size={18} color={theme.accent} /></View>
       <View style={{ flex: 1 }}>
         <AppText style={[styles.itemLabel, { color: theme.text }]}>{label}</AppText>

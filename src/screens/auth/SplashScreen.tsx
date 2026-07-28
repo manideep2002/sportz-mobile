@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { AppText, Button, Screen } from '@/components/ui';
@@ -47,9 +47,36 @@ export function SplashScreen({ navigation }: Props) {
         <Button full size="lg" variant="ghost" onPress={() => navigation.navigate('Register')}>
           Create Account
         </Button>
-        <AppText variant="small" style={styles.terms}>
-          By continuing you agree to our Terms and Privacy.
-        </AppText>
+        <View style={styles.terms}>
+          <AppText variant="small" style={styles.agreement}>
+            By continuing you agree to our
+          </AppText>
+          <View style={styles.legalLinks}>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Read Terms of Service"
+              hitSlop={4}
+              style={styles.legalLink}
+              onPress={() => navigation.navigate('TermsOfService')}
+            >
+              <AppText variant="small" style={[styles.linkText, { color: theme.accent }]}>
+                Terms of Service
+              </AppText>
+            </Pressable>
+            <AppText variant="small">and</AppText>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Read Privacy Policy"
+              hitSlop={4}
+              style={styles.legalLink}
+              onPress={() => navigation.navigate('PrivacyPolicy')}
+            >
+              <AppText variant="small" style={[styles.linkText, { color: theme.accent }]}>
+                Privacy Policy
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </Screen>
   );
@@ -77,7 +104,23 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   terms: {
-    textAlign: 'center',
+    alignItems: 'center',
     paddingTop: 8
+  },
+  agreement: {
+    textAlign: 'center'
+  },
+  legalLinks: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs
+  },
+  legalLink: {
+    justifyContent: 'center',
+    minHeight: 44
+  },
+  linkText: {
+    textDecorationLine: 'underline'
   }
 });

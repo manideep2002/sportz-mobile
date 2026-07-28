@@ -9,6 +9,8 @@ export type AuthStackParamList = {
   ProfileCompletion: undefined;
   ProfileLoadError: undefined;
   MfaChallenge: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
 };
 
 export type MainTabParamList = {
@@ -66,6 +68,8 @@ export type AppStackParamList = {
   Moderation: undefined;
   SportsInterests: undefined;
   Help: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
 };
 
 export type RootStackParamList = {
