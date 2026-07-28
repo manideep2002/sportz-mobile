@@ -49,6 +49,37 @@ jest.mock('@/lib/supabase', () => ({ supabase: { auth: { getUser: jest.fn() } } 
 jest.mock('@/services/canonicalLinkService', () => ({
   shareCanonicalEntity: jest.fn().mockResolvedValue(undefined)
 }));
+// Mock react-query for ModerationScreen and ModerationDetail tests below
+jest.mock('@tanstack/react-query', () => {
+  const React = require('react');
+  return {
+    useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+    useQuery: ({ queryFn, enabled }: { queryFn: () => Promise<unknown>; enabled?: boolean }) => {
+      const [state, setState] = React.useState({
+        data: undefined as unknown,
+        isLoading: true,
+        isError: false,
+        error: null as Error | null,
+        isRefetching: false, refetch: jest.fn()
+      });
+      React.useEffect(() => {
+        if (enabled === false) {
+          setState((prev) => ({ ...prev, data: undefined, isLoading: false }));
+          return;
+        }
+        setState((prev) => ({ ...prev, isLoading: true }));
+        queryFn()
+          .then((data) => setState((prev) => ({ ...prev, data, isLoading: false, isRefetching: false })))
+          .catch((err: Error) => setState((prev) => ({ ...prev, isLoading: false, isError: true, error: err, isRefetching: false })));
+      }, [enabled]);
+      return state;
+    },
+    useMutation: ({ onSuccess, onError }: { onSuccess?: (r: unknown) => void; onError?: (e: Error) => void }) => ({
+      mutate: () => { onSuccess?.({}); },
+      isPending: false
+    })
+  };
+});
 jest.mock('@/layout/responsive', () => ({
   useResponsiveLayout: () => ({ isExpanded: false, feedMaxWidth: 600 })
 }));
@@ -509,6 +540,173 @@ describe('PostDetailScreen — comment report entry-point', () => {
       expect.any(Object)
     );
     expect(alertSpy.mock.calls.some((c) => c[0] === 'Comment options')).toBe(false);
+    alertSpy.mockRestore();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ModerationScreen -> ModerationDetail navigation
+// ══════════════════════════════════════════════════════════════════════════
+
+jest.mock('@/services/moderationService', () => ({
+  moderationService: {
+    getReportDetail: jest.fn(),
+    getEntityPreview: jest.fn(),
+    getReporterProfile: jest.fn(),
+    dismissReport: jest.fn().mockResolvedValue({}),
+    removeContent: jest.fn().mockResolvedValue({}),
+    restrictAccount: jest.fn().mockResolvedValue({})
+  }
+}));
+
+// eslint-disable-next-line import/first
+import { ModerationScreen } from '@/screens/settings/ModerationScreen';
+
+const mockListReports = jest.fn();
+
+// Override the reportService mock for ModerationScreen's query
+// We need to reach into the existing mock; the module is already mocked above.
+// Use require to get the module reference and extend it.
+const reportServiceMock = require('@/services/reportService').reportService;
+reportServiceMock.listReports = mockListReports;
+
+const mockModService = require('@/services/moderationService').moderationService;
+
+const SAMPLE_REPORTS = [
+  {
+    id: 'rpt-1',
+    reporter: { id: 'user-1', username: 'asha', displayName: 'Asha', initials: 'AS', avatarUrl: null },
+    entityType: 'post' as const,
+    entityId: 'post-1',
+    reason: 'Harassment',
+    status: 'open' as const,
+    resolution: null,
+    createdAt: '2026-07-28T10:00:00Z',
+    reviewedAt: null
+  }
+];
+
+describe('ModerationScreen — navigation to detail', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListReports.mockResolvedValue(SAMPLE_REPORTS);
+    mockUseRoute.mockReturnValue({ params: {} });
+    mockNavigate.mockClear();
+  });
+
+  it('renders report list with pressable items', async () => {
+    await render(<ModerationScreen />);
+    await waitFor(() => expect(screen.getByText('Harassment')).toBeTruthy());
+  });
+
+  it('navigates to ModerationDetail when a report is pressed', async () => {
+    await render(<ModerationScreen />);
+    await waitFor(() => screen.getByText('Harassment'));
+    fireEvent.press(screen.getByRole('button', { name: /Report: Harassment/ }));
+    expect(mockNavigate).toHaveBeenCalledWith('ModerationDetail', { reportId: 'rpt-1' });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ModerationDetailScreen — full enforcement flow integration
+// ══════════════════════════════════════════════════════════════════════════
+
+const DETAIL_REPORT = {
+  id: 'rpt-1',
+  reporterId: 'user-1',
+  entityType: 'post' as const,
+  entityId: 'post-1',
+  reason: 'Spam',
+  status: 'open' as const,
+  resolution: null,
+  createdAt: '2026-07-28T10:00:00Z',
+  reviewedBy: null,
+  reviewedAt: null,
+  auditLog: []
+};
+
+const DETAIL_PREVIEW = {
+  id: 'post-1', authorId: 'user-bad',
+  body: 'Buy cheap stuff',
+  removedByModerator: false, createdAt: '2026-07-28T10:00:00Z'
+};
+
+const DETAIL_REPORTER = { id: 'user-1', username: 'vik', displayName: 'Vik', avatarUrl: null };
+
+describe('ModerationDetailScreen — integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseRoute.mockReturnValue({ params: { reportId: 'rpt-1' } });
+    mockModService.getReportDetail.mockResolvedValue(DETAIL_REPORT);
+    mockModService.getEntityPreview.mockResolvedValue(DETAIL_PREVIEW);
+    mockModService.getReporterProfile.mockResolvedValue(DETAIL_REPORTER);
+    mockModService.dismissReport.mockResolvedValue({});
+    mockModService.removeContent.mockResolvedValue({});
+    mockModService.restrictAccount.mockResolvedValue({});
+    mockNetFetch.mockResolvedValue({ isConnected: true });
+    // Ensure ReportSheet uses our mock
+    mockReportEntity.mockResolvedValue('submitted');
+  });
+
+  // eslint-disable-next-line import/first
+  const { ModerationDetailScreen } = require('@/screens/settings/ModerationDetailScreen');
+
+  it('loads and displays full report detail', async () => {
+    await render(<ModerationDetailScreen />);
+    await waitFor(() => expect(screen.getByText('Spam')).toBeTruthy());
+    expect(screen.getByText(/post/)).toBeTruthy();
+    expect(screen.getByText('@vik')).toBeTruthy();
+    expect(screen.getByText('Buy cheap stuff')).toBeTruthy();
+  });
+
+  it('dismisses a report and shows success alert', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    await render(<ModerationDetailScreen />);
+    await waitFor(() => screen.getByText('Dismiss Report'));
+    fireEvent.press(screen.getByText('Dismiss Report'));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
+    fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Not a violation');
+    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(mockModService.dismissReport).toHaveBeenCalledWith('rpt-1', 'Not a violation')
+    );
+    await waitFor(() =>
+      expect(alertSpy).toHaveBeenCalledWith('Report dismissed', expect.any(String))
+    );
+    alertSpy.mockRestore();
+  });
+
+  it('removes content and shows success alert', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      const btn = (buttons as { text: string; onPress?: () => void }[]).find((b) => b.text === 'Remove');
+      btn?.onPress?.();
+    });
+    await render(<ModerationDetailScreen />);
+    await waitFor(() => screen.getByText('Remove Content'));
+    fireEvent.press(screen.getByText('Remove Content'));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
+    fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Spam content');
+    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(mockModService.removeContent).toHaveBeenCalledWith('rpt-1', 'post', 'post-1', 'Spam content')
+    );
+    alertSpy.mockRestore();
+  });
+
+  it('restricts account and shows success alert', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      const btn = (buttons as { text: string; onPress?: () => void }[]).find((b) => b.text === 'Restrict');
+      btn?.onPress?.();
+    });
+    await render(<ModerationDetailScreen />);
+    await waitFor(() => screen.getByText('Restrict Account'));
+    fireEvent.press(screen.getByText('Restrict Account'));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
+    fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Repeated spam');
+    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(mockModService.restrictAccount).toHaveBeenCalledWith('rpt-1', 'user-bad', 'Repeated spam')
+    );
     alertSpy.mockRestore();
   });
 });

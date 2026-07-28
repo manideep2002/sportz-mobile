@@ -56,6 +56,7 @@ import { CreateCommunityScreen } from '@/screens/community/CreateCommunityScreen
 import { PrivacyScreen } from '@/screens/settings/PrivacyScreen';
 import { NotificationSettingsScreen } from '@/screens/settings/NotificationSettingsScreen';
 import { ModerationScreen } from '@/screens/settings/ModerationScreen';
+import { ModerationDetailScreen } from '@/screens/settings/ModerationDetailScreen';
 import { SportsInterestsScreen } from '@/screens/settings/SportsInterestsScreen';
 import { HelpScreen } from '@/screens/settings/HelpScreen';
 import { ProfileCompletionScreen, ProfileLoadErrorScreen } from '@/screens/auth/AuthProfileGateScreens';
@@ -201,6 +202,7 @@ function AppNavigator() {
       <App.Screen name="Privacy" component={PrivacyScreen} />
       <App.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <App.Screen name="Moderation" component={ModerationScreen} />
+      <App.Screen name="ModerationDetail" component={ModerationDetailScreen} />
       <App.Screen name="SportsInterests" component={SportsInterestsScreen} />
       <App.Screen name="Help" component={HelpScreen} />
       <App.Screen name="TermsOfService">

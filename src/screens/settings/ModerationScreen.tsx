@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ChevronLeft, ShieldAlert } from 'lucide-react-native';
 
 
@@ -11,7 +11,7 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
-import { reportService, type ReportStatus } from '@/services/reportService';
+import { reportService } from '@/services/reportService';
 import { timeAgo } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -20,21 +20,10 @@ type Filter = 'open' | 'all';
 export function ModerationScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
-  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>('open');
   const { data: reports = [], isLoading, isError, error, isRefetching, refetch } = useQuery({
     queryKey: ['moderation-reports', filter],
     queryFn: () => reportService.listReports(filter)
-  });
-  const updateStatus = useMutation({
-    mutationFn: ({ reportId, status }: { reportId: string; status: ReportStatus }) =>
-      reportService.updateReportStatus(reportId, status),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['moderation-reports'] });
-    },
-    onError: (error) => {
-      Alert.alert('Update failed', error instanceof Error ? error.message : 'Please try again.');
-    }
   });
 
   return (
@@ -74,14 +63,20 @@ export function ModerationScreen() {
         </View>
       ) : null}
 
-      {reports.map((report) => (
-        <View key={report.id} style={[styles.report, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+{reports.map((report) => (
+        <Pressable
+          key={report.id}
+          accessibilityRole="button"
+          accessibilityLabel={`Report: ${report.reason}`}
+          style={[styles.report, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          onPress={() => navigation.navigate('ModerationDetail', { reportId: report.id })}
+        >
           <View style={styles.topRow}>
             <Badge tone={report.status === 'open' ? 'orange' : 'dark'}>{report.status}</Badge>
             <AppText variant="small">{timeAgo(report.createdAt)}</AppText>
           </View>
           <AppText style={styles.reason}>{report.reason}</AppText>
-          <AppText variant="bodyMuted">{report.entityType} - {report.entityId}</AppText>
+          <AppText variant="bodyMuted">{report.entityType} &middot; {report.entityId}</AppText>
           {report.entityType === 'team_offer' ? (
             <Button
               size="sm"
@@ -98,20 +93,7 @@ export function ModerationScreen() {
               <AppText variant="small">@{report.reporter.username}</AppText>
             </View>
           </View>
-          {report.status === 'open' ? (
-            <View style={styles.actions}>
-              <Button size="sm" loading={updateStatus.isPending} onPress={() => updateStatus.mutate({ reportId: report.id, status: 'reviewed' })}>
-                Reviewed
-              </Button>
-              <Button size="sm" variant="ghost" disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ reportId: report.id, status: 'dismissed' })}>
-                Dismiss
-              </Button>
-              <Button size="sm" variant="danger" disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ reportId: report.id, status: 'actioned' })}>
-                Actioned
-              </Button>
-            </View>
-          ) : null}
-        </View>
+        </Pressable>
       ))}
     </Screen>
   );
@@ -164,11 +146,5 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 13
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    flexWrap: 'wrap'
   }
 });
