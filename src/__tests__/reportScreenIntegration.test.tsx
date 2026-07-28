@@ -662,11 +662,11 @@ describe('ModerationDetailScreen — integration', () => {
   it('dismisses a report and shows success alert', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert');
     await render(<ModerationDetailScreen />);
-    await waitFor(() => screen.getByText('Dismiss Report'));
-    fireEvent.press(screen.getByText('Dismiss Report'));
+    await waitFor(() => screen.getByRole('button', { name: 'Dismiss Report' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Dismiss Report' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Not a violation');
-    fireEvent.press(screen.getByText('Confirm'));
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.dismissReport).toHaveBeenCalledWith('rpt-1', 'Not a violation')
     );
@@ -682,11 +682,11 @@ describe('ModerationDetailScreen — integration', () => {
       btn?.onPress?.();
     });
     await render(<ModerationDetailScreen />);
-    await waitFor(() => screen.getByText('Remove Content'));
-    fireEvent.press(screen.getByText('Remove Content'));
+    await waitFor(() => screen.getByRole('button', { name: 'Remove Content' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Remove Content' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Spam content');
-    fireEvent.press(screen.getByText('Confirm'));
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.removeContent).toHaveBeenCalledWith('rpt-1', 'post', 'post-1', 'Spam content')
     );
@@ -699,11 +699,11 @@ describe('ModerationDetailScreen — integration', () => {
       btn?.onPress?.();
     });
     await render(<ModerationDetailScreen />);
-    await waitFor(() => screen.getByText('Restrict Account'));
-    fireEvent.press(screen.getByText('Restrict Account'));
+    await waitFor(() => screen.getByRole('button', { name: 'Restrict Account' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Restrict Account' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Repeated spam');
-    fireEvent.press(screen.getByText('Confirm'));
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.restrictAccount).toHaveBeenCalledWith('rpt-1', 'user-bad', 'Repeated spam')
     );
