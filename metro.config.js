@@ -11,14 +11,19 @@ const tanstackLegacyBuilds = {
   '@tanstack/react-query-persist-client': 'node_modules/@tanstack/react-query-persist-client/build/legacy/index.cjs'
 };
 
+const zustandCommonJsBuilds = {
+  zustand: 'node_modules/zustand/index.js',
+  'zustand/middleware': 'node_modules/zustand/middleware.js'
+};
+
 config.resolver.sourceExts = Array.from(new Set([...config.resolver.sourceExts, 'cjs', 'mjs']));
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  const tanstackBuild = tanstackLegacyBuilds[moduleName];
+  const compatibleBuild = tanstackLegacyBuilds[moduleName] || zustandCommonJsBuilds[moduleName];
 
-  if (tanstackBuild) {
+  if (compatibleBuild) {
     return {
       type: 'sourceFile',
-      filePath: path.resolve(__dirname, tanstackBuild)
+      filePath: path.resolve(__dirname, compatibleBuild)
     };
   }
 
