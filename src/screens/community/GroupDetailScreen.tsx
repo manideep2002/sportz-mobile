@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 import { EventCard } from '@/components/events/EventCard';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
@@ -101,6 +102,7 @@ export function GroupDetailScreen() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState<UserProfile[]>([]);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   const refreshAll = async () => {
     const tasks: Promise<unknown>[] = [refetch()];
@@ -226,13 +228,30 @@ export function GroupDetailScreen() {
         <View style={{ flex: 1 }} />
         <IconButton
           icon={MoreHorizontal}
-          accessibilityLabel="Share group"
-          onPress={() => void shareCanonicalEntity('group', community.id, {
-            title: community.isPrivate ? 'SPORTZ group' : community.name,
-            message: community.isPrivate
-              ? 'Open this private SPORTZ group. Membership access rules apply.'
-              : `Join ${community.name} on SPORTZ.`
-          })}
+          accessibilityLabel="Group options"
+          onPress={() => {
+            Alert.alert(
+              community.isPrivate ? 'SPORTZ group' : community.name,
+              'Choose an action',
+              [
+                {
+                  text: 'Share group',
+                  onPress: () => void shareCanonicalEntity('group', community.id, {
+                    title: community.isPrivate ? 'SPORTZ group' : community.name,
+                    message: community.isPrivate
+                      ? 'Open this private SPORTZ group. Membership access rules apply.'
+                      : `Join ${community.name} on SPORTZ.`
+                  })
+                },
+                ...(!community.isOwner ? [{
+                  text: 'Report group',
+                  onPress: () => setReportSheetOpen(true)
+                }] : []),
+                { text: 'Cancel', style: 'cancel' as const }
+              ],
+              { cancelable: true }
+            );
+          }}
         />
       </View>
       {community.coverUrl ? (
@@ -411,6 +430,13 @@ export function GroupDetailScreen() {
           onLoadMore={() => void fetchNextPage()}
         />
       ) : null}
+      <ReportSheet
+        open={reportSheetOpen}
+        entityLabel="group"
+        entityType="group"
+        entityId={community.id}
+        onClose={() => setReportSheetOpen(false)}
+      />
       <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => setInviteOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setInviteOpen(false)}>
           <Pressable style={[styles.inviteCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>

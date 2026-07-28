@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { CommentInput } from '@/components/social/CommentInput';
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
 
@@ -15,7 +16,6 @@ import { colors, spacing, typography } from '@/design/tokens';
 import { useComments, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostSave, usePost, usePostRealtimeUpdates, useRecordPostShare } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
-import { reportReasons, reportService } from '@/services/reportService';
 import { openPostMedia, sharePost } from '@/utils/share';
 import type { Comment } from '@/types/domain';
 
@@ -46,6 +46,11 @@ export function PostDetailScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [optionsSheetOpen, setOptionsSheetOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<
+    | { type: 'post'; id: string }
+    | { type: 'comment'; id: string }
+    | null
+  >(null);
   const commentInputRef = useRef<TextInput>(null);
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();
@@ -60,19 +65,6 @@ export function PostDetailScreen() {
       return;
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
-  };
-  const reportPost = () => {
-    if (!post) return;
-    Alert.alert('Report Post', 'Choose a reason.', [
-      ...reportReasons.map((reason) => ({
-        text: reason,
-        onPress: async () => {
-          await reportService.reportEntity('post', post.id, reason);
-          Alert.alert('Report submitted', 'Thank you. We will review this post.');
-        }
-      })),
-      { text: 'Cancel', style: 'cancel' as const }
-    ], { cancelable: true });
   };
   return (
     <Screen
@@ -146,6 +138,7 @@ export function PostDetailScreen() {
         <Pressable
           key={comment.id}
           accessibilityRole="button"
+          accessibilityLabel={`Comment by ${comment.author.displayName}`}
           style={[
             styles.commentRow,
             comment.parentCommentId ? styles.commentReplyRow : null,
@@ -158,11 +151,20 @@ export function PostDetailScreen() {
             commentInputRef.current?.focus();
           }}
           onLongPress={() => {
-            if (comment.author.id !== profile?.id) return;
-            Alert.alert('Delete comment', 'Remove your comment?', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
-            ], { cancelable: true });
+            if (comment.author.id === profile?.id) {
+              Alert.alert('Delete comment', 'Remove your comment?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
+              ], { cancelable: true });
+            } else {
+              Alert.alert('Comment options', '', [
+                {
+                  text: 'Report comment',
+                  onPress: () => setReportTarget({ type: 'comment', id: comment.id })
+                },
+                { text: 'Cancel', style: 'cancel' }
+              ], { cancelable: true });
+            }
           }}
         >
           <Avatar
@@ -219,7 +221,7 @@ export function PostDetailScreen() {
         onShare={() => {
           if (post) void sharePost(post).then(() => shareMutation.mutate(post.id));
         }}
-        onReport={reportPost}
+        onReport={() => { if (post) setReportTarget({ type: 'post', id: post.id }); }}
         onEdit={() => {
           if (post) {
             navigation.navigate('CreatePost', {
@@ -234,6 +236,13 @@ export function PostDetailScreen() {
             navigation.goBack();
           }
         }}
+      />
+      <ReportSheet
+        open={reportTarget !== null}
+        entityLabel={reportTarget?.type === 'comment' ? 'comment' : 'post'}
+        entityType={reportTarget?.type ?? 'post'}
+        entityId={reportTarget?.id ?? ''}
+        onClose={() => setReportTarget(null)}
       />
     </Screen>
   );

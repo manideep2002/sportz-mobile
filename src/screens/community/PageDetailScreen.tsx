@@ -4,11 +4,11 @@ import { ChevronLeft, MoreHorizontal, Settings, Share2 } from 'lucide-react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
-
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
-
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
 import { useCommunity, useJoinCommunity, useLeaveCommunity } from '@/hooks/useCommunities';
@@ -39,6 +39,7 @@ export function PageDetailScreen() {
   const posts = flattenCommunityPostPages(postsData);
   const followPage = useJoinCommunity(route.params.communityId);
   const unfollowPage = useLeaveCommunity(route.params.communityId);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -93,13 +94,36 @@ export function PageDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
+        {/* MoreHorizontal opens a menu offering Share and Report actions */}
         <IconButton
           icon={MoreHorizontal}
-          accessibilityLabel="Share page"
-          onPress={() => void shareCanonicalEntity('page', community.id, {
-            title: community.name,
-            message: `Follow ${community.name} on SPORTZ.`
-          })}
+          accessibilityLabel="Page options"
+          onPress={() =>
+            Alert.alert(
+              community.name,
+              'Choose an action',
+              [
+                {
+                  text: 'Share page',
+                  onPress: () =>
+                    void shareCanonicalEntity('page', community.id, {
+                      title: community.name,
+                      message: `Follow ${community.name} on SPORTZ.`
+                    })
+                },
+                ...(!community.isOwner
+                  ? [
+                      {
+                        text: 'Report page',
+                        onPress: () => setReportSheetOpen(true)
+                      }
+                    ]
+                  : []),
+                { text: 'Cancel', style: 'cancel' as const }
+              ],
+              { cancelable: true }
+            )
+          }
         />
       </View>
       {community.coverUrl ? (
@@ -134,14 +158,14 @@ export function PageDetailScreen() {
             onPress={() => {
               if (community.isMember) {
                 unfollowPage.mutate(undefined, {
-                  onError: (error) => {
-                    Alert.alert('Unfollow failed', error instanceof Error ? error.message : 'Please try again.');
+                  onError: (err) => {
+                    Alert.alert('Unfollow failed', err instanceof Error ? err.message : 'Please try again.');
                   }
                 });
               } else {
                 followPage.mutate('follower', {
-                  onError: (error) => {
-                    Alert.alert('Follow failed', error instanceof Error ? error.message : 'Please try again.');
+                  onError: (err) => {
+                    Alert.alert('Follow failed', err instanceof Error ? err.message : 'Please try again.');
                   }
                 });
               }
@@ -150,7 +174,12 @@ export function PageDetailScreen() {
             {community.isOwner ? 'Owner' : community.isMember ? 'Following' : 'Follow'}
           </Button>
           {community.canPost ? (
-            <Button style={styles.actionButton} onPress={() => navigation.navigate('CreatePost', { communityId: community.id })}>New Post</Button>
+            <Button
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('CreatePost', { communityId: community.id })}
+            >
+              New Post
+            </Button>
           ) : null}
           {community.isAdmin ? (
             <IconButton
@@ -162,10 +191,12 @@ export function PageDetailScreen() {
           <IconButton
             accessibilityLabel="Share page"
             icon={Share2}
-            onPress={() => void shareCanonicalEntity('page', community.id, {
-              title: community.name,
-              message: `Follow ${community.name} on SPORTZ.`
-            })}
+            onPress={() =>
+              void shareCanonicalEntity('page', community.id, {
+                title: community.name,
+                message: `Follow ${community.name} on SPORTZ.`
+              })
+            }
           />
         </View>
         <AppText variant="h4">Latest Posts</AppText>
@@ -181,6 +212,13 @@ export function PageDetailScreen() {
         isFetchingNextPage={isFetchingNextPage}
         isFetchNextPageError={isFetchNextPageError}
         onLoadMore={() => void fetchNextPage()}
+      />
+      <ReportSheet
+        open={reportSheetOpen}
+        entityLabel="page"
+        entityType="page"
+        entityId={community.id}
+        onClose={() => setReportSheetOpen(false)}
       />
     </Screen>
   );

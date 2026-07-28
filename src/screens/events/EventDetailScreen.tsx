@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronLeft, Clock, MapPin, Share2, MessageCircle } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, Clock, Flag, MapPin, Share2, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, Pr
 
 import { eventPaymentNotice, eventVisibilityLabel } from '@/constants/events';
 import { CourtArt } from '@/components/feed/CourtArt';
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
@@ -49,6 +50,7 @@ export function EventDetailScreen() {
   const respondInvitation = useRespondEventInvitation();
   const profile = useAuthStore((state) => state.profile);
   const [useRawCover, setUseRawCover] = useState(false);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   useEffect(() => {
     setUseRawCover(false);
@@ -197,6 +199,13 @@ export function EventDetailScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
+        {!isOrganizer ? (
+          <IconButton
+            accessibilityLabel="Report event"
+            icon={Flag}
+            onPress={() => setReportSheetOpen(true)}
+          />
+        ) : null}
         <IconButton accessibilityLabel="Share event" icon={Share2} onPress={handleShare} />
       </View>
       <View style={[styles.detailLayout, responsive.isExpanded ? styles.detailLayoutExpanded : null]}>
@@ -354,6 +363,13 @@ export function EventDetailScreen() {
         </Button>
         </View>
       </View>
+      <ReportSheet
+        open={reportSheetOpen}
+        entityLabel="event"
+        entityType="event"
+        entityId={event.id}
+        onClose={() => setReportSheetOpen(false)}
+      />
     </Screen>
   );
 }
