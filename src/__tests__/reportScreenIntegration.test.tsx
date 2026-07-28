@@ -74,8 +74,13 @@ jest.mock('@tanstack/react-query', () => {
       }, [enabled]);
       return state;
     },
-    useMutation: ({ onSuccess, onError }: { onSuccess?: (r: unknown) => void; onError?: (e: Error) => void }) => ({
-      mutate: () => { onSuccess?.({}); },
+    useMutation: ({ mutationFn, onSuccess, onError }: { mutationFn?: (...a: unknown[]) => Promise<unknown>; onSuccess?: (r: unknown) => void; onError?: (e: Error) => void }) => ({
+      mutate: (...args: unknown[]) => {
+        const promise = mutationFn ? mutationFn(...args) : Promise.resolve({});
+        promise
+          .then((result: unknown) => onSuccess?.(result))
+          .catch((err: Error) => onError?.(err));
+      },
       isPending: false
     })
   };
@@ -666,6 +671,9 @@ describe('ModerationDetailScreen — integration', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Dismiss Report' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Not a violation');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.dismissReport).toHaveBeenCalledWith('rpt-1', 'Not a violation')
@@ -678,6 +686,7 @@ describe('ModerationDetailScreen — integration', () => {
 
   it('removes content and shows success alert', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      if (!buttons) return;
       const btn = (buttons as { text: string; onPress?: () => void }[]).find((b) => b.text === 'Remove');
       btn?.onPress?.();
     });
@@ -686,6 +695,9 @@ describe('ModerationDetailScreen — integration', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Remove Content' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Spam content');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.removeContent).toHaveBeenCalledWith('rpt-1', 'post', 'post-1', 'Spam content')
@@ -695,6 +707,7 @@ describe('ModerationDetailScreen — integration', () => {
 
   it('restricts account and shows success alert', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      if (!buttons) return;
       const btn = (buttons as { text: string; onPress?: () => void }[]).find((b) => b.text === 'Restrict');
       btn?.onPress?.();
     });
@@ -703,6 +716,9 @@ describe('ModerationDetailScreen — integration', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Restrict Account' }));
     await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     fireEvent.changeText(screen.getByPlaceholderText('Enter reason...'), 'Repeated spam');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockModService.restrictAccount).toHaveBeenCalledWith('rpt-1', 'user-bad', 'Repeated spam')

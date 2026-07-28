@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ChevronLeft, ShieldAlert, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
@@ -387,8 +387,8 @@ export function ModerationDetailScreen() {
       {renderBody()}
 
       {/* ── Reason input modal ──────────────────────────────────────────── */}
-      <Modal visible={actionModalOpen} transparent animationType="fade" onRequestClose={closeActionModal}>
-        <Pressable style={styles.modalBackdrop} onPress={closeActionModal}>
+      {actionModalOpen ? (
+        <View style={[StyleSheet.absoluteFill, styles.modalBackdrop]}>
           <Pressable style={[styles.modalCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
             <AppText variant="h4">
               {pendingAction === 'dismissed' ? 'Dismiss Report' :
@@ -430,8 +430,8 @@ export function ModerationDetailScreen() {
               </Button>
             </View>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </View>
+      ) : null}
     </Screen>
   );
 }

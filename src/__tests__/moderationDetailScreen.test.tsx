@@ -77,13 +77,16 @@ jest.mock('@tanstack/react-query', () => {
       }, [enabled]);
       return state;
     },
-    useMutation: ({ onSuccess, onError }: { onSuccess?: (r: unknown) => void; onError?: (e: Error) => void }) => ({
-      mutate: () => {
+    useMutation: ({ mutationFn, onSuccess, onError }: { mutationFn?: (...a: unknown[]) => Promise<unknown>; onSuccess?: (r: unknown) => void; onError?: (e: Error) => void }) => ({
+      mutate: (...args: unknown[]) => {
+        const promise = mutationFn ? mutationFn(...args) : Promise.resolve(mockMutationSuccess);
         if (mockMutationError) {
           onError?.(mockMutationError);
-        } else {
-          onSuccess?.(mockMutationSuccess);
+          return;
         }
+        promise
+          .then((result: unknown) => onSuccess?.(result))
+          .catch((err: Error) => onError?.(err));
       },
       isPending: false
     })
@@ -93,6 +96,12 @@ jest.mock('@tanstack/react-query', () => {
 jest.mock('@/hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
 jest.mock('@/lib/supabaseOnly', () => ({ assertSupabaseConfigured: jest.fn() }));
 jest.mock('@/lib/supabase', () => ({ supabase: { rpc: jest.fn() } }));
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  RN.Modal = ({ children, visible, transparent, animationType, onRequestClose }: any) =>
+    visible ? children : null;
+  return RN;
+});
 
 // eslint-disable-next-line import/first
 import { ModerationDetailScreen } from '@/screens/settings/ModerationDetailScreen';
@@ -282,9 +291,13 @@ describe('ModerationDetailScreen — dismiss action', () => {
     await render(<ModerationDetailScreen />);
     await waitFor(() => screen.getByRole('button', { name: 'Dismiss Report' }));
     fireEvent.press(screen.getByRole('button', { name: 'Dismiss Report' }));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     const input = screen.getByPlaceholderText('Enter reason...');
     fireEvent.changeText(input, 'No violation found');
-    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockDismissReport).toHaveBeenCalledWith('rpt-1', 'No violation found')
     );
@@ -301,6 +314,7 @@ describe('ModerationDetailScreen — remove content action', () => {
 
   it('shows confirmation alert then opens reason modal', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      if (!buttons) return;
       const btn = (buttons as { text: string; onPress?: () => void }[]).find(
         (b) => b.text === 'Remove'
       );
@@ -310,9 +324,13 @@ describe('ModerationDetailScreen — remove content action', () => {
     await render(<ModerationDetailScreen />);
     await waitFor(() => screen.getByRole('button', { name: 'Remove Content' }));
     fireEvent.press(screen.getByRole('button', { name: 'Remove Content' }));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     const input = screen.getByPlaceholderText('Enter reason...');
     fireEvent.changeText(input, 'Rule violation');
-    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockRemoveContent).toHaveBeenCalledWith('rpt-1', 'post', 'post-1', 'Rule violation')
     );
@@ -330,6 +348,7 @@ describe('ModerationDetailScreen — restrict account action', () => {
 
   it('shows confirmation alert then opens reason modal', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      if (!buttons) return;
       const btn = (buttons as { text: string; onPress?: () => void }[]).find(
         (b) => b.text === 'Restrict'
       );
@@ -339,9 +358,13 @@ describe('ModerationDetailScreen — restrict account action', () => {
     await render(<ModerationDetailScreen />);
     await waitFor(() => screen.getByRole('button', { name: 'Restrict Account' }));
     fireEvent.press(screen.getByRole('button', { name: 'Restrict Account' }));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     const input = screen.getByPlaceholderText('Enter reason...');
     fireEvent.changeText(input, 'Repeated harassment');
-    fireEvent.press(screen.getByText('Confirm'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(mockRestrictAccount).toHaveBeenCalledWith('rpt-1', 'user-auth', 'Repeated harassment')
     );
@@ -363,8 +386,12 @@ describe('ModerationDetailScreen — action error handling', () => {
     await render(<ModerationDetailScreen />);
     await waitFor(() => screen.getByRole('button', { name: 'Dismiss Report' }));
     fireEvent.press(screen.getByRole('button', { name: 'Dismiss Report' }));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     const input = screen.getByPlaceholderText('Enter reason...');
     fireEvent.changeText(input, 'No issue');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith('Action failed', expect.any(String))
@@ -378,8 +405,12 @@ describe('ModerationDetailScreen — action error handling', () => {
     await render(<ModerationDetailScreen />);
     await waitFor(() => screen.getByRole('button', { name: 'Dismiss Report' }));
     fireEvent.press(screen.getByRole('button', { name: 'Dismiss Report' }));
+    await waitFor(() => screen.getByPlaceholderText('Enter reason...'));
     const input = screen.getByPlaceholderText('Enter reason...');
     fireEvent.changeText(input, 'No issue');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm' }).props.accessibilityState.disabled).toBe(false)
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith('Action failed', 'Server error')
