@@ -37,6 +37,8 @@ import { OffersScreen } from '@/screens/offers/OffersScreen';
 import { OfferDetailScreen } from '@/screens/offers/OfferDetailScreen';
 import { StatsEntryScreen } from '@/screens/stats/StatsEntryScreen';
 import { MatchHistoryScreen } from '@/screens/stats/MatchHistoryScreen';
+import { VerificationQueueScreen } from '@/screens/stats/VerificationQueueScreen';
+import { VerificationDetailScreen } from '@/screens/stats/VerificationDetailScreen';
 import { CreatePostScreen } from '@/screens/feed/CreatePostScreen';
 import { PostDetailScreen } from '@/screens/feed/PostDetailScreen';
 import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
@@ -185,6 +187,8 @@ function AppNavigator() {
       <App.Screen name="OfferDetail" component={OfferDetailScreen} />
       <App.Screen name="StatsEntry" component={StatsEntryScreen} />
       <App.Screen name="MatchHistory" component={MatchHistoryScreen} />
+      <App.Screen name="VerificationQueue" component={VerificationQueueScreen} />
+      <App.Screen name="VerificationDetail" component={VerificationDetailScreen} />
       <App.Screen name="CreatePost" component={CreatePostScreen} />
       <App.Screen name="PostDetail" component={PostDetailScreen} />
       <App.Screen name="GroupDetail" component={GroupDetailScreen} />

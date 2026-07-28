@@ -49,6 +49,8 @@ export type AppStackParamList = {
     sport?: 'basketball' | 'football' | 'cricket';
     seasonId?: string;
   } | undefined;
+  VerificationQueue: undefined;
+  VerificationDetail: { matchId: string };
   CreatePost: { initialKind?: 'post' | 'thread' | 'stats' | 'highlight'; communityId?: string; editPostId?: string } | undefined;
   PostDetail: { postId: string; commentId?: string };
   GroupDetail: { communityId: string };

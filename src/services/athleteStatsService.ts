@@ -9,7 +9,9 @@ import type {
   MatchOutcome,
   SportStatDefinition,
   StatVerificationStatus,
-  StructuredSport
+  StructuredSport,
+  VerificationDetail,
+  VerificationQueueItem
 } from '@/types/domain';
 
 type StatSchema = Omit<SportStatDefinition, 'id' | 'sport'>;
@@ -211,6 +213,7 @@ const mapMatch = (row: Record<string, any>): AthleteMatch => ({
   outcome: row.outcome,
   verificationStatus: row.verification_status,
   verificationSource: row.verification_source,
+  evidenceUrl: row.evidence_url,
   createdAt: row.created_at,
   stats: (row.stats ?? []).flatMap((raw: Record<string, any>) => {
     const definition = relationFirst(raw.definition);
@@ -388,15 +391,50 @@ export const athleteStatsService = {
     return { athleteId, season, ...base, metrics, achievements };
   },
 
-  async verifyMatch(matchId: string, status: 'verified' | 'rejected', source: string): Promise<AthleteMatch> {
+  async verifyMatch(matchId: string, status: 'verified' | 'rejected', source: string, reason?: string): Promise<AthleteMatch> {
     assertSupabaseConfigured();
     const { data, error } = await supabase.rpc('verify_athlete_match', {
       target_match_id: matchId,
       target_status: status,
-      target_source: source
+      target_source: source,
+      target_reason: reason ?? null
     });
     if (error) throw error;
     return this.getMatch((data as { id: string }).id);
+  },
+
+  async listPendingVerifications(limit = 20, offset = 0): Promise<VerificationQueueItem[]> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('list_pending_verifications', {
+      p_limit: limit,
+      p_offset: offset
+    });
+    if (error) throw error;
+    return (data as unknown as VerificationQueueItem[]) ?? [];
+  },
+
+  async getVerificationDetail(matchId: string): Promise<VerificationDetail> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('get_verification_detail', {
+      p_match_id: matchId
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Match not found.');
+    const raw = data as Record<string, any>;
+    return {
+      match: mapMatch(raw.match as Record<string, any>),
+      athlete: raw.athlete as VerificationDetail['athlete'],
+      season: mapSeason(raw.season as Record<string, unknown>),
+      stats: (raw.stats ?? []) as VerificationDetail['stats'],
+      auditLog: (raw.auditLog ?? []) as VerificationDetail['auditLog']
+    };
+  },
+
+  async currentUserCanVerify(): Promise<boolean> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('current_user_can_verify');
+    if (error) return false;
+    return data as boolean;
   },
 
   async deleteMatch(matchId: string): Promise<void> {

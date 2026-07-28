@@ -13,7 +13,10 @@ export const athleteStatsKeys = {
   matches: (athleteId: string, seasonId?: string) =>
     ['athlete-stats', athleteId, 'matches', seasonId ?? 'all'] as const,
   summary: (athleteId: string, sport: StructuredSport, seasonId?: string) =>
-    ['athlete-stats', athleteId, 'summary', sport, seasonId ?? 'latest'] as const
+    ['athlete-stats', athleteId, 'summary', sport, seasonId ?? 'latest'] as const,
+  pendingVerifications: ['athlete-stats', 'pending-verifications'] as const,
+  verificationDetail: (matchId: string) => ['athlete-stats', 'verification', matchId] as const,
+  canVerify: ['athlete-stats', 'can-verify'] as const
 };
 
 export const useAthleteSeasons = (athleteId: string, sport?: StructuredSport) =>
@@ -64,3 +67,41 @@ export const useRecordAthleteMatch = (athleteId: string) => {
   });
 };
 
+export const useCanVerify = () =>
+  useQuery({
+    queryKey: athleteStatsKeys.canVerify,
+    queryFn: () => athleteStatsService.currentUserCanVerify(),
+    staleTime: 5 * 60 * 1000
+  });
+
+export const usePendingVerifications = () =>
+  useQuery({
+    queryKey: athleteStatsKeys.pendingVerifications,
+    queryFn: () => athleteStatsService.listPendingVerifications()
+  });
+
+export const useVerificationDetail = (matchId: string) =>
+  useQuery({
+    queryKey: athleteStatsKeys.verificationDetail(matchId),
+    queryFn: () => athleteStatsService.getVerificationDetail(matchId),
+    enabled: Boolean(matchId)
+  });
+
+interface VerifyMatchInput {
+  matchId: string;
+  status: 'verified' | 'rejected';
+  source: string;
+  reason?: string;
+}
+
+export const useVerifyAthleteMatch = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: VerifyMatchInput) =>
+      athleteStatsService.verifyMatch(input.matchId, input.status, input.source, input.reason),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: athleteStatsKeys.pendingVerifications });
+      void queryClient.invalidateQueries({ queryKey: athleteStatsKeys.all });
+    }
+  });
+};

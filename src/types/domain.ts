@@ -136,6 +136,7 @@ export interface AthleteMatch {
   outcome: MatchOutcome;
   verificationStatus: StatVerificationStatus;
   verificationSource?: string | null;
+  evidenceUrl?: string | null;
   stats: AthleteMatchStat[];
   createdAt: string;
 }
@@ -169,6 +170,67 @@ export interface AthleteStatSummary {
   verifiedMatchCount: number;
   metrics: AthleteStatMetric[];
   achievements: AthleteAchievement[];
+}
+
+export interface StatVerificationAuditEntry {
+  id: ID;
+  matchId: ID;
+  verifierId: ID;
+  previousStatus: StatVerificationStatus;
+  newStatus: StatVerificationStatus;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface VerificationQueueItem {
+  id: ID;
+  athleteId: ID;
+  seasonId: ID;
+  sport: StructuredSport;
+  playedOn: string;
+  teamName: string;
+  opponentName: string;
+  teamScore?: number | null;
+  opponentScore?: number | null;
+  outcome: MatchOutcome;
+  verificationStatus: StatVerificationStatus;
+  verificationSource?: string | null;
+  evidenceUrl?: string | null;
+  createdAt: string;
+  athlete: {
+    id: ID;
+    username: string;
+    display_name: string;
+    avatar_url?: string | null;
+  };
+  season: {
+    id: ID;
+    label: string;
+  };
+}
+
+export interface VerificationDetail {
+  match: AthleteMatch;
+  athlete: {
+    id: ID;
+    username: string;
+    display_name: string;
+    avatar_url?: string | null;
+  };
+  season: AthleteSeason;
+  stats: {
+    value: number;
+    definition: {
+      id: ID;
+      stat_key: string;
+      label: string;
+      unit?: string | null;
+      value_type: string;
+      aggregation: string;
+      display_order: number;
+    };
+  }[];
+  auditLog: StatVerificationAuditEntry[];
 }
 
 export interface ProfileStats {
@@ -371,7 +433,8 @@ export type NotificationKind =
   | 'message'
   | 'invite'
   | 'security'
-  | 'achievement';
+  | 'achievement'
+  | 'stat_verified';
 
 export interface SportzNotification {
   id: ID;
@@ -386,7 +449,7 @@ export interface SportzNotification {
   lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
-  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer' | 'security_event';
+  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer' | 'security_event' | 'athlete_match';
   data?: Record<string, unknown>;
 }
 

@@ -19,6 +19,10 @@ const mutationGuardMigration = fs.readFileSync(
   path.resolve(process.cwd(), 'supabase/migrations/20260727000004_structured_stats_mutation_guard.sql'),
   'utf8'
 );
+const verificationWorkflowMigration = fs.readFileSync(
+  path.resolve(process.cwd(), 'supabase/migrations/20260728000004_stat_verification_workflow.sql'),
+  'utf8'
+);
 
 describe('sport-aware stat validation', () => {
   it('accepts each supported sport schema', () => {
@@ -125,5 +129,28 @@ describe('structured stats database authorization', () => {
     expect(integrityMigration).toContain('verification_status <>');
     expect(integrityMigration).toContain('delete from public.athlete_achievements');
     expect(integrityMigration).toContain('Season changes cannot invalidate existing matches.');
+  });
+
+  it('implements verification workflow with audit, notification, and verifier RPCs', () => {
+    expect(verificationWorkflowMigration).toContain('evidence_url');
+    expect(verificationWorkflowMigration).toContain('create table if not exists public.stat_verification_audit');
+    expect(verificationWorkflowMigration).toContain('alter type public.sportz_notification_kind add value if not exists');
+    expect(verificationWorkflowMigration).toContain('current_user_can_verify');
+    expect(verificationWorkflowMigration).toContain('verify_athlete_match');
+    expect(verificationWorkflowMigration).toContain('stat_verification_audit (match_id, verifier_id, previous_status, new_status, reason)');
+    expect(verificationWorkflowMigration).toContain("insert into public.notifications (user_id, actor_id, kind, title, body, entity_type, entity_id)");
+    expect(verificationWorkflowMigration).toContain('list_pending_verifications');
+    expect(verificationWorkflowMigration).toContain('get_verification_detail');
+    expect(verificationWorkflowMigration).toContain('jsonb_build_object');
+    expect(verificationWorkflowMigration).toContain("'auditLog'");
+  });
+
+  it('authorizes verifiers in RPCs, not client-side role checks', () => {
+    expect(verificationWorkflowMigration).toContain('security definer');
+    expect(verificationWorkflowMigration).toContain("public.current_user_can_verify()");
+    expect(verificationWorkflowMigration).toContain("raise exception using errcode = '42501'");
+    expect(verificationWorkflowMigration).toContain('Only an admin or the athlete');
+    const adminCheckCount = (verificationWorkflowMigration.match(/public\.current_user_is_admin\(\)/g) ?? []).length;
+    expect(adminCheckCount).toBeGreaterThanOrEqual(1);
   });
 });
