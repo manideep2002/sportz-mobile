@@ -23,8 +23,8 @@ create table if not exists public.stat_verification_audit (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references public.athlete_matches(id) on delete cascade,
   verifier_id uuid not null references public.profiles(id) on delete cascade,
-  previous_status public.stat_verification_status not null,
-  new_status public.stat_verification_status not null check (new_status in ('verified', 'rejected')),
+  previous_status text not null check (previous_status in ('self_reported', 'pending', 'verified', 'rejected')),
+  new_status text not null check (new_status in ('verified', 'rejected')),
   reason text,
   created_at timestamptz not null default now()
 );
