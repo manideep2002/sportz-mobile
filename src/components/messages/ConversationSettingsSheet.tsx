@@ -5,6 +5,7 @@ import {
   LogOut,
   Pin,
   PinOff,
+  Trash2,
   UserMinus,
   UserPlus
 } from 'lucide-react-native';
@@ -15,12 +16,13 @@ import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import type { ChatParticipantRole, UserProfile } from '@/types/domain';
 
-type BusyAction = 'pin' | 'mute' | 'remove' | 'leave' | null;
+type BusyAction = 'pin' | 'mute' | 'clear' | 'remove' | 'leave' | null;
 
 interface ConversationSettingsSheetProps {
   open: boolean;
   title: string;
   isGroup: boolean;
+  canClearHistory: boolean;
   members: UserProfile[];
   participantRoles: Record<string, ChatParticipantRole>;
   currentUserId: string;
@@ -31,6 +33,7 @@ interface ConversationSettingsSheetProps {
   onClose: () => void;
   onTogglePinned: () => void;
   onToggleMuted: () => void;
+  onClearHistory: () => void;
   onAddMembers: () => void;
   onRemoveMember: (member: UserProfile) => void;
   onLeave: () => void;
@@ -91,6 +94,7 @@ export function ConversationSettingsSheet({
   open,
   title,
   isGroup,
+  canClearHistory,
   members,
   participantRoles,
   currentUserId,
@@ -101,6 +105,7 @@ export function ConversationSettingsSheet({
   onClose,
   onTogglePinned,
   onToggleMuted,
+  onClearHistory,
   onAddMembers,
   onRemoveMember,
   onLeave
@@ -124,6 +129,16 @@ export function ConversationSettingsSheet({
         </View>
 
         <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {canClearHistory ? (
+            <SettingsAction
+              icon={Trash2}
+              label="Clear history"
+              detail="Hide all existing messages for you. Other participants keep their history."
+              danger
+              loading={busyAction === 'clear'}
+              onPress={onClearHistory}
+            />
+          ) : null}
           <SettingsAction
             icon={pinned ? PinOff : Pin}
             label={pinned ? 'Unpin conversation' : 'Pin conversation'}

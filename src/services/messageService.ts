@@ -51,7 +51,7 @@ export const messageService = {
 
   async clearConversation(roomId: string): Promise<void> {
     assertSupabaseConfigured();
-    await threadFirstChatService.markRoomRead(roomId);
+    await threadFirstChatService.clearDirectRoomHistory(roomId);
   },
 
   async setConversationMuted(roomId: string, muted: boolean): Promise<void> {

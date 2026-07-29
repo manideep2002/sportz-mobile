@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 const mockNavigation = {
   goBack: jest.fn(),
@@ -12,6 +13,7 @@ const mockSetConversationMutedLocally = jest.fn();
 const mockInsertMessage = jest.fn();
 const mockSetPinned = jest.fn();
 const mockSetMuted = jest.fn();
+const mockClearHistory = jest.fn();
 const mockInvalidateQueries = jest.fn().mockResolvedValue(undefined);
 const mockQueryClient = {
   invalidateQueries: mockInvalidateQueries,
@@ -127,6 +129,7 @@ jest.mock('@/services/threadFirstChatService', () => ({
     createMessageId: jest.fn(() => 'message-1'),
     insertMessage: (...args: unknown[]) => mockInsertMessage(...args),
     markRead: jest.fn(),
+    clearDirectRoomHistory: (...args: unknown[]) => mockClearHistory(...args),
     getBubbleImageUrl: jest.fn(),
     getFullImageUrl: jest.fn(),
     uploadChatMedia: jest.fn()
@@ -147,6 +150,7 @@ import { ChatScreen } from '@/screens/messages/ChatScreen';
 describe('ChatScreen actions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockConversation.isGroup = true;
     mockChannel.on.mockImplementation(() => mockChannel);
     mockChannel.subscribe.mockImplementation((callback: (status: string) => void) => {
       callback('SUBSCRIBED');
@@ -159,6 +163,10 @@ describe('ChatScreen actions', () => {
     }));
     mockSetPinned.mockResolvedValue(undefined);
     mockSetMuted.mockResolvedValue(undefined);
+    mockClearHistory.mockResolvedValue({
+      roomId: 'room-1', userId: 'user-1', lastReadAt: '2026-07-29T10:00:00.000Z',
+      clearedAt: '2026-07-29T10:00:00.000Z', isActive: true, role: 'owner'
+    });
     mockInvalidateQueries.mockResolvedValue(undefined);
   });
 
@@ -197,6 +205,52 @@ describe('ChatScreen actions', () => {
     expect(mockNavigation.navigate).toHaveBeenCalledWith('NewMessage', {
       addToConversationId: 'room-1'
     });
+  });
+
+  it('confirms and clears direct history only after the server watermark succeeds', async () => {
+    const alert = jest.spyOn(Alert, 'alert');
+    mockConversation.isGroup = false;
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Conversation settings' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear history' }));
+
+    expect(alert).toHaveBeenCalledWith(
+      'Clear history?',
+      expect.stringContaining('only for you'),
+      expect.any(Array)
+    );
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.text === 'Clear history')?.onPress?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockClearHistory).toHaveBeenCalledWith('room-1'));
+    expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({ queryKey: ['messages', 'room-1'] });
+    mockConversation.isGroup = true;
+    alert.mockRestore();
+  });
+
+  it('keeps the direct conversation usable and reports a clear-history failure', async () => {
+    const alert = jest.spyOn(Alert, 'alert');
+    mockConversation.isGroup = false;
+    mockClearHistory.mockRejectedValueOnce(new Error('Watermark update failed'));
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Conversation settings' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear history' }));
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.text === 'Clear history')?.onPress?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Could not clear history', 'Watermark update failed'));
+    expect(screen.getByText('Send the first message.')).toBeTruthy();
+    alert.mockRestore();
   });
 });
 

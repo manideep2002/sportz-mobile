@@ -41,6 +41,7 @@ import { storageService } from '@/services/storageService';
 import {
   mergeThreadMessages,
   removeThreadMessage,
+  isMessageVisibleAfterClear,
   threadFirstChatService
 } from '@/services/threadFirstChatService';
 import { useAuthStore } from '@/store/authStore';
@@ -306,7 +307,7 @@ export function ThreadFirstChatScreen({
   const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(initialOpenSettings);
-  const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'remove' | 'leave' | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'clear' | 'remove' | 'leave' | null>(null);
   const [pinned, setPinned] = useState(Boolean(conversation?.pinned));
   const [muted, setMuted] = useState(Boolean(conversation?.muted));
   /** The message ID of the currently active (playing) video, or null. */
@@ -318,6 +319,7 @@ export function ThreadFirstChatScreen({
   const olderLoadingRef = useRef(false);
   const lastOlderCursorRef = useRef<string | null>(null);
   const pendingScrollToBottomRef = useRef(false);
+  const historyClearedAtRef = useRef<string | null>(null);
 
   const otherParticipants = useMemo(
     () => participants.filter((participant) => participant.userId !== currentUserId),
@@ -381,13 +383,21 @@ export function ThreadFirstChatScreen({
     if (!currentUserId) return;
 
     setInitialLoading(true);
+    // Do not briefly show the previous account's cached in-memory history
+    // while the next participant watermark is loading.
+    setMessages([]);
+    setParticipants([]);
+    setHasMore(false);
+    historyClearedAtRef.current = null;
     try {
       const [messagePage, participantRows] = await Promise.all([
         threadFirstChatService.listMessages(roomId),
         threadFirstChatService.listParticipants(roomId)
       ]);
+      const clearedAt = participantRows.find((participant) => participant.userId === currentUserId)?.clearedAt ?? null;
+      historyClearedAtRef.current = clearedAt;
       pendingScrollToBottomRef.current = true;
-      setMessages(messagePage);
+      setMessages(messagePage.filter((message) => isMessageVisibleAfterClear(message.createdAt, clearedAt)));
       setParticipants(participantRows);
       setHasMore(messagePage.length === threadFirstChatService.pageSize);
       olderLoadingRef.current = false;
@@ -427,6 +437,7 @@ export function ThreadFirstChatScreen({
       .on('broadcast', { event: 'message_created' }, ({ payload }) => {
         const { message } = payload as ChatMessageBroadcastPayload;
         if (!message || message.senderId === currentUserId) return;
+        if (!isMessageVisibleAfterClear(message.createdAt, historyClearedAtRef.current)) return;
         pendingScrollToBottomRef.current = true;
         setMessages((current) => mergeThreadMessages(current, { ...message, deliveryStatus: 'sent' }));
       })
@@ -438,6 +449,7 @@ export function ThreadFirstChatScreen({
       .on('broadcast', { event: 'message_updated' }, ({ payload }) => {
         const { message } = payload as ChatMessageBroadcastPayload;
         if (!message || message.roomId !== roomId) return;
+        if (!isMessageVisibleAfterClear(message.createdAt, historyClearedAtRef.current)) return;
         setMessages((current) => mergeThreadMessages(current, message));
       })
       .on('broadcast', { event: 'message_deleted' }, ({ payload }) => {
@@ -493,7 +505,10 @@ export function ThreadFirstChatScreen({
         createdAt: oldest.createdAt,
         id: oldest.id
       });
-      setMessages((current) => mergeThreadMessages(current, page));
+      setMessages((current) => mergeThreadMessages(
+        current,
+        page.filter((message) => isMessageVisibleAfterClear(message.createdAt, historyClearedAtRef.current))
+      ));
       setHasMore(page.length === threadFirstChatService.pageSize);
     } catch (error) {
       lastOlderCursorRef.current = null;
@@ -666,6 +681,43 @@ export function ThreadFirstChatScreen({
     } finally {
       setSettingsBusy(null);
     }
+  };
+
+  const confirmClearHistory = () => {
+    Alert.alert(
+      'Clear history?',
+      'This hides all existing messages only for you. Other participants will still see their history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear history',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setSettingsBusy('clear');
+              try {
+                const participant = await threadFirstChatService.clearDirectRoomHistory(roomId);
+                historyClearedAtRef.current = participant.clearedAt;
+                setParticipants((current) => current.map((item) =>
+                  item.userId === currentUserId ? participant : item
+                ));
+                setMessages([]);
+                setHasMore(false);
+                olderLoadingRef.current = false;
+                lastOlderCursorRef.current = null;
+                queryClient.removeQueries({ queryKey: messageKeys.messages(roomId) });
+                patchConversationState({ lastMessage: '' });
+                await invalidateConversationData();
+              } catch (error) {
+                Alert.alert('Could not clear history', error instanceof Error ? error.message : 'Please try again.');
+              } finally {
+                setSettingsBusy(null);
+              }
+            })();
+          }
+        }
+      ]
+    );
   };
 
   const confirmRemoveMember = (member: UserProfile) => {
@@ -941,6 +993,7 @@ export function ThreadFirstChatScreen({
         open={settingsOpen}
         title={title}
         isGroup={Boolean(conversation?.isGroup)}
+        canClearHistory={conversation?.isGroup === false}
         members={conversationMembers}
         participantRoles={participantRoles}
         currentUserId={currentUserId}
@@ -951,6 +1004,7 @@ export function ThreadFirstChatScreen({
         onClose={() => setSettingsOpen(false)}
         onTogglePinned={() => void togglePinned()}
         onToggleMuted={() => void toggleMuted()}
+        onClearHistory={confirmClearHistory}
         onAddMembers={() => {
           setSettingsOpen(false);
           onAddMembers?.();

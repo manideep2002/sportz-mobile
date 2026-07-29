@@ -22,6 +22,8 @@ export interface ThreadChatParticipant {
   roomId: string;
   userId: string;
   lastReadAt: string | null;
+  /** Messages created at or before this participant-specific point are hidden. */
+  clearedAt: string | null;
   isActive: boolean;
   role: 'owner' | 'admin' | 'member';
 }

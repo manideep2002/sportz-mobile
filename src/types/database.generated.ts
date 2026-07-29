@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -252,6 +252,7 @@ export type Database = {
         Row: {
           athlete_id: string
           created_at: string
+          evidence_url: string | null
           id: string
           opponent_name: string
           opponent_score: number | null
@@ -270,6 +271,7 @@ export type Database = {
         Insert: {
           athlete_id: string
           created_at?: string
+          evidence_url?: string | null
           id?: string
           opponent_name: string
           opponent_score?: number | null
@@ -288,6 +290,7 @@ export type Database = {
         Update: {
           athlete_id?: string
           created_at?: string
+          evidence_url?: string | null
           id?: string
           opponent_name?: string
           opponent_score?: number | null
@@ -468,6 +471,7 @@ export type Database = {
       }
       chat_participants: {
         Row: {
+          cleared_at: string | null
           is_active: boolean
           is_pinned: boolean
           joined_at: string
@@ -479,6 +483,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cleared_at?: string | null
           is_active?: boolean
           is_pinned?: boolean
           joined_at?: string
@@ -490,6 +495,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cleared_at?: string | null
           is_active?: boolean
           is_pinned?: boolean
           joined_at?: string
@@ -565,6 +571,7 @@ export type Database = {
           id: string
           parent_comment_id: string | null
           post_id: string
+          removed_by_moderator: boolean
           updated_at: string
         }
         Insert: {
@@ -574,6 +581,7 @@ export type Database = {
           id?: string
           parent_comment_id?: string | null
           post_id: string
+          removed_by_moderator?: boolean
           updated_at?: string
         }
         Update: {
@@ -583,6 +591,7 @@ export type Database = {
           id?: string
           parent_comment_id?: string | null
           post_id?: string
+          removed_by_moderator?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -1609,6 +1618,48 @@ export type Database = {
           },
         ]
       }
+      moderation_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          moderator_id: string
+          reason: string
+          report_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          moderator_id: string
+          reason: string
+          report_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          moderator_id?: string
+          reason?: string
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_audit_log_moderator_id_fkey"
+            columns: ["moderator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "moderation_audit_log_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           comments: boolean
@@ -2025,6 +2076,7 @@ export type Database = {
           media_storage_path: string | null
           media_url: string | null
           media_width: number | null
+          removed_by_moderator: boolean
           sport: string | null
           stats_line: string | null
           updated_at: string
@@ -2047,6 +2099,7 @@ export type Database = {
           media_storage_path?: string | null
           media_url?: string | null
           media_width?: number | null
+          removed_by_moderator?: boolean
           sport?: string | null
           stats_line?: string | null
           updated_at?: string
@@ -2069,6 +2122,7 @@ export type Database = {
           media_storage_path?: string | null
           media_url?: string | null
           media_width?: number | null
+          removed_by_moderator?: boolean
           sport?: string | null
           stats_line?: string | null
           updated_at?: string
@@ -2113,6 +2167,7 @@ export type Database = {
           is_hireable: boolean
           is_online: boolean
           is_private: boolean
+          is_restricted: boolean
           is_verified: boolean
           mobile_number: string | null
           position: string | null
@@ -2145,6 +2200,7 @@ export type Database = {
           is_hireable?: boolean
           is_online?: boolean
           is_private?: boolean
+          is_restricted?: boolean
           is_verified?: boolean
           mobile_number?: string | null
           position?: string | null
@@ -2177,6 +2233,7 @@ export type Database = {
           is_hireable?: boolean
           is_online?: boolean
           is_private?: boolean
+          is_restricted?: boolean
           is_verified?: boolean
           mobile_number?: string | null
           position?: string | null
@@ -2582,6 +2639,51 @@ export type Database = {
           value_type?: string
         }
         Relationships: []
+      }
+      stat_verification_audit: {
+        Row: {
+          created_at: string
+          id: string
+          match_id: string
+          new_status: string
+          previous_status: string
+          reason: string | null
+          verifier_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_id: string
+          new_status: string
+          previous_status: string
+          reason?: string | null
+          verifier_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_id?: string
+          new_status?: string
+          previous_status?: string
+          reason?: string | null
+          verifier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stat_verification_audit_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "athlete_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stat_verification_audit_verifier_id_fkey"
+            columns: ["verifier_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stories: {
         Row: {
@@ -3547,6 +3649,27 @@ export type Database = {
           post_id: string
         }[]
       }
+      clear_direct_chat_history: {
+        Args: { target_room_id: string }
+        Returns: {
+          cleared_at: string | null
+          is_active: boolean
+          is_pinned: boolean
+          joined_at: string
+          last_read_at: string | null
+          left_at: string | null
+          muted_until: string | null
+          role: string
+          room_id: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "chat_participants"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_feed_fanout_job: {
         Args: { job_error?: string; job_id: string }
         Returns: undefined
@@ -3703,6 +3826,7 @@ export type Database = {
         Returns: boolean
       }
       current_auth_session_id: { Args: never; Returns: string }
+      current_user_can_verify: { Args: never; Returns: boolean }
       current_user_is_admin: { Args: never; Returns: boolean }
       delete_chat_message: {
         Args: { target_message_id: string }
@@ -3955,6 +4079,7 @@ export type Database = {
           status: Database["public"]["Enums"]["event_invitation_status"]
         }[]
       }
+      get_verification_detail: { Args: { p_match_id: string }; Returns: Json }
       gettransactionid: { Args: never; Returns: unknown }
       has_recent_account_auth: { Args: never; Returns: boolean }
       insert_notification_once: {
@@ -4105,6 +4230,10 @@ export type Database = {
           visibility: Database["public"]["Enums"]["sportz_visibility"]
         }[]
       }
+      list_pending_verifications: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: Json
+      }
       log_community_admin_action: {
         Args: {
           action_metadata?: Json
@@ -4118,6 +4247,7 @@ export type Database = {
       mark_chat_room_read: {
         Args: { read_at?: string; target_room_id: string }
         Returns: {
+          cleared_at: string | null
           is_active: boolean
           is_pinned: boolean
           joined_at: string
@@ -4134,6 +4264,39 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      moderate_dismiss_report: {
+        Args: { p_reason: string; p_report_id: string }
+        Returns: undefined
+      }
+      moderate_get_entity_preview: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: Json
+      }
+      moderate_get_report_detail: {
+        Args: { p_report_id: string }
+        Returns: Json
+      }
+      moderate_get_reporter_profile: {
+        Args: { p_reporter_id: string }
+        Returns: Json
+      }
+      moderate_remove_content: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_reason: string
+          p_report_id: string
+        }
+        Returns: undefined
+      }
+      moderate_restrict_account: {
+        Args: {
+          p_reason: string
+          p_report_id: string
+          p_target_user_id: string
+        }
+        Returns: undefined
       }
       next_social_notification_flush_at: { Args: never; Returns: string }
       notification_bundle_title: {
@@ -4238,6 +4401,7 @@ export type Database = {
         Returns: {
           athlete_id: string
           created_at: string
+          evidence_url: string | null
           id: string
           opponent_name: string
           opponent_score: number | null
@@ -5202,6 +5366,7 @@ export type Database = {
           media_storage_path: string | null
           media_url: string | null
           media_width: number | null
+          removed_by_moderator: boolean
           sport: string | null
           stats_line: string | null
           updated_at: string
@@ -5244,37 +5409,72 @@ export type Database = {
         Returns: boolean
       }
       uuid_generate_v7: { Args: never; Returns: string }
-      verify_athlete_match: {
-        Args: {
-          target_match_id: string
-          target_source: string
-          target_status: string
-        }
-        Returns: {
-          athlete_id: string
-          created_at: string
-          id: string
-          opponent_name: string
-          opponent_score: number | null
-          outcome: string
-          played_on: string
-          season_id: string
-          sport: string
-          team_name: string
-          team_score: number | null
-          updated_at: string
-          verification_source: string | null
-          verification_status: string
-          verified_at: string | null
-          verified_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "athlete_matches"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      verify_athlete_match:
+        | {
+            Args: {
+              target_match_id: string
+              target_source: string
+              target_status: string
+            }
+            Returns: {
+              athlete_id: string
+              created_at: string
+              evidence_url: string | null
+              id: string
+              opponent_name: string
+              opponent_score: number | null
+              outcome: string
+              played_on: string
+              season_id: string
+              sport: string
+              team_name: string
+              team_score: number | null
+              updated_at: string
+              verification_source: string | null
+              verification_status: string
+              verified_at: string | null
+              verified_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "athlete_matches"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              target_match_id: string
+              target_reason?: string
+              target_source: string
+              target_status: string
+            }
+            Returns: {
+              athlete_id: string
+              created_at: string
+              evidence_url: string | null
+              id: string
+              opponent_name: string
+              opponent_score: number | null
+              outcome: string
+              played_on: string
+              season_id: string
+              sport: string
+              team_name: string
+              team_score: number | null
+              updated_at: string
+              verification_source: string | null
+              verification_status: string
+              verified_at: string | null
+              verified_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "athlete_matches"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       withdraw_team_offer: {
         Args: { target_offer_id: string }
         Returns: {
@@ -5330,6 +5530,7 @@ export type Database = {
         | "follow_request"
         | "mention"
         | "security"
+        | "stat_verified"
       sportz_post_kind: "post" | "thread" | "stats" | "highlight"
       sportz_rsvp_status: "going" | "interested" | "declined"
       sportz_skill_level: "Beginner" | "Intermediate" | "Advanced" | "Pro"
@@ -5494,6 +5695,7 @@ export const Constants = {
         "follow_request",
         "mention",
         "security",
+        "stat_verified",
       ],
       sportz_post_kind: ["post", "thread", "stats", "highlight"],
       sportz_rsvp_status: ["going", "interested", "declined"],

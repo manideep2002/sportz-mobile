@@ -30,7 +30,7 @@ npx supabase test db
   organizer attendee/waitlist removal, capacity-checked manual promotion, player count updates,
   and event chat.
 - Courts: location permission denied/granted, sport filters, availability labels, booking request, admin confirm/cancel.
-- Messages: realtime receive, optimistic send, read receipts, typing indicator, group create/add/leave, mute preferences, and per-user clear history.
+- Messages: realtime receive, optimistic send, read receipts, typing indicator, group create/add/leave, mute preferences, and per-user clear history. For clear history, verify the destructive confirmation, then confirm the acting account sees an empty direct thread while the other participant still sees earlier messages; send a new message and confirm it appears for both accounts. Switch accounts on the same device/session and scroll upward to verify neither account can recover the other's pre-clear page.
 - Notifications: push permission, foreground notification, mark all read, push fan-out preferences, conversation mute suppression.
 - Moderation: report submission, admin review/dismiss/action states.
 - Account deletion: destructive confirmation, Edge Function success/failure handling.

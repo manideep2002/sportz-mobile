@@ -37,6 +37,7 @@ interface ChatParticipantRow {
   room_id: string;
   user_id: string;
   last_read_at: string | null;
+  cleared_at: string | null;
   is_active: boolean;
   role?: string | null;
   muted_until?: string | null;
@@ -119,6 +120,7 @@ const mapParticipantRow = (row: ChatParticipantRow): ThreadChatParticipant => ({
   roomId: row.room_id,
   userId: row.user_id,
   lastReadAt: row.last_read_at,
+  clearedAt: row.cleared_at,
   isActive: row.is_active,
   role: (row.role as ChatParticipantRole) ?? 'member'
 });
@@ -141,6 +143,21 @@ const mapDomainMessage = (message: ThreadChatMessage): Message => ({
 });
 
 const roomSortTime = (room: ChatRoomRow) => room.last_message_at ?? room.updated_at ?? room.created_at;
+
+const isAtOrBefore = (value: string | null, boundary: string | null | undefined) =>
+  Boolean(value && boundary && new Date(value).getTime() <= new Date(boundary).getTime());
+
+/** Applies the participant watermark to realtime messages as well as SQL pages. */
+export const isMessageVisibleAfterClear = (createdAt: string, clearedAt: string | null | undefined) =>
+  !clearedAt || new Date(createdAt).getTime() > new Date(clearedAt).getTime();
+
+const newestHistoryBoundary = (participant: Pick<ChatParticipantRow, 'last_read_at' | 'cleared_at'>) => {
+  const readAt = participant.last_read_at;
+  const clearedAt = participant.cleared_at;
+  if (!readAt) return clearedAt;
+  if (!clearedAt) return readAt;
+  return new Date(readAt).getTime() >= new Date(clearedAt).getTime() ? readAt : clearedAt;
+};
 
 const directConversationKey = (conversation: Conversation, currentUserId: string) => {
   if (conversation.isGroup) return conversation.id;
@@ -301,7 +318,7 @@ export const threadFirstChatService = {
 
     const { data: participantRows, error: participantError } = await supabase
       .from('chat_participants')
-      .select('room_id, user_id, last_read_at, is_active, role, muted_until, is_pinned')
+      .select('room_id, user_id, last_read_at, cleared_at, is_active, role, muted_until, is_pinned')
       .eq('room_id', roomId)
       .eq('is_active', true);
 
@@ -323,7 +340,9 @@ export const threadFirstChatService = {
       title: conversationTitle(roomRow, participants, currentUserId),
       participants,
       isGroup: roomRow.room_kind === 'group',
-      lastMessage: roomRow.last_message_preview ?? '',
+      lastMessage: isAtOrBefore(roomRow.last_message_at, currentMembership?.cleared_at)
+        ? ''
+        : roomRow.last_message_preview ?? '',
       lastMessageAt: roomSortTime(roomRow),
       unreadCount: 0,
       pinned: Boolean(currentMembership?.is_pinned),
@@ -341,7 +360,7 @@ export const threadFirstChatService = {
     const currentUserId = await getSignedInUserId();
     const { data: memberRows, error: memberError } = await supabase
       .from('chat_participants')
-      .select('room_id, user_id, last_read_at, is_active, role, muted_until, is_pinned')
+      .select('room_id, user_id, last_read_at, cleared_at, is_active, role, muted_until, is_pinned')
       .eq('user_id', currentUserId)
       .eq('is_active', true);
 
@@ -358,7 +377,7 @@ export const threadFirstChatService = {
           .in('id', roomIds),
         supabase
           .from('chat_participants')
-          .select('room_id, user_id, last_read_at, is_active, role')
+          .select('room_id, user_id, last_read_at, cleared_at, is_active, role')
           .in('room_id', roomIds)
           .eq('is_active', true)
       ]);
@@ -391,8 +410,8 @@ export const threadFirstChatService = {
     for (const message of incomingRows ?? []) {
       const membership = membershipByRoom.get(message.room_id);
       if (!membership) continue;
-      const lastReadAt = membership.last_read_at ?? '1970-01-01T00:00:00.000Z';
-      if (message.created_at <= lastReadAt) continue;
+      const historyBoundary = newestHistoryBoundary(membership) ?? '1970-01-01T00:00:00.000Z';
+      if (message.created_at <= historyBoundary) continue;
       unreadByRoom.set(message.room_id, (unreadByRoom.get(message.room_id) ?? 0) + 1);
     }
 
@@ -404,7 +423,9 @@ export const threadFirstChatService = {
         title: conversationTitle(room, participants, currentUserId),
         participants,
         isGroup: room.room_kind === 'group',
-        lastMessage: room.last_message_preview ?? '',
+        lastMessage: isAtOrBefore(room.last_message_at, membership?.cleared_at)
+          ? ''
+          : room.last_message_preview ?? '',
         lastMessageAt: roomSortTime(room),
         unreadCount: readRoomIds.has(room.id) ? 0 : unreadByRoom.get(room.id) ?? 0,
         pinned: Boolean(membership?.is_pinned),
@@ -421,6 +442,18 @@ export const threadFirstChatService = {
   async listMessages(roomId: string, before?: MessagePageCursor): Promise<ThreadChatMessage[]> {
     if (!env.isSupabaseConfigured) return [];
 
+    const currentUserId = await getSignedInUserId();
+    const { data: membership, error: membershipError } = await supabase
+      .from('chat_participants')
+      .select('cleared_at')
+      .eq('room_id', roomId)
+      .eq('user_id', currentUserId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (membershipError) throw membershipError;
+    if (!membership) throw new Error('You are not an active participant in this chat.');
+
     let request = supabase
       .from('chat_messages')
       .select('id, room_id, sender_id, message_type, body, media_url, media_path, media_width, media_height, media_mime_type, created_at, edited_at')
@@ -429,6 +462,10 @@ export const threadFirstChatService = {
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(PAGE_SIZE);
+
+    if (membership.cleared_at) {
+      request = request.gt('created_at', membership.cleared_at);
+    }
 
     if (before) {
       request = request.or(
@@ -446,7 +483,7 @@ export const threadFirstChatService = {
 
     const { data, error } = await supabase
       .from('chat_participants')
-      .select('room_id, user_id, last_read_at, is_active, role')
+      .select('room_id, user_id, last_read_at, cleared_at, is_active, role')
       .eq('room_id', roomId)
       .eq('is_active', true);
 
@@ -524,6 +561,14 @@ export const threadFirstChatService = {
 
   async markRoomRead(roomId: string): Promise<void> {
     await this.markRead(roomId, new Date().toISOString());
+  },
+
+  async clearDirectRoomHistory(roomId: string): Promise<ThreadChatParticipant> {
+    const { data, error } = await supabase.rpc('clear_direct_chat_history', {
+      target_room_id: roomId
+    });
+    if (error) throw error;
+    return mapParticipantRow(data as ChatParticipantRow);
   },
 
   async createDirectRoom(otherUserId: string): Promise<string> {
