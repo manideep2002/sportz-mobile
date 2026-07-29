@@ -26,6 +26,7 @@ export function CourtsScreen() {
   const { colors: theme } = useAppTheme();
   const profileCity = useAuthStore((state) => state.profile?.city ?? '');
   const [filter, setFilter] = useState<'All' | Sport>('All');
+  const [selectedCourtId, setSelectedCourtId] = useState<string | undefined>(undefined);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [city, setCity] = useState(profileCity);
   const [appliedCity, setAppliedCity] = useState('');
@@ -110,9 +111,19 @@ export function CourtsScreen() {
       <View style={[styles.locationState, { backgroundColor: theme.surface }]}>
         <AppText variant="small">{locationMessage}</AppText>
       </View>
+
+      {/* Multi-court discovery strip */}
       <View style={styles.section}>
-        <CourtMapPreview court={courts[0]} />
+        <CourtMapPreview
+          courts={courts}
+          selectedId={selectedCourtId}
+          onSelect={setSelectedCourtId}
+          locationStatus={location.data?.status}
+          isLoading={isLoading}
+        />
       </View>
+
+      {/* Court list */}
       <View style={styles.section}>
         <SectionHeader title="Court discovery" action={`${courts.filter((court) => court.openNow).length} open now`} />
         {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
@@ -129,11 +140,16 @@ export function CourtsScreen() {
           <CourtCard
             key={court.id}
             court={court}
-            onPress={() => navigation.navigate('CourtDetail', { courtId: court.id })}
+            onPress={() => {
+              setSelectedCourtId(court.id);
+              navigation.navigate('CourtDetail', { courtId: court.id });
+            }}
             onBook={() => navigation.navigate('CourtBooking', { courtId: court.id })}
           />
         ))}
       </View>
+
+      {/* Hire athletes CTA */}
       <View style={styles.section}>
         <View style={[styles.hire, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
           <AppText variant="caption" color={theme.accent}>Team Building</AppText>
@@ -144,6 +160,7 @@ export function CourtsScreen() {
           </Button>
         </View>
       </View>
+
       <BottomSheet open={filterSheetOpen} title="Court filters" onClose={() => setFilterSheetOpen(false)}>
         <View style={styles.sheetContent}>
           <Input label="City" value={city} onChangeText={setCity} placeholder="Bengaluru" />

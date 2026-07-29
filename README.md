@@ -46,7 +46,9 @@ SPORTZ uses Supabase because the product needs a relational social graph: follow
 ## Phase 5 - Events and Courts
 
 - Event list, calendar strip, create event, event detail, join/RSVP hooks.
-- Court discovery map preview, nearby court listings, hire-athlete path.
+- Court discovery location strip: scrollable accessible pin cards for all courts with valid
+  coordinates, pin selection synchronised with the results list, per-court "Open in Maps"
+  deep-link (iOS Apple Maps / Android geo: / web Google Maps fallback).
 - Files:
   - `src/screens/events/*`
   - `src/screens/courts/CourtsScreen.tsx`

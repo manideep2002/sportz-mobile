@@ -68,7 +68,7 @@ export function CourtDetailScreen() {
       {court ? (
         <View style={[styles.detailLayout, responsive.isExpanded ? styles.detailLayoutExpanded : null]}>
           <View style={styles.mapColumn}>
-            <CourtMapPreview court={court} />
+            <CourtMapPreview courts={[court]} selectedId={court.id} />
           </View>
           <View style={styles.detailColumn}>
           <View style={styles.titleRow}>
