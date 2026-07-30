@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Camera, ChevronLeft, ImagePlus, Play, Video as VideoIcon } from 'lucide-react-native';
+import { Camera, ChevronLeft, ImagePlus, Play, Video as VideoIcon, X } from 'lucide-react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
@@ -20,6 +20,8 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 const MAX_STORY_DURATION_SECS = 1 * 60;
 /** Maximum file size for any story asset (50 MB). */
 const MAX_STORY_SIZE_MB = 50;
+/** Maximum number of ordered assets that can be published in one selection. */
+const MAX_STORY_ASSETS = 10;
 
 export function CreateStoryScreen() {
   const navigation = useNavigation<Navigation>();
@@ -31,6 +33,7 @@ export function CreateStoryScreen() {
   const createStories = useCreateStories();
   const selectedAsset = mediaAssets[selectedIndex];
   const isSelectedVideo = selectedAsset?.type === 'video';
+  const isAtAssetLimit = mediaAssets.length >= MAX_STORY_ASSETS;
 
   const validateAndAddAssets = (incoming: ImagePickerAsset[]): ImagePickerAsset[] => {
     const valid: ImagePickerAsset[] = [];
@@ -49,16 +52,38 @@ export function CreateStoryScreen() {
   };
 
   const handlePickMedia = async () => {
+    const remainingSlots = MAX_STORY_ASSETS - mediaAssets.length;
+    if (remainingSlots <= 0) {
+      Alert.alert(
+        'Story limit reached',
+        `You can publish up to ${MAX_STORY_ASSETS} assets at once. Remove an asset before adding another.`
+      );
+      return;
+    }
+
     try {
-      const picked = await storageService.pickMultipleImages();
+      const picked = await storageService.pickMultipleImages(remainingSlots);
       if (!picked.length) return;
       const validated = validateAndAddAssets(picked);
       if (!validated.length) return;
       const existingUris = new Set(mediaAssets.map((a) => a.uri));
-      const newAssets = validated.filter((a) => !existingUris.has(a.uri));
-      const next = [...mediaAssets, ...newAssets].slice(0, 10);
+      const newAssets = validated.filter((asset) => {
+        if (existingUris.has(asset.uri)) return false;
+        existingUris.add(asset.uri);
+        return true;
+      });
+      const acceptedAssets = newAssets.slice(0, remainingSlots);
+      const rejectedCount = newAssets.length - acceptedAssets.length;
+      if (rejectedCount > 0) {
+        Alert.alert(
+          'Some assets were not added',
+          `${rejectedCount} selected ${rejectedCount === 1 ? 'asset was' : 'assets were'} not added because a story can contain at most ${MAX_STORY_ASSETS} assets.`
+        );
+      }
+      if (!acceptedAssets.length) return;
+      const next = [...mediaAssets, ...acceptedAssets];
       setMediaAssets(next);
-      setSelectedIndex(Math.min(mediaAssets.length, next.length - 1));
+      setSelectedIndex(mediaAssets.length);
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -86,6 +111,14 @@ export function CreateStoryScreen() {
   };
 
   const handleCapture = async () => {
+    if (isAtAssetLimit) {
+      Alert.alert(
+        'Story limit reached',
+        `You can publish up to ${MAX_STORY_ASSETS} assets at once. Remove an asset before capturing another.`
+      );
+      return;
+    }
+
     try {
       const captured = await storageService.captureMedia();
       if (!captured) return;
@@ -98,12 +131,27 @@ export function CreateStoryScreen() {
         Alert.alert('Invalid media', err instanceof Error ? err.message : 'Could not use this file.');
         return;
       }
-      const next = [...mediaAssets, captured].slice(0, 10);
+      if (mediaAssets.some((asset) => asset.uri === captured.uri)) return;
+      const next = [...mediaAssets, captured];
       setMediaAssets(next);
       setSelectedIndex(next.length - 1);
     } catch (error) {
       Alert.alert('Camera failed', error instanceof Error ? error.message : 'Please try again.');
     }
+  };
+
+  const removeAsset = (index: number) => {
+    const next = mediaAssets.filter((_, assetIndex) => assetIndex !== index);
+    let nextSelectedIndex = selectedIndex;
+    if (!next.length) {
+      nextSelectedIndex = 0;
+    } else if (selectedIndex > index) {
+      nextSelectedIndex = selectedIndex - 1;
+    } else if (selectedIndex === index) {
+      nextSelectedIndex = Math.min(index, next.length - 1);
+    }
+    setMediaAssets(next);
+    setSelectedIndex(nextSelectedIndex);
   };
 
   return (
@@ -119,7 +167,15 @@ export function CreateStoryScreen() {
           {mediaAssets.length > 1 ? `Share ${mediaAssets.length}` : 'Share'}
         </Button>
       </View>
-      <Pressable accessibilityRole="button" style={[styles.canvas, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={handlePickMedia}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={selectedAsset ? 'Add story media from preview' : 'Choose story media'}
+        accessibilityHint={`Select up to ${MAX_STORY_ASSETS} ordered photos or videos.`}
+        accessibilityState={{ disabled: isAtAssetLimit }}
+        disabled={isAtAssetLimit}
+        style={[styles.canvas, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={handlePickMedia}
+      >
         {selectedAsset ? (
           <>
             {isSelectedVideo ? (
@@ -151,6 +207,7 @@ export function CreateStoryScreen() {
         )}
       </Pressable>
       <TextInput
+        accessibilityLabel="Story caption"
         value={caption}
         onChangeText={setCaption}
         placeholder="Add caption"
@@ -158,6 +215,12 @@ export function CreateStoryScreen() {
         style={[styles.captionInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
         maxLength={180}
       />
+      <AppText
+        accessibilityLiveRegion="polite"
+        style={[styles.selectionSummary, { color: theme.textMuted }]}
+      >
+        {mediaAssets.length} of {MAX_STORY_ASSETS} selected
+      </AppText>
       {mediaAssets.length ? (
         <FlatList
           horizontal
@@ -166,38 +229,67 @@ export function CreateStoryScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.thumbnails}
           renderItem={({ item, index }) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Preview story ${index + 1}${item.type === 'video' ? ' (video)' : ''}`}
-              onPress={() => setSelectedIndex(index)}
+            <View
               style={[
                 styles.thumbnail,
                 index === selectedIndex ? styles.selectedThumbnail : null,
                 { borderColor: index === selectedIndex ? theme.accent : theme.border },
               ]}
             >
-              {item.type === 'video' ? (
-                <View style={[styles.videoThumbnailTile, { backgroundColor: theme.surfaceMuted }]}>
-                  <VideoIcon size={22} color={theme.textMuted} />
-                </View>
-              ) : (
-                <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />
-              )}
-              {item.type === 'video' ? (
-                <View style={styles.thumbnailVideoOverlay}>
-                  <Play size={12} color={colors.light[0]} fill={colors.light[0]} />
-                </View>
-              ) : null}
-            </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Preview story ${index + 1}${item.type === 'video' ? ' (video)' : ''}`}
+                accessibilityState={{ selected: index === selectedIndex }}
+                onPress={() => setSelectedIndex(index)}
+                style={styles.thumbnailPreview}
+              >
+                {item.type === 'video' ? (
+                  <View style={[styles.videoThumbnailTile, { backgroundColor: theme.surfaceMuted }]}>
+                    <VideoIcon size={22} color={theme.textMuted} />
+                  </View>
+                ) : (
+                  <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />
+                )}
+                {item.type === 'video' ? (
+                  <View style={styles.thumbnailVideoOverlay}>
+                    <Play size={12} color={colors.light[0]} fill={colors.light[0]} />
+                  </View>
+                ) : null}
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove story ${index + 1}`}
+                disabled={createStories.isPending}
+                onPress={() => removeAsset(index)}
+                hitSlop={6}
+                style={styles.removeThumbnail}
+              >
+                <X size={13} color={colors.light[0]} strokeWidth={3} />
+              </Pressable>
+            </View>
           )}
         />
       ) : null}
       {mediaAssets.length ? (
-        <Button variant="dark" full icon={ImagePlus} onPress={handlePickMedia}>
-          Add more photos or videos
+        <Button
+          variant="dark"
+          full
+          icon={ImagePlus}
+          disabled={isAtAssetLimit}
+          accessibilityLabel={isAtAssetLimit ? 'Story asset limit reached' : 'Add more story media'}
+          onPress={handlePickMedia}
+        >
+          {isAtAssetLimit ? `${MAX_STORY_ASSETS} asset limit reached` : 'Add more photos or videos'}
         </Button>
       ) : null}
-      <Button variant="ghost" full icon={Camera} onPress={handleCapture}>
+      <Button
+        variant="ghost"
+        full
+        icon={Camera}
+        disabled={isAtAssetLimit}
+        accessibilityLabel="Capture story media"
+        onPress={handleCapture}
+      >
         Capture with camera
       </Button>
     </KeyboardAvoidingView>
@@ -256,6 +348,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.md
   },
+  selectionSummary: {
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+    fontSize: 12
+  },
   thumbnails: {
     gap: spacing.sm,
     paddingBottom: spacing.md
@@ -270,6 +367,10 @@ const styles = StyleSheet.create({
   },
   selectedThumbnail: {
     borderColor: colors.orange[500]
+  },
+  thumbnailPreview: {
+    width: '100%',
+    height: '100%'
   },
   thumbnailImage: {
     width: '100%',
@@ -290,6 +391,17 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  removeThumbnail: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.72)',
     alignItems: 'center',
     justifyContent: 'center'
   },

@@ -165,7 +165,7 @@ export const storageService = {
     return result.assets[0];
   },
 
-  async pickMultipleImages(): Promise<ImagePicker.ImagePickerAsset[]> {
+  async pickMultipleImages(selectionLimit = 10): Promise<ImagePicker.ImagePickerAsset[]> {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       throw new Error('Photo library permission is required.');
@@ -177,7 +177,7 @@ export const storageService = {
       allowsEditing: false,
       allowsMultipleSelection: true,
       orderedSelection: true,
-      selectionLimit: 10
+      selectionLimit: Math.max(1, selectionLimit)
     });
 
     if (result.canceled) return [];

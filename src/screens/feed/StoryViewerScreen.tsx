@@ -92,7 +92,7 @@ export function StoryViewerScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const { colors: theme } = useAppTheme();
-  const currentProfile = useAuthStore((state) => state.profile);
+  const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const overlayRef = useRef<StoryReactionOverlayRef>(null);
@@ -314,6 +314,7 @@ export function StoryViewerScreen() {
 
   const sendReply = async (body: string, kind: 'reply' | 'reaction' = 'reply') => {
     if (!story?.user.id || !body.trim()) return;
+    if (story.user.id === currentUserId) return;
     setSendingReply(true);
     try {
       if (kind === 'reaction') {
@@ -334,8 +335,8 @@ export function StoryViewerScreen() {
 
   const isOwnStory =
     story?.user.id !== undefined &&
-    currentProfile?.id !== undefined &&
-    story.user.id === currentProfile.id;
+    currentUserId !== undefined &&
+    story.user.id === currentUserId;
 
   // Whether video should be paused (input focused, app backgrounded, or no media)
   const videoPaused = isInputFocused || !isAppActive;
@@ -488,7 +489,7 @@ export function StoryViewerScreen() {
           </AppText>
         </View>
       ) : null}
-      {story?.user.id ? (
+      {story?.user.id && !isOwnStory ? (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
           style={[styles.replyBar, { bottom: insets.bottom > 0 ? insets.bottom + 8 : 28 }]}
