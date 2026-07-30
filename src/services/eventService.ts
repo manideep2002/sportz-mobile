@@ -6,6 +6,7 @@ import { storageService } from '@/services/storageService';
 import { captureUnexpectedError } from '@/lib/monitoring';
 import type { EventCreateVisibility } from '@/constants/events';
 import type { EventInvitation, EventInvitationStatus, EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
+import { createUuid } from '@/utils/uuid';
 
 export interface CreateEventInput {
   title: string;
@@ -108,6 +109,45 @@ interface EventMessageRow {
   created_at: string;
   profiles: SportEventRow['profiles'];
 }
+
+export interface EventMessageCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface EventMessagePage {
+  messages: EventMessage[];
+  nextCursor: EventMessageCursor | null;
+}
+
+export const EVENT_MESSAGE_PAGE_SIZE = 50;
+
+const newestEventMessageFirst = (a: EventMessage, b: EventMessage) => {
+  const byCreatedAt = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  return byCreatedAt || b.id.localeCompare(a.id);
+};
+
+/** Reconciles optimistic, mutation-response, reconnect, and realtime copies. */
+export function mergeEventMessages(
+  current: EventMessage[],
+  incoming: EventMessage | EventMessage[]
+) {
+  const merged = new Map(current.map((message) => [message.id, message]));
+  const updates = Array.isArray(incoming) ? incoming : [incoming];
+  updates.forEach((message) => {
+    merged.set(message.id, { ...merged.get(message.id), ...message });
+  });
+  return [...merged.values()].sort(newestEventMessageFirst);
+}
+
+const mapEventMessageRow = (message: EventMessageRow): EventMessage => ({
+  id: message.id,
+  eventId: message.event_id,
+  sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
+  body: message.body,
+  createdAt: message.created_at,
+  deliveryStatus: 'sent'
+});
 
 const entryFeeLabel = (currency: string | null | undefined, cents: number | null | undefined) => {
   const feeCents = cents ?? 0;
@@ -594,30 +634,45 @@ export const eventService = {
     return statuses;
   },
 
-  async listEventMessages(eventId: string): Promise<EventMessage[]> {
+  async listEventMessages(
+    eventId: string,
+    cursor?: EventMessageCursor
+  ): Promise<EventMessagePage> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('event_messages')
       .select('*, profiles:sender_id(*)')
       .eq('event_id', eventId)
-      .order('created_at', { ascending: true })
-      .limit(100);
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(EVENT_MESSAGE_PAGE_SIZE + 1);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+      );
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
-    return (data ?? []).map((row) => {
-      const message = row as unknown as EventMessageRow;
-      return {
-        id: message.id,
-        eventId: message.event_id,
-        sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
-        body: message.body,
-        createdAt: message.created_at
-      };
-    });
+    const rows = (data ?? []) as unknown as EventMessageRow[];
+    const pageRows = rows.slice(0, EVENT_MESSAGE_PAGE_SIZE);
+    const oldest = pageRows[pageRows.length - 1];
+    return {
+      messages: pageRows.map(mapEventMessageRow),
+      nextCursor: rows.length > EVENT_MESSAGE_PAGE_SIZE && oldest
+        ? { createdAt: oldest.created_at, id: oldest.id }
+        : null
+    };
   },
 
-  async sendEventMessage(eventId: string, body: string): Promise<EventMessage> {
+  async sendEventMessage(
+    eventId: string,
+    body: string,
+    clientMessageId = createUuid()
+  ): Promise<EventMessage> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -627,6 +682,7 @@ export const eventService = {
     const { data, error } = await supabase
       .from('event_messages')
       .insert({
+        id: clientMessageId,
         event_id: eventId,
         sender_id: authData.user.id,
         body
@@ -635,17 +691,15 @@ export const eventService = {
       .single();
     if (error) throw error;
 
-    const message = data as unknown as EventMessageRow;
-    return {
-      id: message.id,
-      eventId: message.event_id,
-      sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
-      body: message.body,
-      createdAt: message.created_at
-    };
+    return mapEventMessageRow(data as unknown as EventMessageRow);
   },
 
-  subscribeToEventMessages(eventId: string, callback: (message: EventMessage) => void) {
+  subscribeToEventMessages(
+    eventId: string,
+    callback: (message: EventMessage) => void,
+    onConnectionChange?: (connected: boolean, reconnected: boolean) => void
+  ) {
+    let hasConnected = false;
     const channel = supabase
       .channel(`event-messages-${eventId}`)
       .on(
@@ -659,17 +713,17 @@ export const eventService = {
             .eq('id', row.id)
             .single();
           if (!data) return;
-          const message = data as unknown as EventMessageRow;
-          callback({
-            id: message.id,
-            eventId: message.event_id,
-            sender: mapProfileRow(message.profiles ?? { id: message.sender_id }),
-            body: message.body,
-            createdAt: message.created_at
-          });
+          callback(mapEventMessageRow(data as unknown as EventMessageRow));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          onConnectionChange?.(true, hasConnected);
+          hasConnected = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          onConnectionChange?.(false, false);
+        }
+      });
 
     return {
       unsubscribe: () => {

@@ -421,6 +421,7 @@ export interface EventMessage {
   sender: UserProfile;
   body: string;
   createdAt: string;
+  deliveryStatus?: 'sending' | 'sent' | 'failed';
 }
 
 export type NotificationKind =

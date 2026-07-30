@@ -16,6 +16,7 @@ const mockListParticipants = jest.fn();
 const mockNetInfoFetch = jest.fn();
 const mockBroadcastHandlers: Record<string, (event: { payload: unknown }) => void> = {};
 let mockSubscribeCallback: ((status: string) => void) | undefined;
+let mockPresenceState: Record<string, Record<string, unknown>[]> = {};
 const mockSetPinned = jest.fn();
 const mockSetMuted = jest.fn();
 const mockClearHistory = jest.fn();
@@ -68,7 +69,8 @@ const mockChannel: Record<string, jest.Mock> = {
   subscribe: jest.fn(),
   send: jest.fn().mockResolvedValue(undefined),
   track: jest.fn().mockResolvedValue(undefined),
-  untrack: jest.fn().mockResolvedValue(undefined)
+  untrack: jest.fn().mockResolvedValue(undefined),
+  presenceState: jest.fn(() => mockPresenceState)
 };
 mockChannel.on.mockImplementation((_type, filter: { event: string }, callback: (event: { payload: unknown }) => void) => {
   mockBroadcastHandlers[filter.event] = callback;
@@ -166,6 +168,7 @@ describe('ChatScreen actions', () => {
     jest.clearAllMocks();
     Object.keys(mockBroadcastHandlers).forEach((key) => delete mockBroadcastHandlers[key]);
     mockSubscribeCallback = undefined;
+    mockPresenceState = {};
     mockConversation.isGroup = true;
     mockChannel.on.mockImplementation((_type, filter: { event: string }, callback: (event: { payload: unknown }) => void) => {
       mockBroadcastHandlers[filter.event] = callback;
@@ -194,6 +197,26 @@ describe('ChatScreen actions', () => {
       clearedAt: '2026-07-29T10:00:00.000Z', isActive: true, role: 'owner'
     });
     mockInvalidateQueries.mockResolvedValue(undefined);
+  });
+
+  it('only shows online after verified peer presence and clears it on disconnect', async () => {
+    mockConversation.isGroup = false;
+    await render(<ChatScreen />);
+
+    expect(await screen.findByText('Chat')).toBeTruthy();
+    mockPresenceState = {
+      'user-2': [{ userId: 'user-2', onlineAt: '2026-07-30T12:00:00.000Z' }]
+    };
+    await act(async () => {
+      mockBroadcastHandlers.sync?.({ payload: {} });
+    });
+    expect(await screen.findByText('Active now')).toBeTruthy();
+
+    await act(async () => {
+      mockSubscribeCallback?.('CHANNEL_ERROR');
+    });
+    expect(await screen.findByText('Presence unavailable')).toBeTruthy();
+    mockConversation.isGroup = true;
   });
 
   it('sends composer text and persists the optimistic message', async () => {

@@ -56,6 +56,7 @@ import type {
   ThreadChatMessage,
   ThreadChatParticipant
 } from '@/types/threadFirstChat';
+import { getChatPresenceLabel } from '@/utils/chatPresence';
 
 interface ThreadFirstChatScreenProps {
   roomId: string;
@@ -320,6 +321,8 @@ export function ThreadFirstChatScreen({
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [presenceSynced, setPresenceSynced] = useState(false);
+  const [onlinePeerUserIds, setOnlinePeerUserIds] = useState<Set<string>>(new Set());
   const [mediaLoading, setMediaLoading] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<ThreadChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
@@ -341,6 +344,7 @@ export function ThreadFirstChatScreen({
   const bodyRef = useRef(savedDraft);
   const deliveryInFlightIdsRef = useRef(new Set<string>());
   const hasSubscribedRef = useRef(false);
+  const participantsRef = useRef<ThreadChatParticipant[]>([]);
 
   const otherParticipants = useMemo(
     () => participants.filter((participant) => participant.userId !== currentUserId),
@@ -354,7 +358,13 @@ export function ThreadFirstChatScreen({
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [messages]
   );
-  const typingLabel = typingUserIds.size > 0 ? 'User is typing...' : 'Active now';
+  const presenceLabel = getChatPresenceLabel({
+    connected: realtimeConnected,
+    synced: presenceSynced,
+    isGroup: Boolean(conversation?.isGroup),
+    typingCount: typingUserIds.size,
+    onlinePeerCount: onlinePeerUserIds.size
+  });
   const participantRoles = useMemo<Record<string, ChatParticipantRole>>(
     () => conversation?.participantRoles ?? Object.fromEntries(
       participants.map((participant) => [participant.userId, participant.role])
@@ -369,6 +379,10 @@ export function ThreadFirstChatScreen({
   useEffect(() => {
     if (initialOpenSettings) setSettingsOpen(true);
   }, [initialOpenSettings]);
+
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
 
   useEffect(() => {
     if (!conversation) return;
@@ -490,7 +504,31 @@ export function ThreadFirstChatScreen({
       }
     });
 
+    const syncPeerPresence = () => {
+      const participantIds = new Set(
+        participantsRef.current
+          .map((participant) => participant.userId)
+          .filter((userId) => userId !== currentUserId)
+      );
+      const state = channel.presenceState<Record<string, unknown>>();
+      const onlineIds = new Set<string>();
+      Object.entries(state).forEach(([key, presences]) => {
+        const advertisedIds = [
+          key,
+          ...presences.map((presence) =>
+            typeof presence.userId === 'string' ? presence.userId : null
+          )
+        ];
+        advertisedIds.forEach((userId) => {
+          if (userId && participantIds.has(userId)) onlineIds.add(userId);
+        });
+      });
+      setOnlinePeerUserIds(onlineIds);
+      setPresenceSynced(true);
+    };
+
     channel
+      .on('presence', { event: 'sync' }, syncPeerPresence)
       .on('broadcast', { event: 'message_created' }, ({ payload }) => {
         const { message } = payload as ChatMessageBroadcastPayload;
         if (!message || message.senderId === currentUserId) return;
@@ -534,11 +572,14 @@ export function ThreadFirstChatScreen({
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setRealtimeConnected(true);
+          setPresenceSynced(false);
           void channel.track({ userId: currentUserId, onlineAt: new Date().toISOString() });
           if (hasSubscribedRef.current) void reconcileAfterReconnect();
           hasSubscribedRef.current = true;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           setRealtimeConnected(false);
+          setPresenceSynced(false);
+          setOnlinePeerUserIds(new Set());
         }
       });
 
@@ -550,6 +591,8 @@ export function ThreadFirstChatScreen({
       void supabase.removeChannel(channel);
       channelRef.current = null;
       setRealtimeConnected(false);
+      setPresenceSynced(false);
+      setOnlinePeerUserIds(new Set());
     };
   }, [currentUserId, patchParticipantReadAt, reconcileAfterReconnect, roomId]);
 
@@ -1004,7 +1047,7 @@ export function ThreadFirstChatScreen({
         {onBack ? <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={onBack} /> : null}
         <View style={styles.headerCopy}>
           <AppText style={[styles.title, { color: theme.text }]} numberOfLines={1}>{title}</AppText>
-          <AppText style={[styles.subtitle, { color: theme.textSubtle }]} numberOfLines={1}>{typingLabel}</AppText>
+          <AppText style={[styles.subtitle, { color: theme.textSubtle }]} numberOfLines={1}>{presenceLabel}</AppText>
         </View>
         <IconButton
           icon={MoreVertical}

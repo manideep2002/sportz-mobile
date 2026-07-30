@@ -1,63 +1,190 @@
-import { useEffect, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Send } from 'lucide-react-native';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  TextInput,
+  View
+} from 'react-native';
 
 import { AppRefreshControl, AppText, Avatar, Button, IconButton, VerifiedName } from '@/components/ui';
-
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
-import { eventService } from '@/services/eventService';
+import {
+  eventService,
+  mergeEventMessages,
+  type EventMessageCursor
+} from '@/services/eventService';
 import { useAuthStore } from '@/store/authStore';
 import type { EventMessage } from '@/types/domain';
 import { formatTime } from '@/utils/format';
+import { createUuid } from '@/utils/uuid';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventChat'>;
-
-const eventMessageKey = (eventId: string) => ['events', eventId, 'messages'] as const;
 
 export function EventChatScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { eventId } = route.params;
-  const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id);
+  const currentProfile = useAuthStore((state) => state.profile);
   const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const { data: messages = [], isLoading, isError, isRefetching, error, refetch } = useQuery({
-    queryKey: eventMessageKey(eventId),
-    queryFn: () => eventService.listEventMessages(eventId)
-  });
+  const [messages, setMessages] = useState<EventMessage[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [olderLoading, setOlderLoading] = useState(false);
+  const [olderError, setOlderError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<EventMessageCursor | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const olderLoadingRef = useRef(false);
+
+  const loadLatest = useCallback(async (mode: 'initial' | 'refresh' | 'reconnect') => {
+    if (mode === 'initial') {
+      setInitialLoading(true);
+      setInitialError(null);
+    } else if (mode === 'refresh') {
+      setRefreshing(true);
+    }
+
+    try {
+      const page = await eventService.listEventMessages(eventId);
+      setMessages((current) => mergeEventMessages(current, page.messages));
+      // Restart the older cursor from the new latest-page boundary. This may
+      // re-read already loaded rows after reconnect, but ID merging is safe and
+      // it cannot skip a burst larger than one page while the channel was down.
+      setNextCursor(page.nextCursor);
+      setInitialError(null);
+    } catch (error) {
+      if (mode === 'initial') {
+        setInitialError(error instanceof Error ? error.message : 'Could not load event chat.');
+      }
+    } finally {
+      if (mode === 'initial') setInitialLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
+    }
+  }, [eventId]);
 
   useEffect(() => {
-    const subscription = eventService.subscribeToEventMessages(eventId, (message) => {
-      queryClient.setQueryData<EventMessage[]>(eventMessageKey(eventId), (old = []) =>
-        old.some((item) => item.id === message.id) ? old : [...old, message]
-      );
-    });
+    setMessages([]);
+    setNextCursor(null);
+    void loadLatest('initial');
+  }, [eventId, loadLatest]);
+
+  useEffect(() => {
+    const subscription = eventService.subscribeToEventMessages(
+      eventId,
+      (message) => {
+        setMessages((current) => mergeEventMessages(current, message));
+      },
+      (connected, reconnected) => {
+        setRealtimeConnected(connected);
+        if (connected && reconnected) void loadLatest('reconnect');
+      }
+    );
     return () => subscription.unsubscribe();
-  }, [eventId, queryClient]);
+  }, [eventId, loadLatest]);
+
+  const loadOlder = useCallback(async () => {
+    if (!nextCursor || olderLoadingRef.current) return;
+    olderLoadingRef.current = true;
+    setOlderLoading(true);
+    setOlderError(null);
+    try {
+      const page = await eventService.listEventMessages(eventId, nextCursor);
+      setMessages((current) => mergeEventMessages(current, page.messages));
+      setNextCursor(page.nextCursor);
+    } catch (error) {
+      setOlderError(error instanceof Error ? error.message : 'Could not load older messages.');
+    } finally {
+      olderLoadingRef.current = false;
+      setOlderLoading(false);
+    }
+  }, [eventId, nextCursor]);
 
   const send = async () => {
     const trimmed = body.trim();
-    if (!trimmed) return;
+    if (!trimmed || !currentUserId || !currentProfile || !realtimeConnected) return;
+
+    const id = createUuid();
+    const optimistic: EventMessage = {
+      id,
+      eventId,
+      sender: currentProfile,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+      deliveryStatus: 'sending'
+    };
     setBody('');
-    setSending(true);
+    setMessages((current) => mergeEventMessages(current, optimistic));
+
     try {
-      const message = await eventService.sendEventMessage(eventId, trimmed);
-      queryClient.setQueryData<EventMessage[]>(eventMessageKey(eventId), (old = []) => [...old, message]);
+      const message = await eventService.sendEventMessage(eventId, trimmed, id);
+      setMessages((current) => mergeEventMessages(current, message));
     } catch (error) {
-      setBody(trimmed);
+      setMessages((current) => current.map((message) =>
+        message.id === id && message.deliveryStatus !== 'sent'
+          ? { ...message, deliveryStatus: 'failed' }
+          : message
+      ));
       Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setSending(false);
     }
+  };
+
+  const renderMessage = ({ item: message }: { item: EventMessage }) => {
+    const mine = message.sender.id === currentUserId;
+    return (
+      <View style={[styles.messageRow, mine ? styles.mineRow : null]}>
+        {!mine ? (
+          <Avatar
+            initials={message.sender.initials}
+            uri={message.sender.avatarUrl}
+            size={32}
+            accessibilityLabel={`View ${message.sender.displayName}'s profile`}
+            onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
+          />
+        ) : null}
+        <View
+          style={[
+            styles.bubble,
+            mine
+              ? [styles.mine, { backgroundColor: theme.accent }]
+              : [styles.them, { backgroundColor: theme.surface }]
+          ]}
+        >
+          {!mine ? (
+            <VerifiedName
+              profile={message.sender}
+              style={styles.sender}
+              numberOfLines={1}
+              onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
+            />
+          ) : null}
+          <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>
+            {message.body}
+          </AppText>
+          <View style={styles.messageMeta}>
+            {message.deliveryStatus === 'sending' ? (
+              <AppText style={[styles.delivery, { color: theme.onAccent }]}>Sending…</AppText>
+            ) : message.deliveryStatus === 'failed' ? (
+              <AppText style={styles.failed}>Failed</AppText>
+            ) : null}
+            <AppText style={[styles.time, { color: mine ? theme.onAccent : theme.textSubtle }]}>
+              {formatTime(message.createdAt)}
+            </AppText>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -71,70 +198,56 @@ export function EventChatScreen() {
         <AppText variant="h3">Event Chat</AppText>
         <View style={{ width: 40 }} />
       </View>
-      {isLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
-      <ScrollView
-        style={styles.messagesScroller}
-        contentContainerStyle={styles.messages}
-        showsVerticalScrollIndicator={false}
-        alwaysBounceVertical
-        bounces
-        overScrollMode="always"
-        refreshControl={
-          <AppRefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => void refetch()}
-          />
-        }
-      >
-        {isError ? (
-          <View style={styles.state}>
-            <AppText variant="bodyMuted" style={styles.stateText}>
-              {error instanceof Error ? error.message : 'Could not load event chat.'}
-            </AppText>
-            <Button size="sm" onPress={() => void refetch()}>Retry</Button>
-          </View>
-        ) : null}
-        {!isLoading && !isError && messages.length === 0 ? (
-          <View style={styles.state}>
-            <AppText variant="bodyMuted" style={styles.stateText}>No event messages yet.</AppText>
-          </View>
-        ) : null}
-        {messages.map((message) => {
-          const mine = message.sender.id === currentUserId;
-          return (
-            <View key={message.id} style={[styles.messageRow, mine ? styles.mineRow : null]}>
-              {!mine ? (
-                <Avatar
-                  initials={message.sender.initials}
-                  uri={message.sender.avatarUrl}
-                  size={32}
-                  accessibilityLabel={`View ${message.sender.displayName}'s profile`}
-                  onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
-                />
-              ) : null}
-              <View
-                style={[
-                  styles.bubble,
-                  mine
-                    ? [styles.mine, { backgroundColor: theme.accent }]
-                    : [styles.them, { backgroundColor: theme.surface }]
-                ]}
-              >
-                {!mine ? (
-                  <VerifiedName
-                    profile={message.sender}
-                    style={styles.sender}
-                    numberOfLines={1}
-                    onPress={() => navigation.navigate('UserProfile', { userId: message.sender.id })}
-                  />
-                ) : null}
-                <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
-                <AppText style={[styles.time, { color: mine ? theme.onAccent : theme.textSubtle }]}>{formatTime(message.createdAt)}</AppText>
-              </View>
+
+      {!realtimeConnected && !initialLoading ? (
+        <View style={[styles.connectionBanner, { backgroundColor: theme.surface }]}>
+          <AppText variant="small">Reconnecting… Sending is paused.</AppText>
+        </View>
+      ) : null}
+
+      {initialLoading ? (
+        <ActivityIndicator color={theme.accent} style={styles.loader} />
+      ) : initialError ? (
+        <View style={styles.state}>
+          <AppText variant="bodyMuted" style={styles.stateText}>{initialError}</AppText>
+          <Button size="sm" onPress={() => void loadLatest('initial')}>Retry</Button>
+        </View>
+      ) : (
+        <FlatList
+          data={messages}
+          inverted
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.messages}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          onEndReached={() => void loadOlder()}
+          onEndReachedThreshold={0.25}
+          refreshControl={
+            <AppRefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void loadLatest('refresh')}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.state}>
+              <AppText variant="bodyMuted" style={styles.stateText}>No event messages yet.</AppText>
             </View>
-          );
-        })}
-      </ScrollView>
+          }
+          ListFooterComponent={
+            olderLoading ? (
+              <ActivityIndicator color={theme.accent} style={styles.olderLoader} />
+            ) : olderError ? (
+              <View style={styles.paginationError}>
+                <AppText variant="small">{olderError}</AppText>
+                <Button size="sm" accessibilityLabel="Retry older event messages" onPress={() => void loadOlder()}>
+                  Retry
+                </Button>
+              </View>
+            ) : null
+          }
+        />
+      )}
+
       <View style={[styles.composer, { borderTopColor: theme.border }]}>
         <TextInput
           accessibilityLabel="Message attendees"
@@ -143,9 +256,16 @@ export function EventChatScreen() {
           placeholder="Message attendees..."
           placeholderTextColor={theme.textSubtle}
           style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+          editable={!initialError}
           onSubmitEditing={() => void send()}
         />
-        <IconButton icon={Send} filled accessibilityLabel="Send message to attendees" disabled={!body.trim() || sending || isError} onPress={() => void send()} />
+        <IconButton
+          icon={Send}
+          filled
+          accessibilityLabel="Send message to attendees"
+          disabled={!body.trim() || !currentProfile || !realtimeConnected || Boolean(initialError)}
+          onPress={() => void send()}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -169,6 +289,11 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: spacing.xl
   },
+  connectionBanner: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.xs
+  },
   state: {
     alignItems: 'center',
     gap: spacing.sm,
@@ -178,18 +303,23 @@ const styles = StyleSheet.create({
   stateText: {
     textAlign: 'center'
   },
-  messagesScroller: {
-    flex: 1
-  },
   messages: {
     flexGrow: 1,
-    paddingVertical: spacing.md,
-    gap: spacing.sm
+    paddingVertical: spacing.md
+  },
+  olderLoader: {
+    marginVertical: spacing.md
+  },
+  paginationError: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md
   },
   messageRow: {
     flexDirection: 'row',
     gap: spacing.xs,
-    paddingHorizontal: spacing.screen
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.xs
   },
   mineRow: {
     justifyContent: 'flex-end'
@@ -215,14 +345,24 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontSize: 13
   },
-  mineText: {
-    color: colors.light[0]
+  messageMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+    marginTop: 4
+  },
+  delivery: {
+    fontSize: 10,
+    opacity: 0.8
+  },
+  failed: {
+    color: colors.semantic.danger,
+    fontSize: 10
   },
   time: {
     color: colors.text.tertiary,
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end'
+    fontSize: 10
   },
   composer: {
     flexDirection: 'row',
