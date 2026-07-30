@@ -11,6 +11,11 @@ const mockRoute = {
 };
 const mockSetConversationMutedLocally = jest.fn();
 const mockInsertMessage = jest.fn();
+const mockListMessages = jest.fn();
+const mockListParticipants = jest.fn();
+const mockNetInfoFetch = jest.fn();
+const mockBroadcastHandlers: Record<string, (event: { payload: unknown }) => void> = {};
+let mockSubscribeCallback: ((status: string) => void) | undefined;
 const mockSetPinned = jest.fn();
 const mockSetMuted = jest.fn();
 const mockClearHistory = jest.fn();
@@ -65,8 +70,12 @@ const mockChannel: Record<string, jest.Mock> = {
   track: jest.fn().mockResolvedValue(undefined),
   untrack: jest.fn().mockResolvedValue(undefined)
 };
-mockChannel.on.mockImplementation(() => mockChannel);
+mockChannel.on.mockImplementation((_type, filter: { event: string }, callback: (event: { payload: unknown }) => void) => {
+  mockBroadcastHandlers[filter.event] = callback;
+  return mockChannel;
+});
 mockChannel.subscribe.mockImplementation((callback: (status: string) => void) => {
+  mockSubscribeCallback = callback;
   callback('SUBSCRIBED');
   return mockChannel;
 });
@@ -92,6 +101,10 @@ jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn()
 }));
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: { fetch: (...args: unknown[]) => mockNetInfoFetch(...args) }
+}));
 jest.mock('@/hooks/useMessages', () => ({
   useConversation: () => ({ data: mockConversation }),
   messageKeys: {
@@ -116,16 +129,17 @@ jest.mock('@/services/messageService', () => ({
     leaveConversation: jest.fn()
   }
 }));
+jest.mock('@/services/storageService', () => ({
+  storageService: { validateMediaAsset: jest.fn() }
+}));
 jest.mock('@/services/threadFirstChatService', () => ({
   mergeThreadMessages: (current: any[], incoming: any | any[]) => mergeMessages(current, incoming),
   removeThreadMessage: (current: any[], id: string) => current.filter((item) => item.id !== id),
+  isMessageVisibleAfterClear: () => true,
   threadFirstChatService: {
     pageSize: 20,
-    listMessages: jest.fn().mockResolvedValue([]),
-    listParticipants: jest.fn().mockResolvedValue([
-      { roomId: 'room-1', userId: 'user-1', lastReadAt: null, isActive: true, role: 'owner' },
-      { roomId: 'room-1', userId: 'user-2', lastReadAt: null, isActive: true, role: 'member' }
-    ]),
+    listMessages: (...args: unknown[]) => mockListMessages(...args),
+    listParticipants: (...args: unknown[]) => mockListParticipants(...args),
     createMessageId: jest.fn(() => 'message-1'),
     insertMessage: (...args: unknown[]) => mockInsertMessage(...args),
     markRead: jest.fn(),
@@ -150,9 +164,15 @@ import { ChatScreen } from '@/screens/messages/ChatScreen';
 describe('ChatScreen actions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Object.keys(mockBroadcastHandlers).forEach((key) => delete mockBroadcastHandlers[key]);
+    mockSubscribeCallback = undefined;
     mockConversation.isGroup = true;
-    mockChannel.on.mockImplementation(() => mockChannel);
+    mockChannel.on.mockImplementation((_type, filter: { event: string }, callback: (event: { payload: unknown }) => void) => {
+      mockBroadcastHandlers[filter.event] = callback;
+      return mockChannel;
+    });
     mockChannel.subscribe.mockImplementation((callback: (status: string) => void) => {
+      mockSubscribeCallback = callback;
       callback('SUBSCRIBED');
       return mockChannel;
     });
@@ -161,6 +181,12 @@ describe('ChatScreen actions', () => {
       ...message,
       deliveryStatus: 'sent'
     }));
+    mockListMessages.mockResolvedValue([]);
+    mockListParticipants.mockResolvedValue([
+      { roomId: 'room-1', userId: 'user-1', lastReadAt: null, clearedAt: null, isActive: true, role: 'owner' },
+      { roomId: 'room-1', userId: 'user-2', lastReadAt: null, clearedAt: null, isActive: true, role: 'member' }
+    ]);
+    mockNetInfoFetch.mockResolvedValue({ isConnected: true });
     mockSetPinned.mockResolvedValue(undefined);
     mockSetMuted.mockResolvedValue(undefined);
     mockClearHistory.mockResolvedValue({
@@ -251,6 +277,111 @@ describe('ChatScreen actions', () => {
     await waitFor(() => expect(alert).toHaveBeenCalledWith('Could not clear history', 'Watermark update failed'));
     expect(screen.getByText('Send the first message.')).toBeTruthy();
     alert.mockRestore();
+  });
+
+  it('renders a durable initial error, disables composition, and retries', async () => {
+    mockListMessages.mockRejectedValueOnce(new Error('History unavailable'));
+    await render(<ChatScreen />);
+
+    expect(await screen.findByText('Chat unavailable')).toBeTruthy();
+    expect(screen.getByText('History unavailable')).toBeTruthy();
+    expect(screen.queryByText('Send the first message.')).toBeNull();
+    expect(screen.getByLabelText('Message').props.editable).toBe(false);
+    expect(screen.getByRole('button', { name: 'Send message' }).props.accessibilityState.disabled).toBe(true);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry chat' }));
+    expect(await screen.findByText('Send the first message.')).toBeTruthy();
+    expect(screen.getByLabelText('Message').props.editable).toBe(true);
+  });
+
+  it('retries failed delivery with the same client ID and prevents duplicate sends', async () => {
+    let attempt = 0;
+    mockInsertMessage.mockImplementation(async (message) => {
+      attempt += 1;
+      if (attempt === 1) throw new Error('offline');
+      return { ...message, deliveryStatus: 'sent' };
+    });
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.changeText(screen.getByPlaceholderText('Message...'), 'Idempotent hello');
+    const send = screen.getByRole('button', { name: 'Send message' });
+    fireEvent.press(send);
+
+    expect(await screen.findByText('Failed')).toBeTruthy();
+    expect(mockInsertMessage).toHaveBeenCalledTimes(1);
+    expect(mockInsertMessage.mock.calls[0][0].id).toBe('message-1');
+    fireEvent.press(send);
+    expect(mockInsertMessage).toHaveBeenCalledTimes(1);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry message' }));
+    await waitFor(() => expect(mockInsertMessage).toHaveBeenCalledTimes(2));
+    expect(mockInsertMessage.mock.calls[1][0].id).toBe('message-1');
+    expect(await screen.findByText('Sent')).toBeTruthy();
+  });
+
+  it('keeps offline messages recoverable and allows removing a failed message', async () => {
+    mockNetInfoFetch.mockResolvedValueOnce({ isConnected: false });
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.changeText(screen.getByPlaceholderText('Message...'), 'Offline hello');
+    await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText('Failed')).toBeTruthy();
+    expect(mockInsertMessage).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove failed message' }));
+    expect(screen.queryByText('Offline hello')).toBeNull();
+  });
+
+  it('deduplicates realtime events and reconciles messages after reconnect', async () => {
+    const first = {
+      id: 'server-1', roomId: 'room-1', senderId: 'user-2', messageType: 'text',
+      body: 'Server hello', mediaUrl: null, mediaPath: null, mediaWidth: null,
+      mediaHeight: null, mediaMimeType: null, createdAt: '2026-07-30T10:00:00.000Z',
+      editedAt: null, deliveryStatus: 'sent'
+    };
+    mockListMessages.mockResolvedValueOnce([first]);
+    await render(<ChatScreen />);
+    expect(await screen.findByText('Server hello')).toBeTruthy();
+
+    await act(() => {
+      mockBroadcastHandlers.message_created?.({ payload: { message: first } });
+      mockBroadcastHandlers.message_created?.({ payload: { message: first } });
+    });
+    expect(screen.getAllByText('Server hello')).toHaveLength(1);
+
+    mockListMessages.mockResolvedValueOnce([
+      first,
+      { ...first, id: 'server-2', body: 'After reconnect', createdAt: '2026-07-30T10:01:00.000Z' }
+    ]);
+    await act(() => {
+      mockSubscribeCallback?.('CHANNEL_ERROR');
+      mockSubscribeCallback?.('SUBSCRIBED');
+    });
+    expect(await screen.findByText('After reconnect')).toBeTruthy();
+  });
+
+  it('shows pagination failure recovery and merges a retried page once', async () => {
+    const page = Array.from({ length: 20 }, (_, index) => ({
+      id: `message-${index + 10}`, roomId: 'room-1', senderId: 'user-2', messageType: 'text',
+      body: `Message ${index}`, mediaUrl: null, mediaPath: null, mediaWidth: null,
+      mediaHeight: null, mediaMimeType: null, createdAt: `2026-07-30T09:${String(index).padStart(2, '0')}:00.000Z`,
+      editedAt: null, deliveryStatus: 'sent'
+    }));
+    mockListMessages.mockResolvedValueOnce(page).mockRejectedValueOnce(new Error('Page failed'));
+    await render(<ChatScreen />);
+    await screen.findByText('Message 0');
+
+    await fireEvent.press(screen.getByText('Load older'));
+    expect(await screen.findByText('Page failed')).toBeTruthy();
+
+    mockListMessages.mockResolvedValueOnce([
+      { ...page[0], id: 'older-1', body: 'Recovered older message', createdAt: '2026-07-30T08:00:00.000Z' }
+    ]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry older messages' }));
+    expect(await screen.findByText('Recovered older message')).toBeTruthy();
+    expect(screen.getAllByText('Recovered older message')).toHaveLength(1);
   });
 });
 

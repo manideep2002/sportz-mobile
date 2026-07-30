@@ -20,6 +20,7 @@ interface PostCardProps {
   onAuthorPress?: () => void;
   onComment?: () => void;
   onShare?: () => void;
+  sharePending?: boolean;
   onSave?: () => void;
   onMore?: () => void;
   onPrimaryAction?: () => void;
@@ -35,6 +36,7 @@ function PostCardComponent({
   onAuthorPress,
   onComment,
   onShare,
+  sharePending = false,
   onSave,
   onMore,
   onPrimaryAction,
@@ -249,7 +251,14 @@ function PostCardComponent({
               <MessageCircle size={22} color={theme.textSubtle} />
               <AppText style={[styles.actionText, { color: theme.textSubtle }]}>{post.comments}</AppText>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Share post" style={styles.action} onPress={(event) => runAction(event, onShare)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Share post"
+              accessibilityState={{ disabled: sharePending }}
+              disabled={sharePending}
+              style={styles.action}
+              onPress={(event) => runAction(event, onShare)}
+            >
               <Share2 size={22} color={theme.textSubtle} />
               <AppText style={[styles.actionText, { color: theme.textSubtle }]}>{post.shares}</AppText>
             </Pressable>

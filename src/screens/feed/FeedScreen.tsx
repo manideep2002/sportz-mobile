@@ -4,12 +4,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View, type ViewToken } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, type ViewToken } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { StoryRail } from '@/components/feed/StoryRail';
 
 import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } from '@/components/ui';
@@ -17,15 +18,15 @@ import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } f
 import { sportsFilters } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
-import { useDeletePost, useInfiniteFeed, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
+import { useInfiniteFeed, useOptimisticPostSave } from '@/hooks/useFeed';
+import { usePostActions } from '@/hooks/usePostActions';
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
 import { eventService } from '@/services/eventService';
 import { blockService, toBlockedIdSet } from '@/services/blockService';
 import { feedDedupeService } from '@/services/feedDedupeService';
-import { reportReasons, reportService } from '@/services/reportService';
-import { openPostMedia, sharePost } from '@/utils/share';
+import { openPostMedia } from '@/utils/share';
 import type { Post } from '@/types/domain';
 import { useResponsiveLayout } from '@/layout/responsive';
 
@@ -39,6 +40,7 @@ export function FeedScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
+  const [reportTarget, setReportTarget] = useState<Post | null>(null);
   const [activeVideoPostId, setActiveVideoPostId] = useState<string | null>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const onViewableItemsChanged = useRef(
@@ -66,8 +68,7 @@ export function FeedScreen() {
     .filter((post) => !blockedIdSet.has(post.author.id));
   const filteredFeed = selectedSport === 'All' ? feed : feed.filter((post) => post.sport === selectedSport);
   const saveMutation = useOptimisticPostSave();
-  const shareMutation = useRecordPostShare();
-  const deletePostMutation = useDeletePost();
+  const postActions = usePostActions();
   const refreshFeed = () => void Promise.all([
     refetch(),
     refetchStories(),
@@ -91,19 +92,6 @@ export function FeedScreen() {
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
   };
-  const reportPost = (post: Post) => {
-    Alert.alert('Report Post', 'Choose a reason.', [
-      ...reportReasons.map((reason) => ({
-        text: reason,
-        onPress: async () => {
-          await reportService.reportEntity('post', post.id, reason);
-          Alert.alert('Report submitted', 'Thank you. We will review this post.');
-        }
-      })),
-      { text: 'Cancel', style: 'cancel' as const }
-    ], { cancelable: true });
-  };
-
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <FlashList
@@ -202,9 +190,8 @@ export function FeedScreen() {
           onPress={() => openPost(post.id)}
           onAuthorPress={() => openAuthor(post)}
           onComment={() => openPost(post.id)}
-          onShare={() => {
-            void sharePost(post).then(() => shareMutation.mutate(post.id));
-          }}
+          onShare={() => void postActions.share(post)}
+          sharePending={postActions.isPending(post.id, 'share')}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           isVideoActive={activeVideoPostId === post.id}
           onVideoActivate={() => setActiveVideoPostId(post.id)}
@@ -223,6 +210,7 @@ export function FeedScreen() {
         open={activeOptionsPost !== null}
         post={activeOptionsPost}
         currentUserId={profile?.id}
+        actionPending={activeOptionsPost ? postActions.isPending(activeOptionsPost.id) : false}
         onClose={() => setActiveOptionsPost(null)}
         onViewAuthor={() => {
           if (activeOptionsPost) openAuthor(activeOptionsPost);
@@ -237,11 +225,11 @@ export function FeedScreen() {
         }}
         onShare={() => {
           if (activeOptionsPost) {
-            void sharePost(activeOptionsPost).then(() => shareMutation.mutate(activeOptionsPost.id));
+            void postActions.share(activeOptionsPost);
           }
         }}
         onReport={() => {
-          if (activeOptionsPost) reportPost(activeOptionsPost);
+          if (activeOptionsPost) setReportTarget(activeOptionsPost);
         }}
         onEdit={() => {
           if (activeOptionsPost) {
@@ -252,8 +240,15 @@ export function FeedScreen() {
           }
         }}
         onDelete={() => {
-          if (activeOptionsPost) deletePostMutation.mutate(activeOptionsPost.id);
+          if (activeOptionsPost) void postActions.deletePost(activeOptionsPost.id);
         }}
+      />
+      <ReportSheet
+        open={reportTarget !== null}
+        entityLabel="post"
+        entityType="post"
+        entityId={reportTarget?.id ?? ''}
+        onClose={() => setReportTarget(null)}
       />
     </View>
   );

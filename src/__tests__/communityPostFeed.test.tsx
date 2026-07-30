@@ -22,6 +22,16 @@ jest.mock('@/hooks/useFeed', () => ({
   useRecordPostShare: () => ({ mutate: mockShareCount }),
   useDeletePost: () => ({ mutate: mockDelete })
 }));
+jest.mock('@/hooks/usePostActions', () => ({
+  usePostActions: () => ({
+    share: async (post: Post) => {
+      await mockSharePost(post);
+      mockShareCount(post.id);
+    },
+    deletePost: async (postId: string) => mockDelete(postId),
+    isPending: () => false
+  })
+}));
 jest.mock('@/services/reportService', () => ({
   reportReasons: ['Spam'],
   reportService: { reportEntity: jest.fn() }

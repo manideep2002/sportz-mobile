@@ -13,10 +13,11 @@ import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, Verifie
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
-import { useComments, useDeleteComment, useDeletePost, useOptimisticCommentLike, useOptimisticPostSave, usePost, usePostRealtimeUpdates, useRecordPostShare } from '@/hooks/useFeed';
+import { useComments, useDeleteComment, useOptimisticCommentLike, useOptimisticPostSave, usePost, usePostRealtimeUpdates } from '@/hooks/useFeed';
+import { usePostActions } from '@/hooks/usePostActions';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
-import { openPostMedia, sharePost } from '@/utils/share';
+import { openPostMedia } from '@/utils/share';
 import type { Comment } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -53,8 +54,7 @@ export function PostDetailScreen() {
   >(null);
   const commentInputRef = useRef<TextInput>(null);
   const saveMutation = useOptimisticPostSave();
-  const shareMutation = useRecordPostShare();
-  const deletePostMutation = useDeletePost();
+  const postActions = usePostActions();
   const likeCommentMutation = useOptimisticCommentLike(route.params.postId);
   const deleteCommentMutation = useDeleteComment(route.params.postId);
   const highlightedCommentId = route.params.commentId;
@@ -104,9 +104,8 @@ export function PostDetailScreen() {
           post={post}
           onAuthorPress={openAuthor}
           onComment={() => commentInputRef.current?.focus()}
-          onShare={() => {
-            void sharePost(post).then(() => shareMutation.mutate(post.id));
-          }}
+          onShare={() => void postActions.share(post)}
+          sharePending={postActions.isPending(post.id, 'share')}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
@@ -210,6 +209,7 @@ export function PostDetailScreen() {
         open={optionsSheetOpen}
         post={post}
         currentUserId={profile?.id}
+        actionPending={post ? postActions.isPending(post.id) : false}
         onClose={() => setOptionsSheetOpen(false)}
         onViewAuthor={openAuthor}
         onSaveToggle={() => {
@@ -219,7 +219,7 @@ export function PostDetailScreen() {
           navigation.navigate('SavedPosts');
         }}
         onShare={() => {
-          if (post) void sharePost(post).then(() => shareMutation.mutate(post.id));
+          if (post) void postActions.share(post);
         }}
         onReport={() => { if (post) setReportTarget({ type: 'post', id: post.id }); }}
         onEdit={() => {
@@ -232,8 +232,7 @@ export function PostDetailScreen() {
         }}
         onDelete={() => {
           if (post) {
-            deletePostMutation.mutate(post.id);
-            navigation.goBack();
+            void postActions.deletePost(post.id, navigation.goBack);
           }
         }}
       />

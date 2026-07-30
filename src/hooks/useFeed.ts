@@ -404,10 +404,40 @@ export const useDeletePost = () => {
 
   return useMutation({
     mutationFn: (postId: string) => postService.deletePost(postId),
+    onMutate: async (postId) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['feed'] }),
+        queryClient.cancelQueries({ queryKey: feedKeys.post(postId) }),
+        queryClient.cancelQueries({ queryKey: feedKeys.comments(postId) })
+      ]);
+      const previousFeedQueries = snapshotFeedQueries(queryClient);
+      const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
+      const previousComments = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
+      queryClient.setQueriesData<unknown>(
+        { queryKey: ['feed'] },
+        (old: unknown) => removePostFromQueryData(old, postId)
+      );
+      return { previousFeedQueries, previousPost, previousComments, postId };
+    },
+    onError: (_error, _postId, context) => {
+      restoreQueries(queryClient, context?.previousFeedQueries);
+      if (context?.previousPost) {
+        queryClient.setQueryData(feedKeys.post(context.postId), context.previousPost);
+      }
+      if (context?.previousComments) {
+        queryClient.setQueryData(feedKeys.comments(context.postId), context.previousComments);
+      }
+    },
     onSuccess: (_data, postId) => {
-      queryClient.setQueriesData<unknown>({ queryKey: ['feed'] }, (old: unknown) => removePostFromQueryData(old, postId));
       void queryClient.removeQueries({ queryKey: feedKeys.post(postId) });
       void queryClient.removeQueries({ queryKey: feedKeys.comments(postId) });
+    },
+    onSettled: (_data, _error, postId) => {
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      if (_error) {
+        void queryClient.invalidateQueries({ queryKey: feedKeys.post(postId) });
+        void queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) });
+      }
     }
   });
 };

@@ -1,4 +1,5 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import NetInfo from '@react-native-community/netinfo';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
@@ -220,7 +221,9 @@ function MessageBubble({
   showSeen,
   activeVideoId,
   onActivateVideo,
-  onLongPress
+  onLongPress,
+  onRetry,
+  onRemove
 }: {
   message: ThreadChatMessage;
   currentUserId: string;
@@ -228,6 +231,8 @@ function MessageBubble({
   activeVideoId: string | null;
   onActivateVideo: (id: string | null) => void;
   onLongPress?: () => void;
+  onRetry?: () => void;
+  onRemove?: () => void;
 }) {
   const { colors: theme } = useAppTheme();
   const mine = message.senderId === currentUserId;
@@ -276,6 +281,16 @@ function MessageBubble({
           <AppText style={[styles.messageMetaText, { color: showSeen ? theme.success : theme.textSubtle }]}>{statusLabel}</AppText>
         </View>
       ) : message.editedAt ? <AppText style={[styles.messageMetaText, { color: theme.textSubtle }]}>Edited</AppText> : null}
+      {mine && message.deliveryStatus === 'failed' ? (
+        <View style={styles.failedActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Retry message" onPress={onRetry}>
+            <AppText style={[styles.failedActionText, { color: theme.accent }]}>Retry</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Remove failed message" onPress={onRemove}>
+            <AppText style={[styles.failedActionText, { color: theme.danger }]}>Remove</AppText>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -300,8 +315,11 @@ export function ThreadFirstChatScreen({
   const [body, setBody] = useState(savedDraft);
   const [typingUserIds, setTypingUserIds] = useState<Set<string>>(new Set());
   const [initialLoading, setInitialLoading] = useState(true);
+  const [initialError, setInitialError] = useState<string | null>(null);
   const [olderLoading, setOlderLoading] = useState(false);
+  const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<ThreadChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
@@ -320,6 +338,9 @@ export function ThreadFirstChatScreen({
   const lastOlderCursorRef = useRef<string | null>(null);
   const pendingScrollToBottomRef = useRef(false);
   const historyClearedAtRef = useRef<string | null>(null);
+  const bodyRef = useRef(savedDraft);
+  const deliveryInFlightIdsRef = useRef(new Set<string>());
+  const hasSubscribedRef = useRef(false);
 
   const otherParticipants = useMemo(
     () => participants.filter((participant) => participant.userId !== currentUserId),
@@ -380,9 +401,14 @@ export function ThreadFirstChatScreen({
   }, []);
 
   const loadInitial = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setInitialLoading(false);
+      setInitialError('Sign in again to load this conversation.');
+      return;
+    }
 
     setInitialLoading(true);
+    setInitialError(null);
     // Do not briefly show the previous account's cached in-memory history
     // while the next participant watermark is loading.
     setMessages([]);
@@ -403,7 +429,7 @@ export function ThreadFirstChatScreen({
       olderLoadingRef.current = false;
       lastOlderCursorRef.current = null;
     } catch (error) {
-      Alert.alert('Chat unavailable', error instanceof Error ? error.message : 'Could not load this chat.');
+      setInitialError(error instanceof Error ? error.message : 'Could not load this chat.');
     } finally {
       setInitialLoading(false);
     }
@@ -422,8 +448,39 @@ export function ThreadFirstChatScreen({
     });
   }, [initialLoading, messages.length]);
 
+  const reconcileAfterReconnect = useCallback(async () => {
+    try {
+      const [messagePage, participantRows] = await Promise.all([
+        threadFirstChatService.listMessages(roomId),
+        threadFirstChatService.listParticipants(roomId)
+      ]);
+      const clearedAt = participantRows.find((participant) => participant.userId === currentUserId)?.clearedAt ?? null;
+      historyClearedAtRef.current = clearedAt;
+      setParticipants(participantRows);
+      setMessages((current) => {
+        const recoverable = current.filter((message) =>
+          message.senderId === currentUserId &&
+          (message.deliveryStatus === 'sending' || message.deliveryStatus === 'failed') &&
+          isMessageVisibleAfterClear(message.createdAt, clearedAt)
+        );
+        return mergeThreadMessages(
+          recoverable,
+          messagePage
+            .filter((message) => isMessageVisibleAfterClear(message.createdAt, clearedAt))
+            .map((message) => ({ ...message, deliveryStatus: 'sent' as const }))
+        );
+      });
+      setHasMore(messagePage.length === threadFirstChatService.pageSize);
+      setInitialError(null);
+    } catch {
+      // Keep the durable loaded or failed-message state. The channel can retry
+      // this reconciliation on its next successful subscription.
+    }
+  }, [currentUserId, roomId]);
+
   useEffect(() => {
     if (!currentUserId) return;
+    hasSubscribedRef.current = false;
 
     const channel = supabase.channel(`room:${roomId}`, {
       config: {
@@ -476,7 +533,12 @@ export function ThreadFirstChatScreen({
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          setRealtimeConnected(true);
           void channel.track({ userId: currentUserId, onlineAt: new Date().toISOString() });
+          if (hasSubscribedRef.current) void reconcileAfterReconnect();
+          hasSubscribedRef.current = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setRealtimeConnected(false);
         }
       });
 
@@ -487,8 +549,9 @@ export function ThreadFirstChatScreen({
       void channel.untrack();
       void supabase.removeChannel(channel);
       channelRef.current = null;
+      setRealtimeConnected(false);
     };
-  }, [currentUserId, patchParticipantReadAt, roomId]);
+  }, [currentUserId, patchParticipantReadAt, reconcileAfterReconnect, roomId]);
 
   const loadOlderMessages = useCallback(async () => {
     if (olderLoadingRef.current || !hasMore || !messages.length) return;
@@ -500,6 +563,7 @@ export function ThreadFirstChatScreen({
     olderLoadingRef.current = true;
     lastOlderCursorRef.current = cursorKey;
     setOlderLoading(true);
+    setOlderLoadError(null);
     try {
       const page = await threadFirstChatService.listMessages(roomId, {
         createdAt: oldest.createdAt,
@@ -512,7 +576,7 @@ export function ThreadFirstChatScreen({
       setHasMore(page.length === threadFirstChatService.pageSize);
     } catch (error) {
       lastOlderCursorRef.current = null;
-      Alert.alert('Could not load older messages', error instanceof Error ? error.message : 'Please try again.');
+      setOlderLoadError(error instanceof Error ? error.message : 'Could not load older messages.');
     } finally {
       olderLoadingRef.current = false;
       setOlderLoading(false);
@@ -558,6 +622,7 @@ export function ThreadFirstChatScreen({
   };
 
   const updateBody = (value: string) => {
+    bodyRef.current = value;
     setBody(value);
     setDraft(roomId, value);
     sendTyping(value);
@@ -582,6 +647,7 @@ export function ThreadFirstChatScreen({
   const cancelEditing = () => {
     setEditingMessage(null);
     setBody('');
+    bodyRef.current = '';
     setDraft(roomId, '');
     sendTyping('');
   };
@@ -600,6 +666,7 @@ export function ThreadFirstChatScreen({
       setMessages((current) => mergeThreadMessages(current, updated));
       setEditingMessage(null);
       setBody('');
+      bodyRef.current = '';
       setDraft(roomId, '');
       sendTyping('');
       await broadcast('message_updated', { message: updated } satisfies ChatMessageBroadcastPayload);
@@ -616,6 +683,7 @@ export function ThreadFirstChatScreen({
     setEditingMessage(selectedMessage);
     const editableBody = selectedMessage.body ?? '';
     setBody(editableBody);
+    bodyRef.current = editableBody;
     setDraft(roomId, editableBody);
     setSelectedMessage(null);
   };
@@ -774,11 +842,21 @@ export function ThreadFirstChatScreen({
   };
 
   const persistAfterBroadcast = async (message: ThreadChatMessage) => {
+    if (deliveryInFlightIdsRef.current.has(message.id)) return;
+    deliveryInFlightIdsRef.current.add(message.id);
+    setMessages((current) => mergeThreadMessages(current, {
+      ...message,
+      deliveryStatus: 'sending'
+    }));
+    let persisted: ThreadChatMessage;
     try {
-      const persisted = await threadFirstChatService.insertMessage(message);
-      setMessages((current) => mergeThreadMessages(current, persisted));
-      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
-    } catch (error) {
+      const network = await NetInfo.fetch();
+      if (!network.isConnected) throw new Error("You're offline. Reconnect and retry.");
+      persisted = await threadFirstChatService.insertMessage(message);
+    } catch {
+      // Release the delivery lock before exposing Retry so an immediate tap is
+      // accepted with the same idempotency key.
+      deliveryInFlightIdsRef.current.delete(message.id);
       setMessages((current) =>
         mergeThreadMessages(current, {
           ...message,
@@ -786,13 +864,21 @@ export function ThreadFirstChatScreen({
         })
       );
       void broadcast('message_retracted', { roomId, messageId: message.id });
-      Alert.alert('Message failed', error instanceof Error ? error.message : 'Please try again.');
+      return;
     }
+
+    const confirmed = { ...persisted, deliveryStatus: 'sent' as const };
+    setMessages((current) => mergeThreadMessages(current, confirmed));
+    deliveryInFlightIdsRef.current.delete(message.id);
+    void broadcast('message_created', {
+      message: confirmed
+    } satisfies ChatMessageBroadcastPayload);
+    void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
   };
 
   const sendText = () => {
-    const trimmed = body.trim();
-    if (!trimmed || !currentUserId) return;
+    const trimmed = bodyRef.current.trim();
+    if (!trimmed || !currentUserId || initialLoading || initialError) return;
 
     const message: ThreadChatMessage = {
       id: threadFirstChatService.createMessageId(),
@@ -811,16 +897,28 @@ export function ThreadFirstChatScreen({
     };
 
     setBody('');
+    bodyRef.current = '';
     setDraft(roomId, '');
     sendTyping('');
     pendingScrollToBottomRef.current = true;
     setMessages((current) => mergeThreadMessages(current, message));
-    void broadcast('message_created', { message } satisfies ChatMessageBroadcastPayload);
     void persistAfterBroadcast(message);
   };
 
+  const retryFailedMessage = (message: ThreadChatMessage) => {
+    if (message.deliveryStatus !== 'failed') return;
+    pendingScrollToBottomRef.current = true;
+    void persistAfterBroadcast(message);
+  };
+
+  const removeFailedMessage = (message: ThreadChatMessage) => {
+    if (message.deliveryStatus !== 'failed' || deliveryInFlightIdsRef.current.has(message.id)) return;
+    setMessages((current) => removeThreadMessage(current, message.id));
+    void broadcast('message_retracted', { roomId, messageId: message.id });
+  };
+
   const sendMedia = async () => {
-    if (!currentUserId || mediaLoading) return;
+    if (!currentUserId || mediaLoading || initialLoading || initialError) return;
 
     try {
       setMediaLoading(true);
@@ -865,7 +963,6 @@ export function ThreadFirstChatScreen({
 
       pendingScrollToBottomRef.current = true;
       setMessages((current) => mergeThreadMessages(current, message));
-      void broadcast('message_created', { message } satisfies ChatMessageBroadcastPayload);
       void persistAfterBroadcast(message);
     } catch (error) {
       Alert.alert('Attachment failed', error instanceof Error ? error.message : 'Please try again.');
@@ -891,6 +988,8 @@ export function ThreadFirstChatScreen({
         activeVideoId={activeVideoId}
         onActivateVideo={setActiveVideoId}
         onLongPress={canManage ? () => setSelectedMessage(item) : undefined}
+        onRetry={item.deliveryStatus === 'failed' ? () => retryFailedMessage(item) : undefined}
+        onRemove={item.deliveryStatus === 'failed' ? () => removeFailedMessage(item) : undefined}
       />
     );
   };
@@ -914,9 +1013,21 @@ export function ThreadFirstChatScreen({
         />
       </View>
 
+      {!realtimeConnected && !initialLoading ? (
+        <View style={[styles.connectionBanner, { backgroundColor: theme.surface }]}>
+          <AppText variant="small">Reconnecting… Reconnect to send or retry messages.</AppText>
+        </View>
+      ) : null}
+
       {initialLoading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator color={theme.accent} />
+        </View>
+      ) : initialError ? (
+        <View style={styles.loadErrorState}>
+          <AppText variant="h4">Chat unavailable</AppText>
+          <AppText variant="bodyMuted" style={styles.emptyText}>{initialError}</AppText>
+          <Button accessibilityLabel="Retry chat" onPress={() => void loadInitial()}>Retry</Button>
         </View>
       ) : (
         <FlashList
@@ -931,7 +1042,18 @@ export function ThreadFirstChatScreen({
           }}
           onStartReached={() => void loadOlderMessages()}
           onStartReachedThreshold={0.25}
-          ListHeaderComponent={olderLoading ? <ActivityIndicator color={theme.accent} style={styles.olderLoader} /> : null}
+          ListHeaderComponent={
+            olderLoading ? (
+              <ActivityIndicator color={theme.accent} style={styles.olderLoader} />
+            ) : olderLoadError ? (
+              <View style={styles.paginationError}>
+                <AppText variant="small">{olderLoadError}</AppText>
+                <Button size="sm" accessibilityLabel="Retry older messages" onPress={() => void loadOlderMessages()}>
+                  Retry
+                </Button>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <ImageIcon size={24} color={theme.textSubtle} />
@@ -957,7 +1079,7 @@ export function ThreadFirstChatScreen({
           <IconButton
             icon={Plus}
             accessibilityLabel="Attach photo or video"
-            disabled={mediaLoading || Boolean(editingMessage)}
+            disabled={mediaLoading || Boolean(editingMessage) || initialLoading || Boolean(initialError)}
             onPress={() => void sendMedia()}
           />
           <TextInput
@@ -969,12 +1091,13 @@ export function ThreadFirstChatScreen({
             selectionColor={theme.accent}
             style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
             multiline
+            editable={!initialLoading && !initialError}
           />
           <IconButton
             icon={Send}
             filled
             accessibilityLabel={editingMessage ? 'Save edited message' : 'Send message'}
-            disabled={!body.trim() || messageActionLoading}
+            disabled={!body.trim() || messageActionLoading || initialLoading || Boolean(initialError)}
             onPress={editingMessage ? () => void saveEdit() : sendText}
           />
         </View>
@@ -1048,12 +1171,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  loadErrorState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl
+  },
+  connectionBanner: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.xs
+  },
   listContent: {
     paddingHorizontal: spacing.screen,
     paddingVertical: spacing.md
   },
   olderLoader: {
     paddingVertical: spacing.md
+  },
+  paginationError: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm
   },
   emptyState: {
     minHeight: 260,
@@ -1153,6 +1293,16 @@ const styles = StyleSheet.create({
   messageMetaText: {
     color: colors.text.tertiary,
     fontSize: 10
+  },
+  failedActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingHorizontal: 3,
+    paddingTop: spacing.xs
+  },
+  failedActionText: {
+    fontFamily: typography.bodyBold,
+    fontSize: 12
   },
   seenText: {
     color: colors.semantic.success

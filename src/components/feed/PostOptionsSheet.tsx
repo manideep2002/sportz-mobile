@@ -18,6 +18,7 @@ interface PostOptionsSheetProps {
   onReport: () => void;
   onEdit?: () => void;
   onDelete: () => void;
+  actionPending?: boolean;
 }
 
 interface PostOption {
@@ -39,7 +40,8 @@ export function PostOptionsSheet({
   onShare,
   onReport,
   onEdit,
-  onDelete
+  onDelete,
+  actionPending = false
 }: PostOptionsSheetProps) {
   const { colors: theme } = useAppTheme();
   if (!post) {
@@ -135,7 +137,15 @@ export function PostOptionsSheet({
     <BottomSheet open={open} title="Post options" onClose={onClose}>
       <View>
         {options.map((option) => (
-          <Pressable key={option.label} style={[styles.option, { borderBottomColor: theme.border }]} onPress={option.onPress}>
+          <Pressable
+            key={option.label}
+            accessibilityRole="button"
+            accessibilityLabel={option.label}
+            accessibilityState={{ disabled: actionPending }}
+            disabled={actionPending}
+            style={[styles.option, { borderBottomColor: theme.border }]}
+            onPress={option.onPress}
+          >
             <View
               style={[
                 styles.iconWrap,

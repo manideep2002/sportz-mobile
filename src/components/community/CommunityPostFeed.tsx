@@ -1,19 +1,20 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
+import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { AppText, Button } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
-import { useDeletePost, useOptimisticPostSave, useRecordPostShare } from '@/hooks/useFeed';
+import { useOptimisticPostSave } from '@/hooks/useFeed';
+import { usePostActions } from '@/hooks/usePostActions';
 import type { AppStackParamList } from '@/navigation/routes';
-import { reportReasons, reportService } from '@/services/reportService';
 import { useAuthStore } from '@/store/authStore';
 import type { Post } from '@/types/domain';
-import { openPostMedia, sharePost } from '@/utils/share';
+import { openPostMedia } from '@/utils/share';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -46,10 +47,10 @@ export function CommunityPostFeed({
   const { colors: theme } = useAppTheme();
   const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
+  const [reportTarget, setReportTarget] = useState<Post | null>(null);
   const [activeVideoPostId, setActiveVideoPostId] = useState<string | null>(null);
   const saveMutation = useOptimisticPostSave();
-  const shareMutation = useRecordPostShare();
-  const deletePostMutation = useDeletePost();
+  const postActions = usePostActions();
 
   const openPost = (post: Post) => navigation.navigate('PostDetail', { postId: post.id });
   const openAuthor = (post: Post) => {
@@ -59,22 +60,6 @@ export function CommunityPostFeed({
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
   };
-  const share = (post: Post) => {
-    void sharePost(post).then(() => shareMutation.mutate(post.id));
-  };
-  const report = (post: Post) => {
-    Alert.alert('Report Post', 'Choose a reason.', [
-      ...reportReasons.map((reason) => ({
-        text: reason,
-        onPress: async () => {
-          await reportService.reportEntity('post', post.id, reason);
-          Alert.alert('Report submitted', 'Thank you. We will review this post.');
-        }
-      })),
-      { text: 'Cancel', style: 'cancel' as const }
-    ], { cancelable: true });
-  };
-
   if (isLoading) {
     return <ActivityIndicator accessibilityLabel="Loading posts" color={theme.accent} style={styles.loader} />;
   }
@@ -108,7 +93,8 @@ export function CommunityPostFeed({
           onPress={() => openPost(post)}
           onAuthorPress={() => openAuthor(post)}
           onComment={() => openPost(post)}
-          onShare={() => share(post)}
+          onShare={() => void postActions.share(post)}
+          sharePending={postActions.isPending(post.id, 'share')}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
           isVideoActive={activeVideoPostId === post.id}
           onVideoActivate={() => setActiveVideoPostId(post.id)}
@@ -141,6 +127,7 @@ export function CommunityPostFeed({
         open={activeOptionsPost !== null}
         post={activeOptionsPost}
         currentUserId={currentUserId}
+        actionPending={activeOptionsPost ? postActions.isPending(activeOptionsPost.id) : false}
         onClose={() => setActiveOptionsPost(null)}
         onViewAuthor={() => {
           if (activeOptionsPost) openAuthor(activeOptionsPost);
@@ -152,10 +139,10 @@ export function CommunityPostFeed({
         }}
         onViewSavedPosts={() => navigation.navigate('SavedPosts')}
         onShare={() => {
-          if (activeOptionsPost) share(activeOptionsPost);
+          if (activeOptionsPost) void postActions.share(activeOptionsPost);
         }}
         onReport={() => {
-          if (activeOptionsPost) report(activeOptionsPost);
+          if (activeOptionsPost) setReportTarget(activeOptionsPost);
         }}
         onEdit={() => {
           if (activeOptionsPost) {
@@ -166,8 +153,15 @@ export function CommunityPostFeed({
           }
         }}
         onDelete={() => {
-          if (activeOptionsPost) deletePostMutation.mutate(activeOptionsPost.id);
+          if (activeOptionsPost) void postActions.deletePost(activeOptionsPost.id);
         }}
+      />
+      <ReportSheet
+        open={reportTarget !== null}
+        entityLabel="post"
+        entityType="post"
+        entityId={reportTarget?.id ?? ''}
+        onClose={() => setReportTarget(null)}
       />
     </>
   );

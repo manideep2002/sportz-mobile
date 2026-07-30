@@ -18,6 +18,8 @@ export interface CanonicalDestination {
   params: Record<string, string>;
 }
 
+export type CanonicalShareOutcome = 'shared' | 'dismissed';
+
 const entityPaths: Record<CanonicalEntity, string> = {
   post: 'posts',
   profile: 'profiles',
@@ -35,17 +37,18 @@ const cleanId = (id: string) => encodeURIComponent(id.trim());
 export const canonicalUrlFor = (entity: CanonicalEntity, id: string) =>
   `${env.canonicalWebUrl.replace(/\/+$/, '')}/${entityPaths[entity]}/${cleanId(id)}`;
 
-export const shareCanonicalEntity = (
+export const shareCanonicalEntity = async (
   entity: CanonicalEntity,
   id: string,
   options: { title: string; message: string }
-) => {
+): Promise<CanonicalShareOutcome> => {
   const url = canonicalUrlFor(entity, id);
-  return Share.share({
+  const result = await Share.share({
     title: options.title,
     message: `${options.message.trim()}\n\n${url}`,
     url
   });
+  return result.action === Share.sharedAction ? 'shared' : 'dismissed';
 };
 
 const normalizedSegments = (url: string): string[] => {

@@ -7,6 +7,7 @@ import type { Post } from '@/types/domain';
 const mockUpdatePost = jest.fn();
 const mockTogglePostSave = jest.fn();
 const mockRecordPostShare = jest.fn();
+const mockDeletePost = jest.fn();
 
 jest.mock('@/lib/supabase', () => ({
   supabase: {}
@@ -16,7 +17,8 @@ jest.mock('@/services/postService', () => ({
   postService: {
     updatePost: (...args: unknown[]) => mockUpdatePost(...args),
     togglePostSave: (...args: unknown[]) => mockTogglePostSave(...args),
-    recordPostShare: (...args: unknown[]) => mockRecordPostShare(...args)
+    recordPostShare: (...args: unknown[]) => mockRecordPostShare(...args),
+    deletePost: (...args: unknown[]) => mockDeletePost(...args)
   }
 }));
 
@@ -26,7 +28,7 @@ jest.mock('@/store/authStore', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { feedKeys, useOptimisticPostSave, useRecordPostShare, useUpdatePost } from '@/hooks/useFeed';
+import { feedKeys, useDeletePost, useOptimisticPostSave, useRecordPostShare, useUpdatePost } from '@/hooks/useFeed';
 
 const originalPost: Post = {
   id: 'post-1',
@@ -182,6 +184,36 @@ describe('useUpdatePost cache synchronization', () => {
     expect(queryClient.getQueryData<typeof page>(communityKey)?.pages[0].items[0].shares).toBe(1);
     expect(queryClient.getQueryData<Post>(feedKeys.post('post-1'))?.shares).toBe(1);
     expect(queryClient.getQueryData<Post[]>(feedKeys.savedPosts)?.[0].shares).toBe(1);
+    await unmount();
+    queryClient.clear();
+  });
+
+  it('rolls back an optimistic delete and retains detail data when deletion fails', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false, gcTime: Infinity }
+      }
+    });
+    mockDeletePost.mockRejectedValue(new Error('delete failed'));
+    const communityKey = feedKeys.communityPosts('community-1');
+    const page = { pages: [{ items: [originalPost], nextCursor: undefined }], pageParams: [undefined] };
+    queryClient.setQueryData(communityKey, page);
+    queryClient.setQueryData(feedKeys.savedPosts, [originalPost]);
+    queryClient.setQueryData(feedKeys.post('post-1'), originalPost);
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result, unmount } = await renderHook(() => useDeletePost(), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync('post-1')).rejects.toThrow('delete failed');
+    });
+
+    expect(queryClient.getQueryData<typeof page>(communityKey)?.pages[0].items).toEqual([originalPost]);
+    expect(queryClient.getQueryData<Post[]>(feedKeys.savedPosts)).toEqual([originalPost]);
+    expect(queryClient.getQueryData<Post>(feedKeys.post('post-1'))).toEqual(originalPost);
     await unmount();
     queryClient.clear();
   });

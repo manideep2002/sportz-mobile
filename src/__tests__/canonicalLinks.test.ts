@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Share } from 'react-native';
 
 import {
   canonicalUrlFor,
   parseCanonicalDestination,
-  pendingCanonicalDestination
+  pendingCanonicalDestination,
+  shareCanonicalEntity
 } from '@/services/canonicalLinkService';
 
 describe('canonical links', () => {
@@ -55,5 +57,21 @@ describe('canonical links', () => {
   it('does not persist malformed or unsupported destinations', async () => {
     await pendingCanonicalDestination.save('https://sportz.app/chats/not-shareable');
     await expect(pendingCanonicalDestination.consume()).resolves.toBeNull();
+  });
+
+  it('distinguishes completed native shares from iOS dismissals', async () => {
+    const share = jest.spyOn(Share, 'share');
+    share.mockResolvedValueOnce({ action: Share.dismissedAction });
+    await expect(shareCanonicalEntity('post', 'post-1', {
+      title: 'Post',
+      message: 'Take a look'
+    })).resolves.toBe('dismissed');
+
+    share.mockResolvedValueOnce({ action: Share.sharedAction, activityType: 'com.apple.UIKit.activity.CopyToPasteboard' });
+    await expect(shareCanonicalEntity('post', 'post-1', {
+      title: 'Post',
+      message: 'Take a look'
+    })).resolves.toBe('shared');
+    share.mockRestore();
   });
 });

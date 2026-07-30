@@ -10,7 +10,7 @@
  * the UX is consistent across the app.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -53,29 +53,35 @@ export function ReportSheet({
   const { colors: theme } = useAppTheme();
   const [state, setState] = useState<SheetState>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
+  const [lastReason, setLastReason] = useState<ReportReason | null>(null);
+  const submittingRef = useRef(false);
 
   const handleClose = () => {
     // Reset to idle so next open starts fresh
     setState('idle');
     setLastError(null);
+    setLastReason(null);
+    submittingRef.current = false;
     onClose();
   };
 
   const submitReport = async (reason: ReportReason) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setState('pending');
     setLastError(null);
-
-    // Offline guard
-    const netState = await NetInfo.fetch();
-    if (!netState.isConnected) {
-      React.startTransition(() => {
-        setState('error');
-        setLastError("You're offline. Please reconnect and try again.");
-      });
-      return;
-    }
+    setLastReason(reason);
 
     try {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        React.startTransition(() => {
+          setState('error');
+          setLastError("You're offline. Please reconnect and try again.");
+        });
+        return;
+      }
+
       const outcome = await reportService.reportEntity(entityType, entityId, reason);
       React.startTransition(() => {
         setState(outcome === 'duplicate' ? 'duplicate' : 'success');
@@ -100,6 +106,8 @@ export function ReportSheet({
         setState('error');
         setLastError(message);
       });
+    } finally {
+      submittingRef.current = false;
     }
   };
 
@@ -156,7 +164,7 @@ export function ReportSheet({
           <AppText variant="bodyMuted" style={styles.feedbackBody}>
             {lastError ?? 'Something went wrong. Please try again.'}
           </AppText>
-          <Button full onPress={() => setState('idle')}>
+          <Button full onPress={() => lastReason ? void submitReport(lastReason) : setState('idle')}>
             Try Again
           </Button>
           <Button full variant="ghost" onPress={handleClose}>
