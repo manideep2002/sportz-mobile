@@ -10,6 +10,7 @@ export const usePresence = () => {
   const setOnlineUserIds = useUiStore((state) => state.setOnlineUserIds);
 
   useEffect(() => {
+    setOnlineUserIds([]);
     if (!userId) return undefined;
 
     const channel = supabase.channel('sportz-presence', {
@@ -25,16 +26,28 @@ export const usePresence = () => {
       .on('presence', { event: 'sync' }, syncPresence)
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({ user_id: userId, online_at: new Date().toISOString() });
-          await supabase.from('profiles').update({ is_online: true }).eq('id', userId);
+          if (AppState.currentState === 'active') {
+            await channel.track({ user_id: userId, online_at: new Date().toISOString() });
+            syncPresence();
+            await supabase.from('profiles').update({ is_online: true }).eq('id', userId);
+          } else {
+            await channel.untrack();
+            setOnlineUserIds([]);
+            await supabase.from('profiles').update({ is_online: false }).eq('id', userId);
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setOnlineUserIds([]);
         }
       });
 
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void channel.track({ user_id: userId, online_at: new Date().toISOString() });
+        void channel
+          .track({ user_id: userId, online_at: new Date().toISOString() })
+          .then(syncPresence);
         void supabase.from('profiles').update({ is_online: true }).eq('id', userId);
       } else {
+        setOnlineUserIds([]);
         void channel.untrack();
         void supabase.from('profiles').update({ is_online: false }).eq('id', userId);
       }
@@ -42,10 +55,10 @@ export const usePresence = () => {
 
     return () => {
       appStateSubscription.remove();
+      setOnlineUserIds([]);
       void channel.untrack();
       void supabase.from('profiles').update({ is_online: false }).eq('id', userId);
       void supabase.removeChannel(channel);
     };
   }, [setOnlineUserIds, userId]);
 };
-

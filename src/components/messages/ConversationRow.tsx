@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Avatar, VerifiedName } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
+import { useUiStore } from '@/store/uiStore';
 import type { Conversation } from '@/types/domain';
 import { getOtherParticipant } from '@/utils/conversation';
 import { timeAgo } from '@/utils/format';
@@ -17,7 +18,11 @@ interface ConversationRowProps {
 
 export function ConversationRow({ conversation, currentUserId, onPress, onMenuPress }: ConversationRowProps) {
   const { colors: theme } = useAppTheme();
-  const other = getOtherParticipant(conversation, currentUserId) ?? conversation.participants[0];
+  const other = getOtherParticipant(conversation, currentUserId)
+    ?? conversation.participants.find((participant) => participant.id !== currentUserId);
+  const peerIsPresent = useUiStore((state) =>
+    Boolean(other?.id && state.onlineUserIds.has(other.id))
+  );
   const avatarInitials = conversation.isGroup ? conversation.title.slice(0, 2).toUpperCase() : other?.initials ?? '??';
   const title = conversation.isGroup ? conversation.title : other?.displayName ?? conversation.title;
 
@@ -34,7 +39,7 @@ export function ConversationRow({ conversation, currentUserId, onPress, onMenuPr
         initials={avatarInitials}
         uri={conversation.isGroup ? undefined : other?.avatarUrl}
         size={50}
-        online={!conversation.isGroup && Boolean(other?.isOnline)}
+        online={!conversation.isGroup && peerIsPresent}
       />
       <View style={styles.meta}>
         <View style={styles.titleRow}>

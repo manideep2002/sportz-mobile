@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -573,7 +574,11 @@ export function ThreadFirstChatScreen({
         if (status === 'SUBSCRIBED') {
           setRealtimeConnected(true);
           setPresenceSynced(false);
-          void channel.track({ userId: currentUserId, onlineAt: new Date().toISOString() });
+          if (AppState.currentState === 'active') {
+            void channel.track({ userId: currentUserId, onlineAt: new Date().toISOString() });
+          } else {
+            void channel.untrack();
+          }
           if (hasSubscribedRef.current) void reconcileAfterReconnect();
           hasSubscribedRef.current = true;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -583,9 +588,23 @@ export function ThreadFirstChatScreen({
         }
       });
 
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setPresenceSynced(false);
+        void channel
+          .track({ userId: currentUserId, onlineAt: new Date().toISOString() })
+          .then(syncPeerPresence);
+      } else {
+        setPresenceSynced(false);
+        setOnlinePeerUserIds(new Set());
+        void channel.untrack();
+      }
+    });
+
     channelRef.current = channel;
 
     return () => {
+      appStateSubscription.remove();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       void channel.untrack();
       void supabase.removeChannel(channel);

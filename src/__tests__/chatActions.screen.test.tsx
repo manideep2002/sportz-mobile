@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, AppState, type AppStateStatus } from 'react-native';
 
 const mockNavigation = {
   goBack: jest.fn(),
@@ -166,6 +166,7 @@ import { ChatScreen } from '@/screens/messages/ChatScreen';
 describe('ChatScreen actions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
     Object.keys(mockBroadcastHandlers).forEach((key) => delete mockBroadcastHandlers[key]);
     mockSubscribeCallback = undefined;
     mockPresenceState = {};
@@ -199,7 +200,16 @@ describe('ChatScreen actions', () => {
     mockInvalidateQueries.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('only shows online after verified peer presence and clears it on disconnect', async () => {
+    let appStateChange: ((state: AppStateStatus) => void) | undefined;
+    const appStateSpy = jest.mocked(AppState.addEventListener).mockImplementation((_type, listener) => {
+      appStateChange = listener;
+      return { remove: jest.fn() };
+    });
     mockConversation.isGroup = false;
     await render(<ChatScreen />);
 
@@ -213,11 +223,21 @@ describe('ChatScreen actions', () => {
     expect(await screen.findByText('Active now')).toBeTruthy();
 
     await act(async () => {
+      appStateChange?.('background');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.queryByText('Active now')).toBeNull());
+    expect(screen.getByText('Chat')).toBeTruthy();
+    expect(mockChannel.untrack).toHaveBeenCalled();
+
+    await act(async () => {
       mockSubscribeCallback?.('CHANNEL_ERROR');
+      await Promise.resolve();
     });
     expect(await screen.findByText('Presence unavailable')).toBeTruthy();
     mockConversation.isGroup = true;
-  });
+    appStateSpy.mockRestore();
+  }, 10_000);
 
   it('sends composer text and persists the optimistic message', async () => {
     await render(<ChatScreen />);
