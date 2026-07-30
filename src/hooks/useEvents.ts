@@ -17,6 +17,56 @@ export const eventKeys = {
 const refreshEventQueries = (queryClient: QueryClient) =>
   queryClient.invalidateQueries({ queryKey: eventKeys.all });
 
+// ── optimistic helpers ────────────────────────────────────────────────────────
+
+/**
+ * Snapshots and optimistically updates the per-event participation cache and
+ * every entry in the batch cache, then returns a rollback callback.
+ */
+function optimisticParticipation(
+  queryClient: QueryClient,
+  eventId: string,
+  nextStatus: EventParticipationStatus
+) {
+  // Snapshot
+  const previousSingle = queryClient.getQueryData<EventParticipationStatus>(
+    eventKeys.participation(eventId)
+  );
+
+  // Find any matching batch cache entry (ids may be in any order/set)
+  const batchEntries = queryClient
+    .getQueriesData<Record<string, EventParticipationStatus>>({
+      queryKey: ['events', 'participation', 'batch']
+    })
+    .filter(([, data]) => data != null && eventId in data);
+
+  const previousBatch = batchEntries.map(([key, data]) => ({ key, data }));
+
+  // Apply optimistic value
+  queryClient.setQueryData<EventParticipationStatus>(
+    eventKeys.participation(eventId),
+    nextStatus
+  );
+  for (const { key, data } of previousBatch) {
+    if (data) {
+      queryClient.setQueryData<Record<string, EventParticipationStatus>>(key, {
+        ...data,
+        [eventId]: nextStatus
+      });
+    }
+  }
+
+  // Rollback callback
+  return () => {
+    queryClient.setQueryData(eventKeys.participation(eventId), previousSingle);
+    for (const { key, data } of previousBatch) {
+      queryClient.setQueryData(key, data);
+    }
+  };
+}
+
+// ── queries ───────────────────────────────────────────────────────────────────
+
 export const useEvents = () =>
   useQuery({
     queryKey: eventKeys.all,
@@ -36,6 +86,8 @@ export const useCommunityEvents = (communityId: string, enabled = true) =>
     enabled: Boolean(communityId) && enabled
   });
 
+// ── mutations ─────────────────────────────────────────────────────────────────
+
 export const useCreateEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -51,7 +103,18 @@ export const useJoinEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => eventService.joinEvent(eventId),
-    onSuccess: () => refreshEventQueries(queryClient)
+    onMutate: (eventId) => {
+      const rollback = optimisticParticipation(queryClient, eventId, 'going');
+      return { rollback };
+    },
+    onError: (_error, _eventId, context) => {
+      context?.rollback();
+    },
+    onSettled: (_data, _error, eventId) => {
+      // Settle to the real server state regardless of success/failure
+      void queryClient.invalidateQueries({ queryKey: eventKeys.participation(eventId) });
+      void refreshEventQueries(queryClient);
+    }
   });
 };
 
@@ -59,7 +122,17 @@ export const useLeaveEvent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => eventService.leaveEvent(eventId),
-    onSuccess: () => refreshEventQueries(queryClient)
+    onMutate: (eventId) => {
+      const rollback = optimisticParticipation(queryClient, eventId, 'none');
+      return { rollback };
+    },
+    onError: (_error, _eventId, context) => {
+      context?.rollback();
+    },
+    onSettled: (_data, _error, eventId) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.participation(eventId) });
+      void refreshEventQueries(queryClient);
+    }
   });
 };
 
@@ -67,7 +140,42 @@ export const useLeaveEventWaitlist = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => eventService.leaveEventWaitlist(eventId),
-    onSuccess: () => refreshEventQueries(queryClient)
+    onMutate: (eventId) => {
+      const rollback = optimisticParticipation(queryClient, eventId, 'none');
+      return { rollback };
+    },
+    onError: (_error, _eventId, context) => {
+      context?.rollback();
+    },
+    onSettled: (_data, _error, eventId) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.participation(eventId) });
+      void refreshEventQueries(queryClient);
+    }
+  });
+};
+
+/** Marks interest or declines an event without joining the roster. */
+export const useRsvpEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      eventId,
+      status
+    }: {
+      eventId: string;
+      status: 'interested' | 'declined';
+    }) => eventService.rsvpEvent(eventId, status),
+    onMutate: ({ eventId, status }) => {
+      const rollback = optimisticParticipation(queryClient, eventId, status);
+      return { rollback };
+    },
+    onError: (_error, _variables, context) => {
+      context?.rollback();
+    },
+    onSettled: (_data, _error, { eventId }) => {
+      void queryClient.invalidateQueries({ queryKey: eventKeys.participation(eventId) });
+      void refreshEventQueries(queryClient);
+    }
   });
 };
 

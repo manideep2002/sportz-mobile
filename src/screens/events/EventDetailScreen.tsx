@@ -20,9 +20,11 @@ import {
   useLeaveEvent,
   useLeaveEventWaitlist,
   useMyEventInvitation,
-  useRespondEventInvitation
+  useRespondEventInvitation,
+  useRsvpEvent
 } from '@/hooks/useEvents';
 import type { AppStackParamList } from '@/navigation/routes';
+import type { EventParticipationStatus, SportEvent } from '@/types/domain';
 import { eventDate, formatTime } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
 import { shareEvent } from '@/utils/share';
@@ -31,6 +33,247 @@ import { useResponsiveLayout } from '@/layout/responsive';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventDetail'>;
+
+// ── RSVP control ──────────────────────────────────────────────────────────────
+
+interface RsvpControlProps {
+  event: SportEvent;
+  participationStatus: EventParticipationStatus;
+  isOrganizer: boolean;
+  invitation: { id: string; status: string } | null | undefined;
+  joinEvent: ReturnType<typeof useJoinEvent>;
+  leaveEvent: ReturnType<typeof useLeaveEvent>;
+  leaveWaitlist: ReturnType<typeof useLeaveEventWaitlist>;
+  rsvpEvent: ReturnType<typeof useRsvpEvent>;
+  respondInvitation: ReturnType<typeof useRespondEventInvitation>;
+  onJoin: () => Promise<void>;
+  onLeave: () => void;
+  onLeaveWaitlist: () => void;
+  onRespondToInvitation: (accept: boolean) => Promise<void>;
+  onNavigateToChat: () => void;
+  onNavigateToManage: () => void;
+}
+
+/**
+ * Renders the appropriate set of CTA buttons for every RSVP state.
+ *
+ * State rules:
+ * - going → Leave Event + Event Chat (no RSVP buttons: must leave first)
+ * - waitlisted → Leave Waitlist only
+ * - interested/declined → Join + soft RSVP toggle row
+ * - none → Join + soft RSVP row
+ * - organizer → Manage + Event Chat (if going)
+ * - pending invite → Accept + Decline (overrides all above for non-organizers)
+ */
+function RsvpControl({
+  event,
+  participationStatus,
+  isOrganizer,
+  invitation,
+  joinEvent,
+  leaveEvent,
+  leaveWaitlist,
+  rsvpEvent,
+  respondInvitation,
+  onJoin,
+  onLeave,
+  onLeaveWaitlist,
+  onRespondToInvitation,
+  onNavigateToChat,
+  onNavigateToManage
+}: RsvpControlProps) {
+  const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
+  const isCancelled = event.status === 'cancelled';
+  const isGoing = participationStatus === 'going';
+  const isWaitlisted = participationStatus === 'waitlisted';
+  const isInterested = participationStatus === 'interested';
+  const isDeclined = participationStatus === 'declined';
+  const canJoin = !isCancelled && !isGoing && !isWaitlisted &&
+    (event.status === 'open' || event.status === 'full');
+
+  const handleRsvp = async (status: 'interested' | 'declined') => {
+    try {
+      await rsvpEvent.mutateAsync({ eventId: event.id, status });
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update RSVP.');
+    }
+  };
+
+  if (isOrganizer) {
+    return (
+      <>
+        <Button
+          full
+          size="lg"
+          variant="dark"
+          accessibilityLabel="Manage Event"
+          onPress={onNavigateToManage}
+        >
+          Manage Event
+        </Button>
+        {isGoing ? (
+          <Button
+            full
+            size="lg"
+            variant="ghost"
+            icon={MessageCircle}
+            accessibilityLabel="Event Chat"
+            onPress={onNavigateToChat}
+          >
+            Event Chat
+          </Button>
+        ) : null}
+      </>
+    );
+  }
+
+  if (invitation?.status === 'pending') {
+    return (
+      <>
+        <Button
+          full
+          size="lg"
+          loading={respondInvitation.isPending}
+          accessibilityLabel="Accept Invitation"
+          onPress={() => void onRespondToInvitation(true)}
+        >
+          Accept Invitation
+        </Button>
+        <Button
+          full
+          size="lg"
+          variant="dark"
+          loading={respondInvitation.isPending}
+          accessibilityLabel="Decline Invitation"
+          onPress={() => void onRespondToInvitation(false)}
+        >
+          Decline Invitation
+        </Button>
+      </>
+    );
+  }
+
+  if (isGoing) {
+    return (
+      <>
+        <Button
+          full
+          size="lg"
+          variant="ghost"
+          icon={MessageCircle}
+          accessibilityLabel="Event Chat"
+          onPress={onNavigateToChat}
+        >
+          Event Chat
+        </Button>
+        <Button
+          full
+          size="lg"
+          variant="dark"
+          loading={leaveEvent.isPending}
+          accessibilityLabel="Leave Event"
+          onPress={onLeave}
+        >
+          Leave Event
+        </Button>
+      </>
+    );
+  }
+
+  if (isWaitlisted) {
+    return (
+      <Button
+        full
+        size="lg"
+        variant="dark"
+        loading={leaveWaitlist.isPending}
+        accessibilityLabel="Leave Waitlist"
+        onPress={onLeaveWaitlist}
+      >
+        Leave Waitlist
+      </Button>
+    );
+  }
+
+  if (isCancelled) {
+    return (
+      <Button full size="lg" variant="dark" disabled accessibilityLabel="Event Cancelled">
+        Event Cancelled
+      </Button>
+    );
+  }
+
+  // none / interested / declined: join row + soft RSVP row
+  const joinLabel = isFull ? 'Join Waitlist' : 'Join Event';
+
+  return (
+    <>
+      <Button
+        full
+        size="lg"
+        loading={joinEvent.isPending}
+        disabled={!canJoin}
+        accessibilityLabel={joinLabel}
+        onPress={onJoin}
+      >
+        {joinLabel}
+      </Button>
+
+      {/* Soft RSVP row — interested / declined toggles */}
+      <View style={rsvpStyles.softRow}>
+        <Button
+          size="sm"
+          variant={isInterested ? 'primary' : 'ghost'}
+          loading={rsvpEvent.isPending && !isInterested}
+          disabled={rsvpEvent.isPending}
+          accessibilityLabel={isInterested ? 'Remove Interest' : 'Mark Interested'}
+          accessibilityState={{ selected: isInterested }}
+          style={rsvpStyles.softBtn}
+          onPress={() => {
+            if (isInterested) {
+              // Remove interest → treated as leave (back to none)
+              onLeave();
+            } else {
+              void handleRsvp('interested');
+            }
+          }}
+        >
+          {isInterested ? 'Interested ✓' : 'Interested'}
+        </Button>
+        <Button
+          size="sm"
+          variant={isDeclined ? 'dark' : 'ghost'}
+          loading={rsvpEvent.isPending && !isDeclined}
+          disabled={rsvpEvent.isPending}
+          accessibilityLabel={isDeclined ? 'Remove Decline' : 'Not Going'}
+          accessibilityState={{ selected: isDeclined }}
+          style={rsvpStyles.softBtn}
+          onPress={() => {
+            if (isDeclined) {
+              onLeave();
+            } else {
+              void handleRsvp('declined');
+            }
+          }}
+        >
+          {isDeclined ? 'Not Going ✓' : 'Not Going'}
+        </Button>
+      </View>
+    </>
+  );
+}
+
+const rsvpStyles = StyleSheet.create({
+  softRow: {
+    flexDirection: 'row',
+    gap: spacing.sm
+  },
+  softBtn: {
+    flex: 1
+  }
+});
+
+// ── screen ────────────────────────────────────────────────────────────────────
 
 export function EventDetailScreen() {
   const navigation = useNavigation<Navigation>();
@@ -46,6 +289,7 @@ export function EventDetailScreen() {
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
   const leaveWaitlist = useLeaveEventWaitlist();
+  const rsvpEvent = useRsvpEvent();
   const { data: invitation, refetch: refetchInvitation } = useMyEventInvitation(route.params.eventId);
   const respondInvitation = useRespondEventInvitation();
   const profile = useAuthStore((state) => state.profile);
@@ -66,8 +310,8 @@ export function EventDetailScreen() {
         Alert.alert('Joined event', 'You are on the attendee list.');
       }
       await Promise.all([refetch(), refetchParticipation()]);
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to join event');
     }
   };
 
@@ -82,8 +326,8 @@ export function EventDetailScreen() {
           try {
             await leaveWaitlist.mutateAsync(event.id);
             Alert.alert('Waitlist left', 'You are no longer waiting for this event.');
-          } catch (error) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave the waitlist');
+          } catch (err) {
+            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to leave the waitlist');
           }
         }
       }
@@ -100,8 +344,8 @@ export function EventDetailScreen() {
         onPress: async () => {
           try {
             await leaveEvent.mutateAsync(event.id);
-          } catch (error) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave event');
+          } catch (err) {
+            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to leave event');
           }
         }
       }
@@ -120,8 +364,8 @@ export function EventDetailScreen() {
       const result = await respondInvitation.mutateAsync({ invitationId: invitation.id, accept });
       await Promise.all([refetch(), refetchParticipation(), refetchInvitation()]);
       if (accept) Alert.alert(result === 'waitlisted' ? 'Added to waitlist' : 'Invitation accepted', result === 'waitlisted' ? 'The event is full, so you have been added to the waitlist.' : 'You are on the attendee list.');
-    } catch (error) {
-      Alert.alert('Invitation update failed', error instanceof Error ? error.message : 'Please try again.');
+    } catch (err) {
+      Alert.alert('Invitation update failed', err instanceof Error ? err.message : 'Please try again.');
     }
   };
 
@@ -178,8 +422,6 @@ export function EventDetailScreen() {
   const hasJoined = participationStatus === 'going';
   const isWaitlisted = participationStatus === 'waitlisted';
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
-  const canJoin = ['none', 'interested', 'declined'].includes(participationStatus)
-    && (event.status === 'open' || event.status === 'full');
   const optimizedCoverUrl = mediaVariants.eventCover(event.coverUrl);
   const coverImageUrl = useRawCover ? event.coverUrl : optimizedCoverUrl ?? event.coverUrl;
   const feeDescription = event.entryFeeCents > 0
@@ -239,6 +481,8 @@ export function EventDetailScreen() {
             {eventVisibilityLabel(event.visibility)}
           </Badge>
           {isWaitlisted ? <Badge tone="yellow">WAITLISTED</Badge> : null}
+          {participationStatus === 'interested' ? <Badge tone="blue">INTERESTED</Badge> : null}
+          {participationStatus === 'declined' ? <Badge tone="dark">NOT GOING</Badge> : null}
           {invitation?.status === 'pending' ? <Badge tone="blue">INVITED</Badge> : null}
         </View>
         <AppText variant="h1" style={styles.title}>{event.title}</AppText>
@@ -303,61 +547,25 @@ export function EventDetailScreen() {
             View Profile
           </Button>
         </View>
-        
-        {isOrganizer ? (
-          <>
-            <Button full size="lg" variant="dark" onPress={() => navigation.navigate('ManageEvent', { eventId: event.id })}>
-              Manage Event
-            </Button>
-            {hasJoined ? (
-              <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
-                Event Chat
-              </Button>
-            ) : null}
-          </>
-        ) : invitation?.status === 'pending' ? (
-          <>
-            <Button full size="lg" loading={respondInvitation.isPending} onPress={() => void respondToInvitation(true)}>
-              Accept Invitation
-            </Button>
-            <Button full size="lg" variant="dark" loading={respondInvitation.isPending} onPress={() => void respondToInvitation(false)}>
-              Decline Invitation
-            </Button>
-          </>
-        ) : hasJoined ? (
-          <>
-            <Button full size="lg" variant="ghost" icon={MessageCircle} onPress={() => navigation.navigate('EventChat', { eventId: event.id })}>
-              Event Chat
-            </Button>
-            <Button full size="lg" variant="dark" loading={leaveEvent.isPending} onPress={handleLeave}>
-              Leave Event
-            </Button>
-          </>
-        ) : isWaitlisted ? (
-          <Button
-            full
-            size="lg"
-            variant="dark"
-            loading={leaveWaitlist.isPending}
-            onPress={handleLeaveWaitlist}
-          >
-            Leave Waitlist
-          </Button>
-        ) : event.status === 'cancelled' ? (
-          <Button full size="lg" variant="dark" disabled>
-            Event Cancelled
-          </Button>
-        ) : (
-          <Button
-            full
-            size="lg"
-            loading={joinEvent.isPending}
-            onPress={handleJoin}
-            disabled={!canJoin}
-          >
-            {isFull ? 'Join Waitlist' : 'Join Event'}
-          </Button>
-        )}
+
+        <RsvpControl
+          event={event}
+          participationStatus={participationStatus}
+          isOrganizer={isOrganizer}
+          invitation={invitation}
+          joinEvent={joinEvent}
+          leaveEvent={leaveEvent}
+          leaveWaitlist={leaveWaitlist}
+          rsvpEvent={rsvpEvent}
+          respondInvitation={respondInvitation}
+          onJoin={handleJoin}
+          onLeave={handleLeave}
+          onLeaveWaitlist={handleLeaveWaitlist}
+          onRespondToInvitation={respondToInvitation}
+          onNavigateToChat={() => navigation.navigate('EventChat', { eventId: event.id })}
+          onNavigateToManage={() => navigation.navigate('ManageEvent', { eventId: event.id })}
+        />
+
         <Button full size="lg" variant="ghost" onPress={handleShare}>
           Share Event
         </Button>

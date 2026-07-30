@@ -127,9 +127,10 @@ jest.mock('@/components/community/CommunityPostFeed', () => ({
 jest.mock('@/hooks/useEvents', () => ({
   useEvent: jest.fn(),
   useEventParticipation: jest.fn(),
-  useJoinEvent: jest.fn(),
-  useLeaveEvent: jest.fn(),
-  useLeaveEventWaitlist: jest.fn(),
+  useJoinEvent: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useLeaveEvent: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useLeaveEventWaitlist: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useRsvpEvent: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
   useMyEventInvitation: jest.fn(),
   useRespondEventInvitation: jest.fn(),
   useCommunityEvents: jest.fn()

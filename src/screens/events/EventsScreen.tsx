@@ -11,7 +11,7 @@ import { AppRefreshControl, AppText, Button, Card, SectionHeader, Screen, IconBu
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
-import { useEventParticipationBatch, useEvents, useJoinEvent, useLeaveEventWaitlist } from '@/hooks/useEvents';
+import { useEventParticipationBatch, useEvents, useJoinEvent, useLeaveEventWaitlist, useRsvpEvent } from '@/hooks/useEvents';
 import { formatLocalizedDate, useAppTranslation } from '@/i18n';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { EventParticipationStatus, Sport } from '@/types/domain';
@@ -48,6 +48,7 @@ export function EventsScreen() {
   const { data: events = [], isLoading, isError, refetch, isRefetching } = useEvents();
   const joinEvent = useJoinEvent();
   const leaveWaitlist = useLeaveEventWaitlist();
+  const rsvpEvent = useRsvpEvent();
   const {
     data: participationByEvent = {},
     isRefetching: participationRefetching,
@@ -58,6 +59,7 @@ export function EventsScreen() {
   const [selectedDay, setSelectedDay] = useState<Date>(weekDays[0]);
   const [selectedSport, setSelectedSport] = useState<Sport | 'All'>('All');
   const [participationActionEventId, setParticipationActionEventId] = useState<string | null>(null);
+  const [rsvpActionEventId, setRsvpActionEventId] = useState<string | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   const leaveEventWaitlist = (eventId: string) => {
@@ -88,7 +90,8 @@ export function EventsScreen() {
       leaveEventWaitlist(eventId);
       return;
     }
-    if (currentStatus !== 'none') return;
+    // none, interested, and declined may all attempt to join
+    if (currentStatus === 'going') return;
 
     setParticipationActionEventId(eventId);
     try {
@@ -102,6 +105,23 @@ export function EventsScreen() {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
     } finally {
       setParticipationActionEventId(null);
+    }
+  };
+
+  const handleRsvpAction = async (eventId: string, status: 'interested' | 'declined' | null) => {
+    if (rsvpActionEventId) return;
+    setRsvpActionEventId(eventId);
+    try {
+      if (status === null) {
+        // Remove soft RSVP — server treats this as a leave (back to none)
+        await leaveWaitlist.mutateAsync(eventId);
+      } else {
+        await rsvpEvent.mutateAsync({ eventId, status });
+      }
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update RSVP.');
+    } finally {
+      setRsvpActionEventId(null);
     }
   };
 
@@ -237,8 +257,10 @@ export function EventsScreen() {
             event={event}
             participationStatus={participationByEvent[event.id] ?? 'none'}
             actionPending={participationActionEventId === event.id}
+            rsvpPending={rsvpActionEventId === event.id}
             onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
-            onParticipationAction={() => handleParticipationAction(event.id)}
+            onParticipationAction={() => void handleParticipationAction(event.id)}
+            onRsvpAction={(status) => void handleRsvpAction(event.id, status)}
           />
         ))}
       </View>

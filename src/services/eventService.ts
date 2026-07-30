@@ -356,14 +356,20 @@ export const eventService = {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
+    if (authError) {
+      captureUnexpectedError(authError, { operation: 'event.rsvp', extra: { eventId, status } });
+      throw authError;
+    }
     if (!authData.user) throw new Error('You must be signed in to RSVP.');
 
     const { error } = await supabase.rpc('set_sport_event_rsvp', {
       target_event_id: eventId,
       target_status: status
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, { operation: 'event.rsvp', extra: { eventId, status } });
+      throw error;
+    }
   },
 
   async leaveEvent(eventId: string): Promise<void> {

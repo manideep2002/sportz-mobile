@@ -11,39 +11,64 @@ interface EventCardProps {
   event: SportEvent;
   participationStatus?: EventParticipationStatus;
   actionPending?: boolean;
+  /** Pending specifically for a soft RSVP write (interested/declined). */
+  rsvpPending?: boolean;
   onPress?: () => void;
+  /** Called when the primary join / leave-waitlist button is pressed. */
   onParticipationAction?: () => void;
+  /**
+   * Called when the user taps one of the soft RSVP buttons.
+   * Pass null to remove the current soft RSVP (goes back to none).
+   */
+  onRsvpAction?: (status: 'interested' | 'declined' | null) => void;
 }
 
 export function EventCard({
   event,
   participationStatus = 'none',
   actionPending = false,
+  rsvpPending = false,
   onPress,
-  onParticipationAction
+  onParticipationAction,
+  onRsvpAction
 }: EventCardProps) {
   const { colors: theme } = useAppTheme();
   const color = event.sport === 'Football' ? theme.success : theme.accent;
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
-  const canJoin = participationStatus === 'none' && (event.status === 'open' || event.status === 'full');
+  // Users who are going or waitlisted cannot re-join; everyone else can attempt it.
+  const canJoin = !['going', 'waitlisted'].includes(participationStatus) &&
+    (event.status === 'open' || event.status === 'full');
   const canLeaveWaitlist = participationStatus === 'waitlisted';
-  const actionLabel = participationStatus === 'going'
+  const isGoing = participationStatus === 'going';
+  const isInterested = participationStatus === 'interested';
+  const isDeclined = participationStatus === 'declined';
+
+  // Show soft RSVP row when the user is not yet committed (going/waitlisted) and the
+  // event is in a state where soft RSVPs make sense.
+  const showSoftRsvp =
+    onRsvpAction != null &&
+    !isGoing &&
+    !canLeaveWaitlist &&
+    !['cancelled', 'completed'].includes(event.status);
+
+  const actionLabel = isGoing
     ? 'Joined'
-    : participationStatus === 'waitlisted'
+    : canLeaveWaitlist
       ? 'Leave Waitlist'
-      : participationStatus === 'interested'
+      : isInterested
         ? 'Interested'
-        : participationStatus === 'declined'
+        : isDeclined
           ? 'Declined'
-      : isFull
-        ? 'Join Waitlist'
-        : event.status === 'cancelled'
-          ? 'Cancelled'
-          : event.status === 'completed'
-            ? 'Completed'
-            : event.status === 'live'
-              ? 'Live'
-              : 'Join Event';
+          : isFull
+            ? 'Join Waitlist'
+            : event.status === 'cancelled'
+              ? 'Cancelled'
+              : event.status === 'completed'
+                ? 'Completed'
+                : event.status === 'live'
+                  ? 'Live'
+                  : 'Join Event';
+
   return (
     <Pressable
       onPress={onPress}
@@ -89,11 +114,11 @@ export function EventCard({
             </View>
             <Button
               size="sm"
-              variant={canLeaveWaitlist || isFull ? 'ghost' : participationStatus === 'none' ? 'primary' : 'dark'}
+              variant={canLeaveWaitlist || isFull ? 'ghost' : isGoing ? 'dark' : participationStatus === 'none' || isInterested || isDeclined ? 'primary' : 'dark'}
               loading={actionPending}
               disabled={!canJoin && !canLeaveWaitlist}
-              onPress={(event) => {
-                event.stopPropagation();
+              onPress={(e) => {
+                e.stopPropagation();
                 onParticipationAction?.();
               }}
               style={styles.join}
@@ -101,6 +126,42 @@ export function EventCard({
               {actionLabel}
             </Button>
           </View>
+
+          {/* Soft RSVP row — visible for uncommitted states on active events */}
+          {showSoftRsvp ? (
+            <View style={styles.softRow}>
+              <Button
+                size="sm"
+                variant={isInterested ? 'primary' : 'ghost'}
+                loading={rsvpPending && !isInterested}
+                disabled={rsvpPending}
+                accessibilityLabel={isInterested ? 'Remove Interest' : 'Mark Interested'}
+                accessibilityState={{ selected: isInterested }}
+                style={styles.softBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onRsvpAction?.(isInterested ? null : 'interested');
+                }}
+              >
+                {isInterested ? 'Interested ✓' : 'Interested'}
+              </Button>
+              <Button
+                size="sm"
+                variant={isDeclined ? 'dark' : 'ghost'}
+                loading={rsvpPending && !isDeclined}
+                disabled={rsvpPending}
+                accessibilityLabel={isDeclined ? 'Remove Decline' : 'Not Going'}
+                accessibilityState={{ selected: isDeclined }}
+                style={styles.softBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onRsvpAction?.(isDeclined ? null : 'declined');
+                }}
+              >
+                {isDeclined ? 'Not Going ✓' : 'Not Going'}
+              </Button>
+            </View>
+          ) : null}
         </View>
       </Card>
     </Pressable>
@@ -163,6 +224,14 @@ const styles = StyleSheet.create({
     flex: 1
   },
   join: {
+    borderRadius: 10
+  },
+  softRow: {
+    flexDirection: 'row',
+    gap: spacing.xs
+  },
+  softBtn: {
+    flex: 1,
     borderRadius: 10
   }
 });

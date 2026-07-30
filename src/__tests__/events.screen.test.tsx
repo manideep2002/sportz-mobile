@@ -11,6 +11,7 @@ const mockCreateEvent = jest.fn();
 const mockJoinEvent = jest.fn();
 const mockLeaveEvent = jest.fn();
 const mockLeaveWaitlist = jest.fn();
+const mockRsvpEvent = jest.fn();
 const mockRespondEventInvitation = jest.fn();
 const mockEventRefetch = jest.fn();
 const mockParticipationRefetch = jest.fn();
@@ -46,9 +47,10 @@ jest.mock('@/hooks/useEvents', () => ({
     error: null,
     refetch: mockEventRefetch
   }),
-  useJoinEvent: () => ({ mutateAsync: mockJoinEvent }),
+  useJoinEvent: () => ({ mutateAsync: mockJoinEvent, isPending: false }),
   useLeaveEvent: () => ({ mutateAsync: mockLeaveEvent, isPending: false }),
   useLeaveEventWaitlist: () => ({ mutateAsync: mockLeaveWaitlist, isPending: false }),
+  useRsvpEvent: () => ({ mutateAsync: mockRsvpEvent, isPending: false }),
   useMyEventInvitation: () => ({ data: null, refetch: jest.fn() }),
   useRespondEventInvitation: () => ({ mutateAsync: mockRespondEventInvitation, isPending: false }),
   useEventParticipation: () => ({
@@ -248,8 +250,131 @@ describe('event creation and joining', () => {
   });
 });
 
+describe('event RSVP — interested / declined', () => {
+  let alertSpy: jest.SpyInstance;
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+    alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockRoute.params = { eventId: event.id };
+    mockEventData = event;
+    mockRsvpEvent.mockResolvedValue(undefined);
+    mockLeaveEvent.mockResolvedValue(undefined);
+    mockJoinEvent.mockResolvedValue('going');
+    mockEventRefetch.mockResolvedValue(undefined);
+    mockParticipationRefetch.mockResolvedValue(undefined);
+  });
 
+  afterEach(() => {
+    alertSpy.mockRestore();
+  });
 
+  it('shows Join Event, Interested and Not Going buttons when status is none', async () => {
+    mockParticipation = 'none';
+    await render(<EventDetailScreen />);
 
+    expect(screen.getByRole('button', { name: 'Join Event' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark Interested' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Not Going' })).toBeTruthy();
+  });
 
+  it('marks the user interested when Mark Interested is pressed', async () => {
+    mockParticipation = 'none';
+    await render(<EventDetailScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Mark Interested' }));
+
+    await waitFor(() =>
+      expect(mockRsvpEvent).toHaveBeenCalledWith({ eventId: event.id, status: 'interested' })
+    );
+  });
+
+  it('marks the user declined when Not Going is pressed', async () => {
+    mockParticipation = 'none';
+    await render(<EventDetailScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Not Going' }));
+
+    await waitFor(() =>
+      expect(mockRsvpEvent).toHaveBeenCalledWith({ eventId: event.id, status: 'declined' })
+    );
+  });
+
+  it('shows the INTERESTED badge when participation is interested', async () => {
+    mockParticipation = 'interested';
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByText('INTERESTED')).toBeTruthy();
+  });
+
+  it('shows the NOT GOING badge when participation is declined', async () => {
+    mockParticipation = 'declined';
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByText('NOT GOING')).toBeTruthy();
+  });
+
+  it('shows Interested ✓ and Join Event from interested state', async () => {
+    mockParticipation = 'interested';
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByRole('button', { name: 'Join Event' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove Interest' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Not Going' })).toBeTruthy();
+  });
+
+  it('shows Not Going ✓ and Join Event from declined state', async () => {
+    mockParticipation = 'declined';
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByRole('button', { name: 'Join Event' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark Interested' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove Decline' })).toBeTruthy();
+  });
+
+  it('calls leaveEvent (to none) when Remove Interest is pressed', async () => {
+    mockParticipation = 'interested';
+    await render(<EventDetailScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove Interest' }));
+
+    // Remove Interest opens the leave confirmation alert; buttons are the 3rd argument ([2])
+    const confirmation = alertSpy.mock.calls.find(([title]) => title === 'Leave Event');
+    await confirmation?.[2]?.[1]?.onPress?.();
+
+    await waitFor(() => expect(mockLeaveEvent).toHaveBeenCalledWith(event.id));
+  });
+
+  it('shows an error alert when RSVP mutation fails', async () => {
+    mockParticipation = 'none';
+    mockRsvpEvent.mockRejectedValue(new Error('Network request failed'));
+    await render(<EventDetailScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Not Going' }));
+
+    await waitFor(() =>
+      expect(alertSpy).toHaveBeenCalledWith('Error', 'Network request failed')
+    );
+  });
+
+  it('shows a disabled button for a cancelled event', async () => {
+    mockParticipation = 'none';
+    mockEventData = { ...event, status: 'cancelled' };
+    await render(<EventDetailScreen />);
+
+    const cancelledBtn = screen.getByRole('button', { name: 'Event Cancelled' });
+    expect(cancelledBtn).toBeTruthy();
+    // Button must be disabled — pressing it should not call any mutation
+    await fireEvent.press(cancelledBtn);
+    expect(mockJoinEvent).not.toHaveBeenCalled();
+    expect(mockRsvpEvent).not.toHaveBeenCalled();
+  });
+
+  it('shows Join Waitlist (not Join Event) from interested state when event is full', async () => {
+    mockParticipation = 'interested';
+    mockEventData = { ...event, status: 'full', playerCount: event.maxPlayers };
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByRole('button', { name: 'Join Waitlist' })).toBeTruthy();
+  });
+});
