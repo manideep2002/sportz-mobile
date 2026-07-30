@@ -46,6 +46,7 @@ export function CommunityPostFeed({
   const { colors: theme } = useAppTheme();
   const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
+  const [activeVideoPostId, setActiveVideoPostId] = useState<string | null>(null);
   const saveMutation = useOptimisticPostSave();
   const shareMutation = useRecordPostShare();
   const deletePostMutation = useDeletePost();
@@ -109,6 +110,8 @@ export function CommunityPostFeed({
           onComment={() => openPost(post)}
           onShare={() => share(post)}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
+          isVideoActive={activeVideoPostId === post.id}
+          onVideoActivate={() => setActiveVideoPostId(post.id)}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() => post.kind === 'stats' ? openAuthor(post) : openPost(post)}
           onMore={() => setActiveOptionsPost(post)}

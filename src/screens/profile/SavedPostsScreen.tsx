@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { Bookmark, ChevronLeft } from 'lucide-react-native';
 
 import { PostCard } from '@/components/feed/PostCard';
@@ -12,6 +13,7 @@ import { spacing } from '@/design/tokens';
 import { useOptimisticPostSave, useSavedPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { openPostMedia, sharePost } from '@/utils/share';
+import type { Post } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
@@ -20,6 +22,32 @@ export function SavedPostsScreen() {
   const { colors: theme } = useAppTheme();
   const { data: posts = [], isLoading, isError, isRefetching, refetch } = useSavedPosts();
   const saveMutation = useOptimisticPostSave();
+  const [activeVideoPostId, setActiveVideoPostId] = useState<string | null>(null);
+
+  const shareSavedPost = async (post: Post) => {
+    try {
+      await sharePost(post);
+    } catch (error) {
+      Alert.alert(
+        'Could not share post',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    }
+  };
+
+  const removeSavedPost = (post: Post) => {
+    saveMutation.mutate(
+      { postId: post.id, saved: post.savedByMe },
+      {
+        onError: (error) => {
+          Alert.alert(
+            'Could not remove saved post',
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        }
+      }
+    );
+  };
 
   return (
     <Screen
@@ -57,8 +85,10 @@ export function SavedPostsScreen() {
           onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
           onAuthorPress={() => navigation.navigate('UserProfile', { userId: post.author.id })}
           onComment={() => navigation.navigate('PostDetail', { postId: post.id })}
-          onShare={() => void sharePost(post)}
-          onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
+          onShare={() => void shareSavedPost(post)}
+          onSave={() => removeSavedPost(post)}
+          isVideoActive={activeVideoPostId === post.id}
+          onVideoActivate={() => setActiveVideoPostId(post.id)}
           onMediaPress={() => void openPostMedia(post)}
         />
       ))}

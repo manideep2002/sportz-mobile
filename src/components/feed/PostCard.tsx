@@ -1,9 +1,9 @@
 import { memo, useEffect, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Bookmark, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
+import { Bookmark, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
-import { Avatar, Badge, Card, AppText, MediaViewerModal, SportIcon, VerifiedName } from '@/components/ui';
+import { Avatar, Badge, Card, AppText, MediaViewerModal, SportIcon, VerifiedName, VideoPlayer } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -12,6 +12,7 @@ import type { Post } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
 import { clampedMediaAspectRatio, mediaPlaceholderSource } from '@/utils/mediaPlaceholder';
+import { supportsInAppVideoUrl } from '@/utils/share';
 
 interface PostCardProps {
   post: Post;
@@ -22,6 +23,9 @@ interface PostCardProps {
   onSave?: () => void;
   onMore?: () => void;
   onPrimaryAction?: () => void;
+  isVideoActive?: boolean;
+  onVideoActivate?: () => void;
+  /** Used only when the media URL is unsupported by the in-app player. */
   onMediaPress?: () => void;
 }
 
@@ -34,6 +38,8 @@ function PostCardComponent({
   onSave,
   onMore,
   onPrimaryAction,
+  isVideoActive,
+  onVideoActivate,
   onMediaPress
 }: PostCardProps) {
   const { colors: theme } = useAppTheme();
@@ -41,15 +47,19 @@ function PostCardComponent({
   const [mediaError, setMediaError] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [useRawMedia, setUseRawMedia] = useState(false);
+  const [localVideoActive, setLocalVideoActive] = useState(false);
   const feedImageUrl = mediaVariants.feedImage(post.mediaUrl);
   const mediaImageUrl = (useRawMedia ? post.mediaUrl : feedImageUrl) ?? post.mediaUrl ?? '';
   const mediaPlaceholder = mediaPlaceholderSource(post.mediaPlaceholder);
   const mediaAspectRatio = clampedMediaAspectRatio(post.mediaWidth, post.mediaHeight);
+  const canPlayVideoInApp = supportsInAppVideoUrl(post.mediaUrl);
+  const videoActive = isVideoActive ?? localVideoActive;
 
   useEffect(() => {
     setMediaLoading(Boolean(post.mediaUrl));
     setMediaError(false);
     setUseRawMedia(false);
+    setLocalVideoActive(false);
   }, [post.mediaUrl]);
   const runAction = (event: GestureResponderEvent, action?: () => void) => {
     event.stopPropagation();
@@ -86,15 +96,17 @@ function PostCardComponent({
             </Pressable>
             <View style={styles.headerActions}>
               {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Post options"
-                hitSlop={12}
-                style={styles.moreButton}
-                onPress={(event) => runAction(event, onMore)}
-              >
-                <MoreHorizontal size={18} color={theme.textSubtle} />
-              </Pressable>
+              {onMore ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Post options"
+                  hitSlop={12}
+                  style={styles.moreButton}
+                  onPress={(event) => runAction(event, onMore)}
+                >
+                  <MoreHorizontal size={18} color={theme.textSubtle} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
           <AppText variant="bodyMuted" style={styles.body}>
@@ -153,21 +165,62 @@ function PostCardComponent({
             </Pressable>
           ) : null}
           {post.mediaKind === 'video' && post.mediaUrl ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Play video"
-              style={styles.media}
-              onPress={(event) => runAction(event, onMediaPress)}
-            >
-              <View style={styles.mediaVideoContainer}>
-                <View style={[styles.videoFallback, { backgroundColor: theme.surfaceMuted }]}>
-                  <AppText style={styles.videoLabel}>Video</AppText>
+            canPlayVideoInApp && videoActive ? (
+              <Pressable
+                accessible={false}
+                style={[styles.media, styles.mediaVideoContainer]}
+                onPress={(event) => event.stopPropagation()}
+              >
+                <VideoPlayer
+                  uri={post.mediaUrl}
+                  autoPlay
+                  paused={!videoActive}
+                  muted
+                  showMuteToggle
+                  contentFit="cover"
+                  style={styles.feedVideo}
+                  testID={`feed-video-${post.id}`}
+                />
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={canPlayVideoInApp ? 'Play video' : 'Open video externally'}
+                disabled={!canPlayVideoInApp && !onMediaPress}
+                style={styles.media}
+                onPress={(event) => runAction(event, () => {
+                  if (!canPlayVideoInApp) {
+                    onMediaPress?.();
+                    return;
+                  }
+                  setLocalVideoActive(true);
+                  onVideoActivate?.();
+                })}
+              >
+                <View style={styles.mediaVideoContainer}>
+                  {mediaPlaceholder ? (
+                    <ExpoImage
+                      source={mediaPlaceholder}
+                      contentFit="cover"
+                      style={styles.videoPoster}
+                    />
+                  ) : (
+                    <View style={[styles.videoFallback, { backgroundColor: theme.surfaceMuted }]}>
+                      <AppText style={styles.videoLabel}>
+                        {canPlayVideoInApp ? 'Video' : 'Unsupported video'}
+                      </AppText>
+                    </View>
+                  )}
+                  <View style={[styles.playButtonOverlay, { backgroundColor: theme.accent }]}>
+                    {canPlayVideoInApp ? (
+                      <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
+                    ) : (
+                      <ExternalLink size={21} color={theme.onAccent} />
+                    )}
+                  </View>
                 </View>
-                <View style={[styles.playButtonOverlay, { backgroundColor: theme.accent }]}>
-                  <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
-                </View>
-              </View>
-            </Pressable>
+              </Pressable>
+            )
           ) : null}
           {post.mediaKind === 'court-card' ? (
             <View style={styles.media}>
@@ -320,6 +373,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative'
+  },
+  feedVideo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10
+  },
+  videoPoster: {
+    width: '100%',
+    height: '100%'
   },
   videoFallback: {
     flex: 1,

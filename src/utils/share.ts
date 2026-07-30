@@ -24,10 +24,24 @@ export const shareEvent = async (event: SportEvent) => {
   }
 };
 
+const IN_APP_VIDEO_PROTOCOLS = new Set(['http:', 'https:', 'file:', 'content:', 'blob:']);
+
+export const supportsInAppVideoUrl = (value?: string | null) => {
+  if (!value?.trim()) return false;
+  try {
+    return IN_APP_VIDEO_PROTOCOLS.has(new URL(value).protocol.toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
 export const openPostMedia = async (post: Post) => {
   if (!post.mediaUrl) return;
 
   try {
+    if (!(await Linking.canOpenURL(post.mediaUrl))) {
+      throw new Error('Unsupported media URL.');
+    }
     await Linking.openURL(post.mediaUrl);
   } catch {
     Alert.alert('Could not open media', 'This media is currently unavailable.');

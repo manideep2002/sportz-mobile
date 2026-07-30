@@ -3,15 +3,20 @@ import { Play, RefreshCw, Volume2, VolumeX } from 'lucide-react-native';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   StyleSheet,
   View,
+  type AppStateStatus,
   type StyleProp,
   type ViewStyle
 } from 'react-native';
 
 import { colors, radii, spacing } from '@/design/tokens';
 import { AppText } from './AppText';
+
+const appStateAllowsPlayback = (state: AppStateStatus | null) =>
+  state === null || state === 'active';
 
 export interface VideoPlayerHandle {
   play(): void;
@@ -83,12 +88,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [isMuted, setIsMuted] = useState(muted);
     const [hasError, setHasError] = useState(false);
     const [hasEnded, setHasEnded] = useState(false);
+    const [isAppActive, setIsAppActive] = useState(
+      appStateAllowsPlayback(AppState.currentState)
+    );
 
     const player = useVideoPlayer(uri ?? null, (p) => {
       p.loop = loop;
       p.muted = muted;
       p.timeUpdateEventInterval = 0.1;
-      if (uri && autoPlay && !paused) p.play();
+      if (uri && autoPlay && !paused && appStateAllowsPlayback(AppState.currentState)) p.play();
     });
 
     useImperativeHandle(
@@ -115,6 +123,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }, [autoPlay, uri]);
 
     useEffect(() => {
+      const subscription = AppState.addEventListener('change', (state) => {
+        setIsAppActive(appStateAllowsPlayback(state));
+      });
+      return () => subscription.remove();
+    }, []);
+
+    useEffect(() => {
       player.loop = loop;
       player.timeUpdateEventInterval = 0.1;
     }, [loop, player]);
@@ -124,14 +139,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }, [muted]);
 
     useEffect(() => {
-      if (!uri || paused || !wantsToPlay) {
+      if (!uri || paused || !isAppActive || !wantsToPlay) {
         player.pause();
       } else if (hasEnded) {
         player.replay();
       } else {
         player.play();
       }
-    }, [hasEnded, paused, player, uri, wantsToPlay]);
+    }, [hasEnded, isAppActive, paused, player, uri, wantsToPlay]);
 
     useEffect(() => {
       player.muted = isMuted;
@@ -194,7 +209,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       setHasEnded(false);
       try {
         await player.replaceAsync(uri);
-        if (autoPlay && !paused) {
+        if (autoPlay && !paused && isAppActive) {
           setWantsToPlay(true);
           player.play();
         }
@@ -203,7 +218,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         setHasError(true);
         onError?.(error);
       }
-    }, [autoPlay, onError, paused, player, uri]);
+    }, [autoPlay, isAppActive, onError, paused, player, uri]);
 
     const togglePlay = useCallback(() => {
       if (isPlaying) {

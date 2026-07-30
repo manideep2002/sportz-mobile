@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 const mockListeners: Record<string, (event?: any) => void> = {};
 const mockPlayer = {
@@ -22,6 +23,7 @@ const mockUseVideoPlayer = jest.fn((_source, setup?: (player: typeof mockPlayer)
   setup?.(mockPlayer);
   return mockPlayer;
 });
+let mockAppStateListener: ((state: AppStateStatus) => void) | undefined;
 
 jest.mock('expo-video', () => {
   const { View } = require('react-native');
@@ -35,12 +37,24 @@ jest.mock('expo-video', () => {
 import { VideoPlayer } from '@/components/ui/VideoPlayer';
 
 describe('VideoPlayer lifecycle', () => {
+  beforeAll(() => {
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+      mockAppStateListener = listener;
+      return { remove: jest.fn() };
+    });
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     Object.keys(mockListeners).forEach((key) => delete mockListeners[key]);
     mockPlayer.status = 'loading';
     mockPlayer.duration = 12;
     mockPlayer.replaceAsync.mockResolvedValue(undefined);
+    mockAppStateListener = undefined;
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('releases its player on unmount', async () => {
@@ -83,5 +97,26 @@ describe('VideoPlayer lifecycle', () => {
     await render(<VideoPlayer uri="https://example.com/video.mp4" />);
 
     expect(screen.getByTestId('video-buffering-indicator')).toBeTruthy();
+  });
+
+  it('pauses in the background and resumes the requested playback when active', async () => {
+    await render(
+      <VideoPlayer uri="https://example.com/video.mp4" autoPlay paused={false} />
+    );
+    await act(() => {
+      mockAppStateListener?.('active');
+    });
+    mockPlayer.pause.mockClear();
+    mockPlayer.play.mockClear();
+
+    await act(() => {
+      mockAppStateListener?.('background');
+    });
+    expect(mockPlayer.pause).toHaveBeenCalled();
+
+    await act(() => {
+      mockAppStateListener?.('active');
+    });
+    expect(mockPlayer.play).toHaveBeenCalled();
   });
 });

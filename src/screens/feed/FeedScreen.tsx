@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View, type ViewToken } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
@@ -39,6 +39,17 @@ export function FeedScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
+  const [activeVideoPostId, setActiveVideoPostId] = useState<string | null>(null);
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken<Post>[] }) => {
+      setActiveVideoPostId((current) => (
+        current && !viewableItems.some((item) => item.isViewable && item.item.id === current)
+          ? null
+          : current
+      ));
+    }
+  ).current;
   const { data, isLoading, isError, error, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteFeed();
   const { data: stories = [], refetch: refetchStories, isRefetching: storiesRefetching } = useStories();
   const { data: liveEvents = [], refetch: refetchLiveEvents, isRefetching: liveEventsRefetching } = useQuery({
@@ -99,7 +110,9 @@ export function FeedScreen() {
         style={{ width: '100%', maxWidth: responsive.feedMaxWidth, alignSelf: 'center' }}
         data={filteredFeed}
         keyExtractor={(item) => item.id}
-        extraData={selectedSport}
+        extraData={{ selectedSport, activeVideoPostId }}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical
         bounces
@@ -193,6 +206,8 @@ export function FeedScreen() {
             void sharePost(post).then(() => shareMutation.mutate(post.id));
           }}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
+          isVideoActive={activeVideoPostId === post.id}
+          onVideoActivate={() => setActiveVideoPostId(post.id)}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
             post.kind === 'stats'
