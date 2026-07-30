@@ -6,7 +6,7 @@ import { ChevronLeft, ExternalLink, ShieldCheck, ShieldX } from 'lucide-react-na
 
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen, Avatar } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
-import { colors, spacing } from '@/design/tokens';
+import { spacing } from '@/design/tokens';
 import { useVerificationDetail, useVerifyAthleteMatch } from '@/hooks/useAthleteStats';
 import type { AppStackParamList } from '@/navigation/routes';
 import { sportLabelFor } from '@/services/athleteStatsService';
@@ -187,7 +187,7 @@ export function VerificationDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Button
                   disabled={verifyMutation.isPending}
-                  variant={decision === 'rejected' ? 'destructive' : 'dark'}
+                  variant={decision === 'rejected' ? 'danger' : 'dark'}
                   onPress={() => { setDecision('rejected'); }}
                 >
                   {decision === 'rejected' ? 'Selected: Reject' : 'Reject'}
@@ -203,7 +203,7 @@ export function VerificationDetailScreen() {
               </Button>
             ) : null}
             {verifyMutation.isError ? (
-              <AppText variant="small" style={{ color: colors.status.error }}>
+              <AppText variant="small" style={{ color: theme.danger }}>
                 {verifyMutation.error instanceof Error ? verifyMutation.error.message : 'Action failed.'}
               </AppText>
             ) : null}
