@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pgtap;
-select plan(13);
+select plan(15);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -46,12 +46,14 @@ set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"16000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
 select is((select count(*)::integer from public.sport_events where id='36000000-0000-0000-0000-000000000002'),1,'group members can discover group events');
 select is(public.join_sport_event('36000000-0000-0000-0000-000000000002'),'going','group members can join group events');
+select is((select count(*)::integer from public.search_content('Group visibility event','event',20,0) where id='36000000-0000-0000-0000-000000000002'),1,'group members can find group events in global search');
 reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"16000000-0000-0000-0000-000000000004","role":"authenticated"}',true);
 select is((select count(*)::integer from public.sport_events where id='36000000-0000-0000-0000-000000000003'),1,'accepted invitees can discover invite-only events');
 select is(public.join_sport_event('36000000-0000-0000-0000-000000000003'),'going','accepted invitees can join invite-only events');
+select is((select count(*)::integer from public.search_content('Invite visibility event','event',20,0) where id='36000000-0000-0000-0000-000000000003'),1,'accepted invitees can find invite-only events in global search');
 reset role;
 
 select throws_ok(

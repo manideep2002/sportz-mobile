@@ -7,11 +7,16 @@ const migrationPath = path.resolve(
 );
 const manageEventPath = path.resolve(process.cwd(), 'src/screens/events/ManageEventScreen.tsx');
 const eventDetailPath = path.resolve(process.cwd(), 'src/screens/events/EventDetailScreen.tsx');
+const searchMigrationPath = path.resolve(
+  process.cwd(),
+  'supabase/migrations/20260801000003_reconcile_event_search_visibility.sql'
+);
 
 describe('event visibility reconciliation migration', () => {
   const sql = fs.readFileSync(migrationPath, 'utf8');
   const manageEventSource = fs.readFileSync(manageEventPath, 'utf8');
   const eventDetailSource = fs.readFileSync(eventDetailPath, 'utf8');
+  const searchSql = fs.readFileSync(searchMigrationPath, 'utf8');
 
   it('keeps public and follower events independent while limiting community events to group or invite', () => {
     expect(sql).toMatch(/community_id is null and visibility in \('public', 'followers', 'invite'\)/i);
@@ -23,6 +28,12 @@ describe('event visibility reconciliation migration', () => {
     expect(sql).toMatch(/e\.visibility = 'followers'[\s\S]*?public\.user_follows/i);
     expect(sql).toMatch(/e\.visibility = 'group'[\s\S]*?public\.is_community_member/i);
     expect(sql).toMatch(/e\.visibility = 'invite'[\s\S]*?public\.event_invitations/i);
+  });
+
+  it('uses event-id-aware visibility in global event search', () => {
+    expect(searchSql).toContain('public.can_access_sport_event(e.id)');
+    expect(searchSql).toContain('public.can_discover_sport_event(e.organizer_id, e.visibility)');
+    expect(searchSql).toContain('position(legacy_filter in search_definition) = 0');
   });
 
   it('serializes joins and RSVP writes against the event row', () => {
