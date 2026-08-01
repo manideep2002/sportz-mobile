@@ -58,6 +58,28 @@ async function readFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
 }
 
 export const storageService = {
+  avatarObjectNameFromUrl(value?: string | null): string | null {
+    if (!value) return null;
+    try {
+      const marker = '/storage/v1/object/public/avatars/';
+      const pathname = new URL(value).pathname;
+      const index = pathname.indexOf(marker);
+      if (index < 0) return null;
+      const objectName = decodeURIComponent(pathname.slice(index + marker.length));
+      return objectName.includes('/') ? objectName : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async removeAvatar(value?: string | null): Promise<void> {
+    if (!env.isSupabaseConfigured) return;
+    const objectName = this.avatarObjectNameFromUrl(value);
+    if (!objectName) return;
+    const { error } = await supabase.storage.from('avatars').remove([objectName]);
+    if (error) throw error;
+  },
+
   profileCoverObjectFromValue(value?: string | null): StoredProfileCover | null {
     if (!value) return null;
 
@@ -211,6 +233,13 @@ export const storageService = {
         : asset;
 
     if (!env.isSupabaseConfigured) return pickerAsset.uri;
+
+    if (bucket === 'avatars') {
+      this.validateMediaAsset(pickerAsset, {
+        maxSizeMb: 5,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+      });
+    }
 
     return observeUpload('media.upload', {
       bucket,

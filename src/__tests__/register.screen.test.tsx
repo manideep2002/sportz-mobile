@@ -4,6 +4,14 @@ const mockSignUp = jest.fn();
 const mockVerifyUsername = jest.fn();
 const mockRememberUsername = jest.fn();
 const mockSetProfile = jest.fn();
+const mockPickImage = jest.fn();
+const mockStageAvatar = jest.fn();
+const mockBindAvatar = jest.fn();
+const mockAttachAvatar = jest.fn();
+const mockValidateAvatar = jest.fn();
+const mockDiscardAvatar = jest.fn();
+let mockProfile: Record<string, unknown> | null = null;
+let mockUser: Record<string, unknown> | null = null;
 
 jest.mock('@/components/ui', () => require('@/test/mockUi'));
 jest.mock('expo-location', () => ({
@@ -22,16 +30,23 @@ jest.mock('@/services/usernameAvailabilityService', () => ({
   }
 }));
 jest.mock('@/services/storageService', () => ({
-  storageService: { pickImage: jest.fn(), uploadMedia: jest.fn() }
+  storageService: { pickImage: () => mockPickImage() }
 }));
-jest.mock('@/services/profileService', () => ({
-  profileService: { updateProfile: jest.fn() }
+jest.mock('@/services/registrationAvatarService', () => ({
+  registrationAvatarService: {
+    validate: (...args: unknown[]) => mockValidateAvatar(...args),
+    stage: (...args: unknown[]) => mockStageAvatar(...args),
+    bindToUser: (...args: unknown[]) => mockBindAvatar(...args),
+    attachForAuthenticatedUser: (...args: unknown[]) => mockAttachAvatar(...args),
+    discard: (...args: unknown[]) => mockDiscardAvatar(...args)
+  }
 }));
 jest.mock('@/store/authStore', () => {
   const state = {
     signUp: (input: unknown) => mockSignUp(input),
     loading: false,
-    profile: null,
+    get profile() { return mockProfile; },
+    get user() { return mockUser; },
     setProfile: (profile: unknown) => mockSetProfile(profile)
   };
   const useAuthStore = (selector: (value: typeof state) => unknown) => selector(state);
@@ -88,9 +103,19 @@ describe('RegisterScreen validation', () => {
   beforeEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
-    mockSignUp.mockResolvedValue(undefined);
+    mockProfile = null;
+    mockUser = null;
+    mockSignUp.mockResolvedValue({
+      session: null,
+      user: { id: 'user-1', email: 'priya@example.com' }
+    });
     mockVerifyUsername.mockResolvedValue({ status: 'available', message: 'Username is available.' });
     mockRememberUsername.mockResolvedValue(undefined);
+    mockPickImage.mockResolvedValue(null);
+    mockStageAvatar.mockResolvedValue(undefined);
+    mockBindAvatar.mockResolvedValue(undefined);
+    mockAttachAvatar.mockResolvedValue(null);
+    mockDiscardAvatar.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -161,7 +186,7 @@ describe('RegisterScreen validation', () => {
 
   it('prevents duplicate submissions while signup is pending', async () => {
     let resolveSignup!: () => void;
-    mockSignUp.mockReturnValueOnce(new Promise<void>((resolve) => { resolveSignup = resolve; }));
+    mockSignUp.mockReturnValueOnce(new Promise((resolve) => { resolveSignup = () => resolve({ session: null, user: { id: 'user-1', email: 'priya@example.com' } }); }));
     await renderScreen();
     await fillValidForm();
     const submit = screen.getByRole('button', { name: 'Create Profile' });
@@ -201,5 +226,69 @@ describe('RegisterScreen validation', () => {
       confirmPassword: 'StrongPass9!'
     })));
     expect(await screen.findByText('Check your inbox')).toBeTruthy();
+  });
+
+  it('stages and attaches a selected avatar for an immediate authenticated session', async () => {
+    const asset = { uri: 'file:///picked.jpg', width: 600, height: 600, type: 'image', mimeType: 'image/jpeg' };
+    const profile = { id: 'user-1', avatarUrl: null };
+    const uploadedProfile = { ...profile, avatarUrl: 'https://cdn/avatar.jpg' };
+    mockPickImage.mockResolvedValue(asset);
+    mockProfile = profile;
+    mockUser = { id: 'user-1', email: 'priya@example.com' };
+    mockSignUp.mockResolvedValue({ session: { user: mockUser }, user: mockUser });
+    mockAttachAvatar.mockResolvedValue(uploadedProfile);
+    await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose profile photo' }));
+    await fillValidForm();
+    await fireEvent.press(screen.getByRole('button', { name: 'Create Profile' }));
+
+    await waitFor(() => expect(mockStageAvatar).toHaveBeenCalledWith(asset, 'priya@example.com'));
+    expect(mockBindAvatar).toHaveBeenCalledWith('user-1', 'priya@example.com');
+    expect(mockAttachAvatar).toHaveBeenCalledWith('user-1', 'priya@example.com');
+    expect(mockSetProfile).toHaveBeenCalledWith(uploadedProfile);
+  });
+
+  it('keeps a scoped avatar continuation when email confirmation is required', async () => {
+    const asset = { uri: 'file:///picked.jpg', width: 600, height: 600, type: 'image', mimeType: 'image/jpeg' };
+    mockPickImage.mockResolvedValue(asset);
+    await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose profile photo' }));
+    await fillValidForm();
+    await fireEvent.press(screen.getByRole('button', { name: 'Create Profile' }));
+
+    expect(await screen.findByText('Check your inbox')).toBeTruthy();
+    expect(mockStageAvatar).toHaveBeenCalled();
+    expect(mockBindAvatar).toHaveBeenCalledWith('user-1', 'priya@example.com');
+    expect(mockAttachAvatar).not.toHaveBeenCalled();
+    expect(mockDiscardAvatar).not.toHaveBeenCalled();
+  });
+
+  it('keeps the current avatar when a replacement picker is cancelled', async () => {
+    const asset = { uri: 'file:///picked.jpg', width: 600, height: 600, type: 'image', mimeType: 'image/jpeg' };
+    mockPickImage.mockResolvedValueOnce(asset).mockResolvedValueOnce(null);
+    await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose profile photo' }));
+    expect(screen.getByRole('button', { name: 'Remove selected profile photo' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose profile photo' }));
+
+    expect(screen.getByRole('button', { name: 'Remove selected profile photo' })).toBeTruthy();
+    expect(mockValidateAvatar).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a staged avatar when signup fails before creating an account', async () => {
+    const asset = { uri: 'file:///picked.jpg', width: 600, height: 600, type: 'image', mimeType: 'image/jpeg' };
+    mockPickImage.mockResolvedValue(asset);
+    mockSignUp.mockRejectedValue(new Error('Confirmation email could not be sent'));
+    await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose profile photo' }));
+    await fillValidForm();
+    await fireEvent.press(screen.getByRole('button', { name: 'Create Profile' }));
+
+    await waitFor(() => expect(mockDiscardAvatar).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Confirmation email could not be sent')).toBeTruthy();
   });
 });

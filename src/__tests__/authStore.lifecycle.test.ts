@@ -7,6 +7,7 @@ const mockSignInWithIdToken = jest.fn();
 const mockGetAuthProfileState = jest.fn();
 const mockCompleteAuthProfile = jest.fn();
 const mockClearUserScopedData = jest.fn();
+const mockAttachRegistrationAvatar = jest.fn();
 
 jest.mock('@/services/authService', () => ({
   authService: {
@@ -30,6 +31,11 @@ jest.mock('@/services/profileService', () => ({
 
 jest.mock('@/services/sessionDataService', () => ({
   sessionDataService: { clearUserScopedData: () => mockClearUserScopedData() }
+}));
+jest.mock('@/services/registrationAvatarService', () => ({
+  registrationAvatarService: {
+    attachForAuthenticatedUser: (...args: unknown[]) => mockAttachRegistrationAvatar(...args)
+  }
 }));
 
 // eslint-disable-next-line import/first
@@ -82,6 +88,7 @@ const deferred = <T,>() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockClearUserScopedData.mockResolvedValue(undefined);
+  mockAttachRegistrationAvatar.mockResolvedValue(null);
   useAuthStore.setState({
     session: null,
     user: null,
@@ -108,6 +115,20 @@ describe('auth lifecycle synchronization', () => {
       authStatus: 'signedIn',
       bootstrapped: true
     });
+    expect(mockAttachRegistrationAvatar).toHaveBeenCalledWith('initial', 'initial@example.com');
+  });
+
+  it('applies a pending confirmed-registration avatar only to the authenticated account', async () => {
+    const session = createSession('confirmed');
+    const profile = createProfile('confirmed');
+    const profileWithAvatar = { ...profile, avatarUrl: 'https://cdn/avatar.jpg' };
+    mockGetAuthProfileState.mockResolvedValue({ profile, isComplete: true });
+    mockAttachRegistrationAvatar.mockResolvedValue(profileWithAvatar);
+
+    await useAuthStore.getState().handleAuthStateChange('SIGNED_IN', session);
+
+    expect(useAuthStore.getState().profile).toEqual(profileWithAvatar);
+    expect(mockAttachRegistrationAvatar).toHaveBeenCalledWith('confirmed', 'confirmed@example.com');
   });
 
   it('routes a SIGNED_IN user without a usable profile to completion', async () => {
@@ -155,6 +176,26 @@ describe('auth lifecycle synchronization', () => {
       authStatus: 'signedIn'
     });
     expect(mockGetAuthProfileState).not.toHaveBeenCalled();
+  });
+
+  it('retries a pending registration avatar after reconnect token refresh', async () => {
+    const oldSession = createSession('same', 'old-token');
+    const refreshedSession = createSession('same', 'new-token');
+    const profile = createProfile('same');
+    const profileWithAvatar = { ...profile, avatarUrl: 'https://cdn/avatar.jpg' };
+    useAuthStore.setState({
+      session: oldSession,
+      user: oldSession.user,
+      profile,
+      authStatus: 'signedIn',
+      bootstrapped: true
+    });
+    mockAttachRegistrationAvatar.mockResolvedValueOnce(profileWithAvatar);
+
+    await useAuthStore.getState().handleAuthStateChange('TOKEN_REFRESHED', refreshedSession);
+
+    expect(mockAttachRegistrationAvatar).toHaveBeenCalledWith('same', 'same@example.com');
+    expect(useAuthStore.getState().profile).toEqual(profileWithAvatar);
   });
 
   it('keeps a refreshed token when an earlier profile load finishes later', async () => {

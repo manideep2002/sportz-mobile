@@ -8,6 +8,7 @@ jest.mock('@/lib/supabase', () => ({
     rpc: jest.fn(),
     from: jest.fn(),
     auth: {
+      getUser: jest.fn(),
       signOut: jest.fn(),
       verifyOtp: jest.fn(),
       mfa: {
@@ -24,6 +25,7 @@ jest.mock('@/lib/supabase', () => ({
 const mockInvoke = supabase.functions.invoke as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
 const mockAuthSignOut = supabase.auth.signOut as jest.Mock;
+const mockGetUser = supabase.auth.getUser as jest.Mock;
 const mockChallengeAndVerify = supabase.auth.mfa.challengeAndVerify as jest.Mock;
 
 describe('account security client', () => {
@@ -51,6 +53,19 @@ describe('account security client', () => {
     expect(mockInvoke).toHaveBeenCalledWith('account-security', expect.objectContaining({
       body: { action: 'update_password', newPassword: 'A-strong-password-123' }
     }));
+  });
+
+  it('loads linked identities independently and reports expired sessions', async () => {
+    mockGetUser.mockResolvedValueOnce({
+      data: { user: { identities: [{ id: 'identity-1', provider: 'email' }] } },
+      error: null
+    });
+    await expect(accountSecurityService.listIdentities()).resolves.toEqual([
+      expect.objectContaining({ id: 'identity-1', provider: 'email' })
+    ]);
+
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    await expect(accountSecurityService.listIdentities()).rejects.toThrow('session expired');
   });
 
   it('server-verifies completed password recovery before auditing it', async () => {

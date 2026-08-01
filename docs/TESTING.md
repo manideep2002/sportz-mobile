@@ -22,7 +22,11 @@ npx supabase test db
 ## Manual QA
 
 - Auth: email login, validated 13+ registration, email confirmation, reset, Google,
-  Apple on iOS, and OAuth profile completion. Phone verification is intentionally deferred.
+  Apple on iOS, and OAuth profile completion. During registration, select/remove/cancel an avatar,
+  verify it attaches both with an immediate session and after email confirmation plus an app restart,
+  retry a failed upload, and switch accounts to confirm the pending photo never crosses accounts.
+  Reject video, unsupported image types, invalid dimensions, and files over 5 MB. Phone verification
+  is intentionally deferred.
 - Feed: infinite scroll, optimistic like rollback, post create/edit/delete, media upload, comments and replies.
 - Profiles: edit profile, public follow, private follow request accept/decline, hireable filters.
 - Events: create event, join, waitlist when full, refresh/restart persistence, leave waitlist,
@@ -33,6 +37,9 @@ npx supabase test db
 - Messages: realtime receive, optimistic send, read receipts, typing indicator, group create/add/leave, mute preferences, and per-user clear history. For clear history, verify the destructive confirmation, then confirm the acting account sees an empty direct thread while the other participant still sees earlier messages; send a new message and confirm it appears for both accounts. Switch accounts on the same device/session and scroll upward to verify neither account can recover the other's pre-clear page.
 - Notifications: push permission, foreground notification, mark all read, push fan-out preferences, conversation mute suppression.
 - Moderation: report submission, admin review/dismiss/action states.
+- Account security: independently load recent-auth state, linked identities, sessions, authenticators,
+  and activity; force one section to fail and retry it without hiding successful sections. Verify MFA
+  empty/error/expired-challenge states, blank and malformed recovery codes, and duplicate destructive taps.
 - Account deletion: destructive confirmation, Edge Function success/failure handling.
 - Offline: launch app offline after a successful online cache fill.
 - Dark/light: settings toggle and OS theme behavior.

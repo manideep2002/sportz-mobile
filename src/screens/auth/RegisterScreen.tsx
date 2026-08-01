@@ -22,8 +22,8 @@ import {
   type RegistrationField,
   type RegistrationFieldErrors
 } from '@/schemas/registrationSchema';
-import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
+import { registrationAvatarService } from '@/services/registrationAvatarService';
 import { usernameAvailabilityService } from '@/services/usernameAvailabilityService';
 import { normalizeUsername } from '@/utils/authValidation';
 import { useAuthStore } from '@/store/authStore';
@@ -159,6 +159,7 @@ export function RegisterScreen({ navigation }: Props) {
   const [secondarySports, setSecondarySports] = useState<Sport[]>([]);
   const [confirmationVisible, setConfirmationVisible] = useState(false);
   const [avatarAsset, setAvatarAsset] = useState<ImagePickerAsset | null>(null);
+  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Partial<Record<RegistrationField, boolean>>>({});
   const [submitFieldErrors, setSubmitFieldErrors] = useState<RegistrationFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -268,7 +269,11 @@ export function RegisterScreen({ navigation }: Props) {
   const handlePickAvatar = async () => {
     try {
       const picked = await storageService.pickImage();
-      if (picked) setAvatarAsset(picked);
+      if (picked) {
+        registrationAvatarService.validate(picked);
+        setAvatarAsset(picked);
+        setAvatarUploadError(null);
+      }
     } catch (error) {
       Alert.alert('Avatar upload', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -318,6 +323,7 @@ export function RegisterScreen({ navigation }: Props) {
     setSubmitFieldErrors({});
     const registration = parsed.data;
     let accountCreated = false;
+    let avatarStaged = false;
 
     try {
       const availability = await usernameAvailabilityService.verifyUsernameAvailability(registration.username, undefined, {
@@ -329,23 +335,34 @@ export function RegisterScreen({ navigation }: Props) {
         return;
       }
 
-      await signUp(registration);
-      accountCreated = true;
+      if (avatarAsset) {
+        await registrationAvatarService.stage(avatarAsset, registration.email);
+        avatarStaged = true;
+      }
+      const authResult = await signUp(registration);
+      accountCreated = Boolean(authResult.user);
+      if (authResult.user && avatarStaged) {
+        await registrationAvatarService.bindToUser(authResult.user.id, authResult.user.email ?? registration.email);
+      }
       await usernameAvailabilityService.rememberUsername(registration.username).catch(() => undefined);
       const createdProfile = useAuthStore.getState().profile;
-      if (createdProfile && avatarAsset) {
+      if (createdProfile && authResult.user && avatarStaged) {
         try {
-          const avatarUrl = await storageService.uploadMedia(avatarAsset, 'avatars', createdProfile.id);
-          await profileService.updateProfile(createdProfile.id, { avatarUrl });
-          useAuthStore.getState().setProfile({ ...createdProfile, avatarUrl });
+          const profileWithAvatar = await registrationAvatarService.attachForAuthenticatedUser(
+            authResult.user.id,
+            authResult.user.email
+          );
+          if (profileWithAvatar) useAuthStore.getState().setProfile(profileWithAvatar);
+          setAvatarUploadError(null);
         } catch (error) {
-          Alert.alert('Profile created', error instanceof Error ? `Your photo could not be uploaded: ${error.message}` : 'Your photo could not be uploaded.');
+          setAvatarUploadError(error instanceof Error ? error.message : 'Your photo could not be uploaded.');
         }
       }
       if (!createdProfile) {
         setConfirmationVisible(true);
       }
     } catch (error) {
+      if (!accountCreated && avatarStaged) await registrationAvatarService.discard().catch(() => undefined);
       setFormError(
         accountCreated
           ? 'Your account was created, but profile setup could not finish. Sign in to continue.'
@@ -369,6 +386,49 @@ export function RegisterScreen({ navigation }: Props) {
           <Avatar initials="SP" uri={avatarAsset?.uri} size={76} />
           <View style={[styles.avatarCamera, { backgroundColor: theme.accent, borderColor: theme.background }]}><Camera size={15} color={theme.onAccent} /></View>
         </Pressable>
+        {avatarAsset ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            accessibilityLabel="Remove selected profile photo"
+            onPress={() => {
+              setAvatarAsset(null);
+              setAvatarUploadError(null);
+            }}
+          >
+            Remove photo
+          </Button>
+        ) : null}
+        {avatarUploadError ? (
+          <View style={styles.avatarRetry}>
+            <AppText accessibilityRole="alert" variant="small" style={{ color: theme.danger }}>
+              Profile created, but the photo is still pending: {avatarUploadError}
+            </AppText>
+            <Button
+              size="sm"
+              variant="dark"
+              accessibilityLabel="Retry profile photo upload"
+              onPress={() => void (async () => {
+                const currentUser = useAuthStore.getState().user;
+                if (!currentUser || submittingRef.current) return;
+                submittingRef.current = true;
+                setSubmitting(true);
+                try {
+                  const profile = await registrationAvatarService.attachForAuthenticatedUser(currentUser.id, currentUser.email);
+                  if (profile) useAuthStore.getState().setProfile(profile);
+                  setAvatarUploadError(null);
+                } catch (error) {
+                  setAvatarUploadError(error instanceof Error ? error.message : 'Please try again.');
+                } finally {
+                  submittingRef.current = false;
+                  setSubmitting(false);
+                }
+              })()}
+            >
+              Retry photo upload
+            </Button>
+          </View>
+        ) : null}
         <View style={styles.form}>
           <View style={styles.row}>
             <View style={styles.flexInput}>
@@ -1004,6 +1064,10 @@ const styles = StyleSheet.create({
   },
   helperText: {
     color: colors.text.tertiary
+  },
+  avatarRetry: {
+    alignItems: 'center',
+    gap: spacing.xs
   },
   usernameHint: {
     marginTop: -10

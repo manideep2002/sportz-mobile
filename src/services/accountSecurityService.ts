@@ -1,4 +1,4 @@
-import type { Factor } from '@supabase/supabase-js';
+import type { Factor, UserIdentity } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
@@ -66,6 +66,12 @@ async function invokeSecurity<T = { ok: true }>(body: SecurityActionBody): Promi
 }
 
 export const accountSecurityService = {
+  async listIdentities(): Promise<UserIdentity[]> {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    if (!data.user) throw new Error('Your authenticated session expired. Sign in again.');
+    return data.user.identities ?? [];
+  },
   async hasRecentAuthentication(): Promise<boolean> {
     const { data, error } = await supabase.rpc('has_recent_account_auth');
     if (error) throw error;

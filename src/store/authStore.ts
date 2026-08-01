@@ -1,9 +1,10 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
-import { authService, type RegisterInput } from '@/services/authService';
+import { authService, type AuthResult, type RegisterInput } from '@/services/authService';
 import { profileService, type CompleteAuthProfileInput } from '@/services/profileService';
 import { sessionDataService } from '@/services/sessionDataService';
+import { registrationAvatarService } from '@/services/registrationAvatarService';
 import type { UserProfile } from '@/types/domain';
 
 export type AuthStatus =
@@ -29,7 +30,7 @@ interface AuthState {
   retryProfile: () => Promise<void>;
   completeProfile: (input: CompleteAuthProfileInput) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (input: RegisterInput) => Promise<void>;
+  signUp: (input: RegisterInput) => Promise<AuthResult>;
   signInWithIdToken: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
@@ -139,6 +140,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const sameUser = current.user?.id === session.user.id;
     if (event === 'TOKEN_REFRESHED' && sameUser) {
       set({ session, user: session.user, bootstrapped: true, error: null });
+      if (current.profile) {
+        const profileWithAvatar = await registrationAvatarService
+          .attachForAuthenticatedUser(session.user.id, session.user.email)
+          .catch(() => null);
+        if (get().user?.id === session.user.id && profileWithAvatar) set({ profile: profileWithAvatar });
+      }
       return;
     }
 
@@ -194,6 +201,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false,
           error: null
         });
+        if (profileState.profile) {
+          const profileWithAvatar = await registrationAvatarService
+            .attachForAuthenticatedUser(session.user.id, session.user.email)
+            .catch(() => null);
+          if (transitionId === authTransitionId && profileWithAvatar) set({ profile: profileWithAvatar });
+        }
       } catch (error) {
         if (transitionId !== authTransitionId) return;
         const message = errorMessage(error, 'Could not load your athlete profile.');
@@ -236,6 +249,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const profile = await profileService.completeAuthProfile(user.id, input);
       if (get().user?.id !== user.id) return;
       set({ profile, authStatus: 'signedIn', bootstrapped: true, loading: false, error: null });
+      const profileWithAvatar = await registrationAvatarService
+        .attachForAuthenticatedUser(user.id, user.email)
+        .catch(() => null);
+      if (get().user?.id === user.id && profileWithAvatar) set({ profile: profileWithAvatar });
     } catch (error) {
       set({ loading: false, error: errorMessage(error, 'Could not complete your profile.') });
       throw error;
@@ -256,8 +273,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (input) => {
     set({ loading: true, error: null });
     try {
-      const { session } = await authService.signUp(input);
+      const result = await authService.signUp(input);
+      const { session } = result;
       await get().handleAuthStateChange(session ? 'SIGNED_IN' : 'SIGNED_OUT', session);
+      return result;
     } catch (error) {
       set({ loading: false, error: errorMessage(error, 'Sign up failed.') });
       throw error;
