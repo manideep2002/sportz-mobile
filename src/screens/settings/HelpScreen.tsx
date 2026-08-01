@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { appConfig } from '@/constants/app';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
+import { openExternalDestination } from '@/utils/externalLinks';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 const faqs = [
@@ -21,6 +22,28 @@ export function HelpScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const [open, setOpen] = useState<string | null>(faqs[0][0]);
+  const [destinationError, setDestinationError] = useState<string | null>(null);
+  const [opening, setOpening] = useState<'support' | 'store' | null>(null);
+
+  const openSupport = async () => {
+    setOpening('support');
+    setDestinationError(null);
+    const result = await openExternalDestination(
+      appConfig.supportEmail ? `mailto:${appConfig.supportEmail}` : undefined,
+      appConfig.supportUrl
+    );
+    if (result === 'unavailable') setDestinationError('Support is not available on this device. Please try again later.');
+    setOpening(null);
+  };
+
+  const openStore = async () => {
+    setOpening('store');
+    setDestinationError(null);
+    const storeUrl = Platform.OS === 'ios' ? appConfig.appStoreUrl : appConfig.playStoreUrl;
+    const result = await openExternalDestination(storeUrl, appConfig.installFallbackUrl);
+    if (result === 'unavailable') setDestinationError('The install page could not be opened. Please try again later.');
+    setOpening(null);
+  };
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}><IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} /><AppText variant="h3">Help</AppText><View style={{ width: 40 }} /></View>
@@ -37,8 +60,24 @@ export function HelpScreen() {
           {open === question ? <AppText variant="bodyMuted">{answer}</AppText> : null}
         </Pressable>
       ))}
-      <Button full onPress={() => void Linking.openURL(`mailto:${appConfig.supportEmail}`)}>Contact Support</Button>
-      <Button full variant="ghost" onPress={() => void Linking.openURL(Platform.OS === 'ios' ? appConfig.appStoreUrl : appConfig.playStoreUrl)}>Rate the App</Button>
+      {destinationError ? <AppText accessibilityRole="alert" style={{ color: theme.danger }}>{destinationError}</AppText> : null}
+      <Button
+        full
+        disabled={opening !== null || (!appConfig.supportEmail && !appConfig.supportUrl)}
+        loading={opening === 'support'}
+        onPress={() => void openSupport()}
+      >
+        Contact Support
+      </Button>
+      <Button
+        full
+        variant="ghost"
+        disabled={opening !== null || (!(Platform.OS === 'ios' ? appConfig.appStoreUrl : appConfig.playStoreUrl) && !appConfig.installFallbackUrl)}
+        loading={opening === 'store'}
+        onPress={() => void openStore()}
+      >
+        Rate the App
+      </Button>
     </Screen>
   );
 }

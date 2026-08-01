@@ -6,8 +6,27 @@ const runtimeEnv = Constants.expoConfig?.extra ?? {};
 const placeholderFragments = ['your-project-ref', 'example.supabase.co', 'replace-me', 'replace_me'];
 
 const isConfiguredValue = (value?: string) => {
-  if (!value?.trim()) return false;
-  return !placeholderFragments.some((fragment) => value.includes(fragment));
+  const configuredValue = value?.trim();
+  if (!configuredValue) return false;
+  return !placeholderFragments.some((fragment) => configuredValue.includes(fragment));
+};
+
+const validHttpsUrl = (value?: string): string | undefined => {
+  const url = value?.trim();
+  if (!url || !isConfiguredValue(url)) return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const validSupportEmail = (value?: string): string | undefined => {
+  const email = value?.trim();
+  return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && isConfiguredValue(email)
+    ? email
+    : undefined;
 };
 
 const getProcessEnv = (key: keyof typeof process.env): string | undefined => {
@@ -25,6 +44,21 @@ const canonicalWebUrl =
   getProcessEnv('EXPO_PUBLIC_CANONICAL_WEB_URL') ??
   getRuntimeEnv('EXPO_PUBLIC_CANONICAL_WEB_URL') ??
   'https://sportz.app';
+const supportEmail = validSupportEmail(
+  getProcessEnv('EXPO_PUBLIC_SUPPORT_EMAIL') ?? getRuntimeEnv('EXPO_PUBLIC_SUPPORT_EMAIL')
+);
+const supportUrl = validHttpsUrl(
+  getProcessEnv('EXPO_PUBLIC_SUPPORT_URL') ?? getRuntimeEnv('EXPO_PUBLIC_SUPPORT_URL')
+);
+const appStoreUrl = validHttpsUrl(
+  getProcessEnv('EXPO_PUBLIC_APP_STORE_URL') ?? getRuntimeEnv('EXPO_PUBLIC_APP_STORE_URL')
+);
+const playStoreUrl = validHttpsUrl(
+  getProcessEnv('EXPO_PUBLIC_PLAY_STORE_URL') ?? getRuntimeEnv('EXPO_PUBLIC_PLAY_STORE_URL')
+);
+const installFallbackUrl = validHttpsUrl(
+  getProcessEnv('EXPO_PUBLIC_INSTALL_FALLBACK_URL') ?? getRuntimeEnv('EXPO_PUBLIC_INSTALL_FALLBACK_URL')
+);
 
 export const env = {
   supabaseUrl,
@@ -34,14 +68,11 @@ export const env = {
   googleWebClientId: getProcessEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID') ?? getRuntimeEnv('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
   appScheme: getProcessEnv('EXPO_PUBLIC_APP_SCHEME') ?? getRuntimeEnv('EXPO_PUBLIC_APP_SCHEME') ?? 'sportz',
   canonicalWebUrl,
-  appStoreUrl:
-    getProcessEnv('EXPO_PUBLIC_APP_STORE_URL') ??
-    getRuntimeEnv('EXPO_PUBLIC_APP_STORE_URL') ??
-    'https://apps.apple.com/app/sportz',
-  playStoreUrl:
-    getProcessEnv('EXPO_PUBLIC_PLAY_STORE_URL') ??
-    getRuntimeEnv('EXPO_PUBLIC_PLAY_STORE_URL') ??
-    'https://play.google.com/store/apps/details?id=com.sportz.mobile',
+  supportEmail,
+  supportUrl,
+  appStoreUrl,
+  playStoreUrl,
+  installFallbackUrl,
   mapProvider: getProcessEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? getRuntimeEnv('EXPO_PUBLIC_MAP_PROVIDER') ?? 'apple',
   appEnvironment: resolveMonitoringEnvironment(
     getProcessEnv('EXPO_PUBLIC_APP_ENV') ?? getRuntimeEnv('EXPO_PUBLIC_APP_ENV')

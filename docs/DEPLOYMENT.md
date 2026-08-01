@@ -145,6 +145,7 @@ Before pushing to production, verify:
 
 - [ ] `app.config.js` has the correct `bundleIdentifier` / `package`, `projectId`, and `updates.url`
 - [ ] Universal/App Link artifacts generated and remotely verified per `docs/APP_LINKS.md`
+- [ ] Product destinations set and validated per `docs/PRODUCT_DESTINATIONS.md`; run `npm run config:destinations` and `npm run links:fallback`
 - [ ] `supabase db push` applied without errors
 - [ ] All Edge Functions deployed (`supabase functions deploy`)
 - [ ] All secrets set via `supabase secrets set`

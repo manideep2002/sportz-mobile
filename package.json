@@ -14,6 +14,9 @@
     "links:associations": "node scripts/generate-association-files.mjs",
     "links:validate": "node scripts/validate-association-files.mjs",
     "links:validate:remote": "node scripts/validate-association-files.mjs --remote",
+    "config:destinations": "node scripts/validate-product-destinations.mjs",
+    "links:fallback": "node scripts/generate-link-fallback.mjs",
+    "links:release-assets": "npm run config:destinations && npm run links:associations && npm run links:fallback && npm run links:validate",
     "supabase:types": "supabase gen types typescript --local > src/types/database.generated.ts"
   },
   "dependencies": {

@@ -1,7 +1,10 @@
+import { env } from '@/lib/env';
+
 export const appConfig = {
   name: 'SPORTZ',
-  supportEmail: 'support@sportz.app',
-  appStoreUrl: 'https://apps.apple.com/app/sportz',
-  playStoreUrl: 'https://play.google.com/store/apps/details?id=com.sportz.mobile'
+  supportEmail: env.supportEmail,
+  supportUrl: env.supportUrl,
+  appStoreUrl: env.appStoreUrl,
+  playStoreUrl: env.playStoreUrl,
+  installFallbackUrl: env.installFallbackUrl
 } as const;
-
