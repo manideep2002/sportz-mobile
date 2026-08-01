@@ -144,6 +144,7 @@ supabase functions logs <function-name> --scroll
 Before pushing to production, verify:
 
 - [ ] `app.config.js` has the correct `bundleIdentifier` / `package`, `projectId`, and `updates.url`
+- [ ] Universal/App Link artifacts generated and remotely verified per `docs/APP_LINKS.md`
 - [ ] `supabase db push` applied without errors
 - [ ] All Edge Functions deployed (`supabase functions deploy`)
 - [ ] All secrets set via `supabase secrets set`

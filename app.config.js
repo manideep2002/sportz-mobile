@@ -1,7 +1,29 @@
 require('dotenv').config({ path: '.env', debug: false, quiet: true });
 
 const canonicalWebUrl = process.env.EXPO_PUBLIC_CANONICAL_WEB_URL || 'https://sportz.app';
-const canonicalHost = new URL(canonicalWebUrl).host;
+const canonicalUrl = new URL(canonicalWebUrl);
+if (canonicalUrl.protocol !== 'https:') {
+  throw new Error('EXPO_PUBLIC_CANONICAL_WEB_URL must use HTTPS for Universal Links and Android App Links.');
+}
+const canonicalHost = canonicalUrl.hostname;
+const iosBundleIdentifier = process.env.IOS_BUNDLE_IDENTIFIER || 'com.sportz.mobile';
+const androidApplicationId = process.env.ANDROID_APPLICATION_ID || 'com.sportz.mobile';
+const applicationIdentifierPattern = /^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$/;
+if (!applicationIdentifierPattern.test(iosBundleIdentifier) || !applicationIdentifierPattern.test(androidApplicationId)) {
+  throw new Error('IOS_BUNDLE_IDENTIFIER and ANDROID_APPLICATION_ID must be valid reverse-DNS identifiers.');
+}
+const appLinkPathPrefixes = [
+  '/posts',
+  '/profiles',
+  '/events',
+  '/courts',
+  '/groups',
+  '/pages',
+  '/invitations/community',
+  '/booking',
+  '/offer',
+  '/reset-password'
+];
 
 module.exports = {
   expo: {
@@ -15,7 +37,7 @@ module.exports = {
     assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.sportz.mobile',
+      bundleIdentifier: iosBundleIdentifier,
       usesAppleSignIn: true,
       associatedDomains: [`applinks:${canonicalHost}`],
       infoPlist: {
@@ -26,20 +48,12 @@ module.exports = {
       }
     },
     android: {
-      package: 'com.sportz.mobile',
+      package: androidApplicationId,
       intentFilters: [
         {
           action: 'VIEW',
           autoVerify: true,
-          data: [
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/posts' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/profiles' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/events' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/courts' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/groups' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/pages' },
-            { scheme: 'https', host: canonicalHost, pathPrefix: '/invitations/community' }
-          ],
+          data: appLinkPathPrefixes.map((pathPrefix) => ({ scheme: 'https', host: canonicalHost, pathPrefix })),
           category: ['BROWSABLE', 'DEFAULT']
         }
       ],

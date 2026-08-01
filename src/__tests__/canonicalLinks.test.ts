@@ -37,6 +37,15 @@ describe('canonical links', () => {
     });
   });
 
+  it('parses supported booking and offer app-link routes', () => {
+    expect(parseCanonicalDestination('https://sportz.app/booking/booking-1')).toEqual({
+      screen: 'CourtBookingDetail', params: { bookingId: 'booking-1' }
+    });
+    expect(parseCanonicalDestination('sportz://offer/offer-1')).toEqual({
+      screen: 'OfferDetail', params: { offerId: 'offer-1' }
+    });
+  });
+
   it('parses warm custom-scheme links and rejects chats or unknown routes', () => {
     expect(parseCanonicalDestination('sportz://posts/post-2')).toEqual({
       screen: 'PostDetail',

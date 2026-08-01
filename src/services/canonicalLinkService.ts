@@ -80,6 +80,8 @@ export const parseCanonicalDestination = (url: string): CanonicalDestination | n
   if (entity === 'courts') return { screen: 'CourtDetail', params: { courtId: id } };
   if (entity === 'groups') return { screen: 'GroupDetail', params: { communityId: id } };
   if (entity === 'pages') return { screen: 'PageDetail', params: { communityId: id } };
+  if (entity === 'booking') return { screen: 'CourtBookingDetail', params: { bookingId: id } };
+  if (entity === 'offer') return { screen: 'OfferDetail', params: { offerId: id } };
   if (entity === 'invitations' && id === 'community' && segments[2]) {
     return { screen: 'CommunityInvitation', params: { inviteId: segments[2] } };
   }

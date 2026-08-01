@@ -61,21 +61,8 @@ entity paths while preserving `/.well-known/*`.
 
 ## Association deployment
 
-Apple Team IDs and Android production certificate fingerprints are signing
-credentials and are not safely derivable from source control. Before deploying
-the canonical host:
-
-1. Set `IOS_TEAM_ID` and `ANDROID_SHA256_CERT_FINGERPRINTS` in the release/hosting
-   environment. Multiple Android fingerprints are comma-separated.
-2. Run `npm run links:associations`.
-3. Deploy `public/.well-known/apple-app-site-association` without a redirect or
-   filename extension and `public/.well-known/assetlinks.json` as JSON over HTTPS.
-4. Route canonical entity paths to `public/link-fallback.html` for users without
-   the app, or to an equivalent store-aware fallback.
-5. Validate with Apple's CDN association endpoint and Google's Digital Asset
-   Links API using the production signing identities.
-
-The checked-in endpoint files are interpolation templates. The generator rejects
-missing or malformed production identifiers so placeholders cannot silently be
-used for a release.
-
+See [APP_LINKS.md](APP_LINKS.md) for the protected release inputs, generated
+association artifacts, required HTTPS/MIME/cache/no-redirect hosting rules, and
+signed iOS/Android verification commands. Association endpoint files are deliberately
+not checked in with placeholders; release CI generates and validates them from the
+real signing identities before deployment.

@@ -12,6 +12,8 @@
     "lint": "expo lint",
     "test": "jest",
     "links:associations": "node scripts/generate-association-files.mjs",
+    "links:validate": "node scripts/validate-association-files.mjs",
+    "links:validate:remote": "node scripts/validate-association-files.mjs --remote",
     "supabase:types": "supabase gen types typescript --local > src/types/database.generated.ts"
   },
   "dependencies": {
