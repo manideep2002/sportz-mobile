@@ -4,6 +4,8 @@ import * as Notifications from 'expo-notifications';
 import {
   isNativePlatform,
   registerForPushNotificationsAsync,
+  revokePushTokensForCurrentInstallation,
+  hydrateNotificationSettings,
   shouldHandleNotification
 } from '@/lib/notifications';
 import { navigationRef } from '@/navigation/navigationRef';
@@ -42,9 +44,14 @@ export const usePushNotifications = () => {
     // Push token registration is native-only; guarded inside the function as well,
     // but the explicit check here makes the intent clear to future readers.
     if (isNativePlatform()) {
-      void registerForPushNotificationsAsync().catch((error) => {
-        captureUnexpectedError(error, { operation: 'push.registration' });
-      });
+      void hydrateNotificationSettings(userId)
+        .then(async (settings) => {
+          if (settings.enabled) await registerForPushNotificationsAsync();
+          else await revokePushTokensForCurrentInstallation(userId);
+        })
+        .catch((error) => {
+          captureUnexpectedError(error, { operation: 'push.preference_reconciliation' });
+        });
     }
 
     void notificationService.countUnread().then(setNotificationUnreadCount).catch((error) => {

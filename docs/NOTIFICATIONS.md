@@ -24,8 +24,17 @@ columns (`likes`, `comments`, `mentions`, `follows`, `messages`, `events`, and
 Disabling a category does not delete or suppress its in-app notification record.
 
 Conversation mutes provide an additional push-delivery check for chat messages.
-Preferences are stored locally for immediate foreground handling and in Supabase
-for server-side delivery enforcement.
+Supabase is authoritative. Each signed-in account hydrates its preference row at
+startup and subscribes to its own realtime updates so changes propagate to other
+devices. A schema-validated AsyncStorage cache is namespaced by user ID for
+offline startup and foreground notification handling; malformed data is removed.
+Failed setting writes roll the UI back to the confirmed value and allow retry.
+
+Disabling the master setting revokes this installation's active token. Sign-out
+also performs an idempotent revocation before clearing auth; if offline, the app
+queues only the user/installation identifiers (never the Expo token) for a retry
+when that account signs in again. Registering the same token for a second account
+atomically detaches it from the previous account.
 
 ## Data and retention
 

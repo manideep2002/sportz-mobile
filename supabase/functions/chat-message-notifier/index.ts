@@ -30,13 +30,6 @@ type PushTokenRow = {
   expo_push_token: string;
 };
 
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  is_online?: boolean | null;
-};
-
 type ExpoPushMessage = {
   to: string;
   sound: 'default';
@@ -63,12 +56,6 @@ const chunk = <T>(items: T[], size: number) => {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
-};
-
-const notificationBody = (message: ChatMessageRecord) => {
-  if (message.message_type === 'image') return 'Sent a photo';
-  if (message.message_type === 'video') return 'Sent a video';
-  return (message.body ?? 'New message').slice(0, 180);
 };
 
 Deno.serve(async (request) => {
@@ -108,30 +95,26 @@ Deno.serve(async (request) => {
     return Response.json({ ok: true, sent: 0, skipped: 0 });
   }
 
-  const [{ data: profileRows }, { data: senderRows }, { data: tokenRows, error: tokenError }] =
-    await Promise.all([
-      supabase.from('profiles').select('id, display_name, username, is_online').in('id', candidateUserIds),
-      supabase.from('profiles').select('id, display_name, username').eq('id', message.sender_id).limit(1),
-      supabase
-        .from('user_push_tokens')
-        .select('user_id, expo_push_token')
-        .in('user_id', candidateUserIds)
-        .eq('is_active', true)
-    ]);
+  const [{ data: profileRows }, { data: tokenRows, error: tokenError }] = await Promise.all([
+    supabase.from('profiles').select('id, is_online').in('id', candidateUserIds),
+    supabase
+      .from('user_push_tokens')
+      .select('user_id, expo_push_token')
+      .in('user_id', candidateUserIds)
+      .eq('is_active', true)
+  ]);
 
   if (tokenError) {
     return Response.json({ ok: false, error: tokenError.message }, { status: 500 });
   }
 
-  const profilesByUser = new Map<string, ProfileRow>();
-  for (const profile of (profileRows ?? []) as ProfileRow[]) {
+  const profilesByUser = new Map<string, { id: string; is_online?: boolean | null }>();
+  for (const profile of (profileRows ?? []) as Array<{ id: string; is_online?: boolean | null }>) {
     profilesByUser.set(profile.id, profile);
   }
 
   const offlineUserIds = candidateUserIds.filter((userId) => profilesByUser.get(userId)?.is_online !== true);
   const offlineUserSet = new Set(offlineUserIds);
-  const sender = ((senderRows ?? []) as ProfileRow[])[0];
-  const senderName = sender?.display_name ?? sender?.username ?? 'New message';
 
   const expoMessages: ExpoPushMessage[] = [];
   for (const tokenRow of (tokenRows ?? []) as PushTokenRow[]) {
@@ -139,8 +122,9 @@ Deno.serve(async (request) => {
     expoMessages.push({
       to: tokenRow.expo_push_token,
       sound: 'default',
-      title: senderName,
-      body: notificationBody(message),
+      // Do not expose sender names or message content on the lock screen.
+      title: 'SPORTZ',
+      body: 'You have a new message.',
       data: {
         kind: 'chat_message',
         type: 'message',

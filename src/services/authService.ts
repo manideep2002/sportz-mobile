@@ -13,6 +13,7 @@ import type { UserProfile } from '@/types/domain';
 import { captureUnexpectedError } from '@/lib/monitoring';
 import { accountSecurityService } from '@/services/accountSecurityService';
 import { LEGAL_DOCUMENT_VERSIONS } from '@/constants/legalDocuments';
+import { revokePushTokensForCurrentInstallation } from '@/lib/notifications';
 
 export interface AuthResult {
   session: Session | null;
@@ -138,6 +139,8 @@ export const authService = {
   async signOut() {
     assertSupabaseConfigured();
 
+    // This is intentionally best-effort: failed/offline requests are queued without storing the token.
+    await revokePushTokensForCurrentInstallation().catch(() => undefined);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     await hotCacheService.clearAll();

@@ -2,15 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   defaultNotificationPreferences,
-  notificationPreferencesKey,
-  pushNotificationsEnabledKey,
+  getCachedNotificationSettings,
+  hydrateNotificationSettings,
+  notificationPreferencesCacheKey,
   saveNotificationPreferences,
+  revokePushTokensForCurrentInstallation,
+  flushPendingPushRevocations,
   shouldHandleNotification
 } from '@/lib/notifications';
 import { enIN } from '@/i18n/locales/en-IN';
 import { useMessagingStore } from '@/store/messagingStore';
 
 const mockPreferenceUpsert = jest.fn();
+const mockPreferenceSelect = jest.fn();
+const mockPushRpc = jest.fn();
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -27,8 +32,10 @@ jest.mock('@/lib/supabase', () => ({
       }))
     },
     from: jest.fn(() => ({
-      upsert: mockPreferenceUpsert
-    }))
+      upsert: mockPreferenceUpsert,
+      select: () => ({ eq: () => ({ maybeSingle: mockPreferenceSelect }) })
+    })),
+    rpc: (...args: unknown[]) => mockPushRpc(...args)
   }
 }));
 
@@ -36,6 +43,8 @@ describe('notification preferences', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     useMessagingStore.setState({ mutedConversations: {} });
+    mockPreferenceSelect.mockReset();
+    mockPushRpc.mockReset();
   });
 
   it('covers message and invite notification categories', () => {
@@ -51,8 +60,8 @@ describe('notification preferences', () => {
 
   it('suppresses disabled message notifications', async () => {
     await AsyncStorage.setItem(
-      notificationPreferencesKey,
-      JSON.stringify({ ...defaultNotificationPreferences, messages: false })
+      notificationPreferencesCacheKey('user-1'),
+      JSON.stringify({ enabled: true, preferences: { ...defaultNotificationPreferences, messages: false } })
     );
 
     await expect(shouldHandleNotification({ kind: 'message' })).resolves.toBe(false);
@@ -70,8 +79,8 @@ describe('notification preferences', () => {
 
   it('treats follow requests as follow notifications', async () => {
     await AsyncStorage.setItem(
-      notificationPreferencesKey,
-      JSON.stringify({ ...defaultNotificationPreferences, follows: false })
+      notificationPreferencesCacheKey('user-1'),
+      JSON.stringify({ enabled: true, preferences: { ...defaultNotificationPreferences, follows: false } })
     );
 
     await expect(shouldHandleNotification({ kind: 'follow_request' })).resolves.toBe(false);
@@ -79,15 +88,18 @@ describe('notification preferences', () => {
 
   it('suppresses disabled mention notifications', async () => {
     await AsyncStorage.setItem(
-      notificationPreferencesKey,
-      JSON.stringify({ ...defaultNotificationPreferences, mentions: false })
+      notificationPreferencesCacheKey('user-1'),
+      JSON.stringify({ enabled: true, preferences: { ...defaultNotificationPreferences, mentions: false } })
     );
 
     await expect(shouldHandleNotification({ kind: 'mention' })).resolves.toBe(false);
   });
 
   it('suppresses all notifications when push is disabled locally', async () => {
-    await AsyncStorage.setItem(pushNotificationsEnabledKey, 'false');
+    await AsyncStorage.setItem(
+      notificationPreferencesCacheKey('user-1'),
+      JSON.stringify({ enabled: false, preferences: defaultNotificationPreferences })
+    );
 
     await expect(shouldHandleNotification({ kind: 'like' })).resolves.toBe(false);
   });
@@ -105,5 +117,56 @@ describe('notification preferences', () => {
     expect(persisted.push_enabled).toBe(true);
     expect(persisted.messages).toBe(false);
     expect(Object.keys(persisted).some((key) => key.toLowerCase().includes('email'))).toBe(false);
+  });
+
+  it('keeps two accounts in separate validated local caches', async () => {
+    await AsyncStorage.setItem(notificationPreferencesCacheKey('account-a'), JSON.stringify({
+      enabled: true,
+      preferences: { ...defaultNotificationPreferences, likes: false }
+    }));
+    await AsyncStorage.setItem(notificationPreferencesCacheKey('account-b'), JSON.stringify({
+      enabled: false,
+      preferences: { ...defaultNotificationPreferences, messages: false }
+    }));
+
+    await expect(getCachedNotificationSettings('account-a')).resolves.toMatchObject({ enabled: true, preferences: { likes: false } });
+    await expect(getCachedNotificationSettings('account-b')).resolves.toMatchObject({ enabled: false, preferences: { messages: false } });
+  });
+
+  it('removes malformed cache and falls back to server-authoritative settings', async () => {
+    await AsyncStorage.setItem(notificationPreferencesCacheKey('account-a'), '{not-json');
+    mockPreferenceSelect.mockResolvedValue({
+      data: { push_enabled: false, likes: false, comments: true, mentions: true, follows: true, messages: true, events: true, invites: true },
+      error: null
+    });
+
+    await expect(hydrateNotificationSettings('account-a')).resolves.toMatchObject({ enabled: false, preferences: { likes: false } });
+    await expect(AsyncStorage.getItem(notificationPreferencesCacheKey('account-a'))).resolves.toContain('"enabled":false');
+  });
+
+  it('uses the same-account cache during an offline server failure', async () => {
+    await AsyncStorage.setItem(notificationPreferencesCacheKey('offline-user'), JSON.stringify({
+      enabled: true,
+      preferences: { ...defaultNotificationPreferences, invites: false }
+    }));
+    mockPreferenceSelect.mockResolvedValue({ data: null, error: new Error('offline') });
+
+    await expect(hydrateNotificationSettings('offline-user')).resolves.toMatchObject({ preferences: { invites: false } });
+  });
+
+  it('rejects failed server saves so the settings screen can roll back and retry', async () => {
+    mockPreferenceUpsert.mockResolvedValueOnce({ error: new Error('server unavailable') });
+
+    await expect(saveNotificationPreferences(false, defaultNotificationPreferences)).rejects.toThrow('server unavailable');
+  });
+
+  it('queues an offline installation revocation and retries it for the same account', async () => {
+    mockPushRpc.mockResolvedValueOnce({ error: new Error('offline') }).mockResolvedValueOnce({ error: null });
+
+    await expect(revokePushTokensForCurrentInstallation('user-1')).rejects.toThrow('offline');
+    await flushPendingPushRevocations('user-1');
+
+    expect(mockPushRpc).toHaveBeenCalledWith('revoke_push_installation', expect.objectContaining({ target_device_id: expect.any(String) }));
+    expect(mockPushRpc).toHaveBeenCalledTimes(2);
   });
 });

@@ -17,6 +17,8 @@ import { act } from '@testing-library/react-native';
 const mockSetNotificationUnreadCount = jest.fn();
 const mockCountUnread = jest.fn().mockResolvedValue(3);
 const mockRegisterForPush = jest.fn().mockResolvedValue('ExponentPushToken[test]');
+const mockHydrateNotificationSettings = jest.fn().mockResolvedValue({ enabled: true });
+const mockRevokePushInstallation = jest.fn().mockResolvedValue(undefined);
 
 // Notification-listener mocks
 const mockRemoveForeground = jest.fn();
@@ -50,6 +52,8 @@ jest.mock('@/lib/notifications', () => ({
   // Closure over mockNativePlatform — updated in beforeEach, read at call time
   isNativePlatform: () => mockNativePlatform,
   registerForPushNotificationsAsync: (...args: unknown[]) => mockRegisterForPush(...args),
+  hydrateNotificationSettings: (...args: unknown[]) => mockHydrateNotificationSettings(...args),
+  revokePushTokensForCurrentInstallation: (...args: unknown[]) => mockRevokePushInstallation(...args),
   shouldHandleNotification: jest.fn().mockResolvedValue(true)
 }));
 
@@ -101,6 +105,8 @@ describe('usePushNotifications', () => {
     // Restore safe defaults after clearAllMocks resets all mock implementations
     mockCountUnread.mockResolvedValue(3);
     mockRegisterForPush.mockResolvedValue('ExponentPushToken[test]');
+    mockHydrateNotificationSettings.mockResolvedValue({ enabled: true });
+    mockRevokePushInstallation.mockResolvedValue(undefined);
     mockGetLastResponse.mockResolvedValue(null);
     mockAddReceivedListener.mockReturnValue({ remove: mockRemoveForeground });
     mockAddResponseListener.mockReturnValue({ remove: mockRemoveResponse });
@@ -194,6 +200,14 @@ describe('usePushNotifications', () => {
         await renderHook(() => usePushNotifications());
       });
       expect(mockRegisterForPush).toHaveBeenCalledTimes(1);
+    });
+
+    it('revokes rather than registers when the server master setting is disabled', async () => {
+      mockHydrateNotificationSettings.mockResolvedValueOnce({ enabled: false });
+      await act(async () => { await renderHook(() => usePushNotifications()); });
+
+      expect(mockRevokePushInstallation).toHaveBeenCalledWith('user-1');
+      expect(mockRegisterForPush).not.toHaveBeenCalled();
     });
 
     it('routes to the correct screen when a last-notification response exists', async () => {

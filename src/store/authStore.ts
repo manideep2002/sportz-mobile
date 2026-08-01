@@ -5,6 +5,7 @@ import { authService, type AuthResult, type RegisterInput } from '@/services/aut
 import { profileService, type CompleteAuthProfileInput } from '@/services/profileService';
 import { sessionDataService } from '@/services/sessionDataService';
 import { registrationAvatarService } from '@/services/registrationAvatarService';
+import { hydrateNotificationSettings } from '@/lib/notifications';
 import type { UserProfile } from '@/types/domain';
 
 export type AuthStatus =
@@ -187,6 +188,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     promise = (async () => {
       try {
         if (switchingUsers) await sessionDataService.clearUserScopedData();
+        // Server preferences are authoritative; a namespaced cache keeps startup/offline handling scoped.
+        void hydrateNotificationSettings(session.user.id).catch(() => undefined);
         const profileState = await profileService.getAuthProfileState(session.user.id);
         if (transitionId !== authTransitionId) return;
         const liveSession = get().session;

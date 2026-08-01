@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,12 +9,13 @@ import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import {
   defaultNotificationPreferences,
+  hydrateNotificationSettings,
   saveNotificationPreferences,
-  notificationPreferencesKey,
-  pushNotificationsEnabledKey,
+  subscribeToNotificationSettings,
   type NotificationPreferenceKey
 } from '@/lib/notifications';
 import type { AppStackParamList } from '@/navigation/routes';
+import { supabase } from '@/lib/supabase';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 const notificationTypes: NotificationPreferenceKey[] = [
@@ -30,32 +30,56 @@ const notificationTypes: NotificationPreferenceKey[] = [
 
 export function NotificationSettingsScreen() {
   const navigation = useNavigation<Navigation>();
+  const { colors: theme } = useAppTheme();
+  const [userId, setUserId] = useState<string | undefined>();
   const [enabled, setEnabled] = useState(true);
   const [preferences, setPreferences] = useState<Record<NotificationPreferenceKey, boolean>>(defaultNotificationPreferences);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void (async () => {
-      setEnabled((await AsyncStorage.getItem(pushNotificationsEnabledKey)) !== 'false');
-      const saved = await AsyncStorage.getItem(notificationPreferencesKey);
-      if (saved) {
-        setPreferences({
-          ...defaultNotificationPreferences,
-          ...(JSON.parse(saved) as Partial<Record<NotificationPreferenceKey, boolean>>)
-        });
-      }
-    })();
+    void supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)).catch(() => setUserId(undefined));
   }, []);
 
+  useEffect(() => {
+    if (!userId) { setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    void hydrateNotificationSettings(userId)
+      .then((settings) => { if (active) { setEnabled(settings.enabled); setPreferences(settings.preferences); setError(null); } })
+      .catch(() => { if (active) setError('Could not load notification preferences. Try again.'); })
+      .finally(() => { if (active) setLoading(false); });
+    const unsubscribe = subscribeToNotificationSettings(userId, (settings) => {
+      if (!active) return;
+      setEnabled(settings.enabled);
+      setPreferences(settings.preferences);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [userId]);
+
+  const persist = async (nextEnabled: boolean, nextPreferences: Record<NotificationPreferenceKey, boolean>) => {
+    const previous = { enabled, preferences };
+    setEnabled(nextEnabled);
+    setPreferences(nextPreferences);
+    setSaving(true);
+    setError(null);
+    try {
+      await saveNotificationPreferences(nextEnabled, nextPreferences);
+    } catch {
+      setEnabled(previous.enabled);
+      setPreferences(previous.preferences);
+      setError('Could not save notification preferences. Your previous settings were restored. Try again.');
+    } finally { setSaving(false); }
+  };
+
   const toggleEnabled = async () => {
-    const next = !enabled;
-    setEnabled(next);
-    await saveNotificationPreferences(next, preferences);
+    await persist(!enabled, preferences);
   };
 
   const togglePreference = async (key: NotificationPreferenceKey) => {
     const next = { ...preferences, [key]: !preferences[key] };
-    setPreferences(next);
-    await saveNotificationPreferences(enabled, next);
+    await persist(enabled, next);
   };
 
   return (
@@ -68,31 +92,35 @@ export function NotificationSettingsScreen() {
       <AppText variant="bodyMuted">
         Activity notifications remain available in the in-app Notifications screen. These controls only change push alerts.
       </AppText>
+      {loading ? <AppText variant="small" accessibilityRole="progressbar">Loading notification preferences…</AppText> : null}
+      {error ? <AppText accessibilityRole="alert" style={{ color: theme.danger }}>{error}</AppText> : null}
       <ToggleRow
         label="Push notifications"
         detail="Allow SPORTZ to send activity alerts to this device"
         icon={Bell}
         value={enabled}
+        disabled={saving}
         onPress={toggleEnabled}
       />
       <AppText variant="caption" style={styles.sectionTitle}>Push categories</AppText>
       {notificationTypes.map((type) => (
-        <ToggleRow key={type} label={type[0].toUpperCase() + type.slice(1)} value={preferences[type]} onPress={() => void togglePreference(type)} />
+        <ToggleRow key={type} label={type[0].toUpperCase() + type.slice(1)} value={preferences[type]} disabled={saving} onPress={() => void togglePreference(type)} />
       ))}
     </Screen>
   );
 }
 
-function ToggleRow({ label, detail, value, onPress, icon: Icon }: { label: string; detail?: string; value: boolean; onPress: () => void; icon?: typeof Bell }) {
+function ToggleRow({ label, detail, value, onPress, icon: Icon, disabled }: { label: string; detail?: string; value: boolean; onPress: () => void; icon?: typeof Bell; disabled?: boolean }) {
   const { colors: theme } = useAppTheme();
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={label}
       accessibilityHint={detail}
-      accessibilityState={{ checked: value }}
+      accessibilityState={disabled ? { checked: value, disabled: true } : { checked: value }}
       style={[styles.row, { backgroundColor: theme.surface }]}
       onPress={onPress}
+      disabled={disabled ? true : undefined}
     >
       {Icon ? <Icon size={18} color={theme.accent} /> : null}
       <View style={{ flex: 1 }}>

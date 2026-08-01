@@ -416,8 +416,9 @@ Deno.serve(async (request) => {
   }
 
   const actor = ((profileRows ?? []) as ProfileRow[])[0] ?? null;
-  const title = formatPushTitle(notification, actor).slice(0, 120);
-  const body = formatPushBody(notification).slice(0, 180);
+  // Notification content can be visible on a locked screen. Keep it generic.
+  const title = 'SPORTZ';
+  const body = 'You have a new activity update.';
   const data = buildNotificationData(notification);
 
   const messages: MessageEnvelope[] = activeTokens.map((tokenRow) => ({

@@ -135,8 +135,9 @@ Deno.serve(async () => {
     for (const token of tokens) {
       expoMessages.push({
         to: token,
-        title: notification.title,
-        body: notification.body,
+        // Keep lock-screen text generic; full activity is available after opening the app.
+        title: 'SPORTZ',
+        body: 'You have a new activity update.',
         data: {
           notificationId: notification.id,
           type: notification.kind,
