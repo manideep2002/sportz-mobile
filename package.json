@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
+    "android": "npm run android:generate && npm run android:check -- --variant debug && expo run:android",
+    "android:generate": "expo prebuild --clean --platform android --no-install",
+    "android:check": "node scripts/check-android-cng.mjs",
+    "android:debug:check": "npm run android:generate && npm run android:check -- --variant debug",
+    "android:release:check": "npm run android:generate && npm run android:check -- --variant release",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",

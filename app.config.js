@@ -99,6 +99,7 @@ module.exports = {
           sounds: []
         }
       ],
+      './plugins/with-android-release-signing',
       '@react-native-community/datetimepicker',
       '@sentry/react-native/expo'
     ],
