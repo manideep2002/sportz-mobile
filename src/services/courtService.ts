@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
-import type { Court, CourtAvailabilitySlot, CourtBooking, Sport } from '@/types/domain';
+import type { Court, CourtAvailabilitySlot, CourtBooking, CourtBookingCapabilities, Sport } from '@/types/domain';
 import { captureUnexpectedError } from '@/lib/monitoring';
 import { clampCourtBookingWindowDays } from '@/utils/courtTime';
 
@@ -64,6 +64,7 @@ interface BookingRow {
   created_at?: unknown;
   updated_at?: unknown;
   cancelled_at?: unknown;
+  cancelled_by?: unknown;
   cancellation_reason?: unknown;
   price_cents?: unknown;
   currency?: unknown;
@@ -120,7 +121,35 @@ const fallbackCourtRow = (row: BookingRow): CourtRow => ({
   booking_enabled: false
 });
 
-const mapCourtBookingRow = (row: BookingRow): CourtBooking => {
+/**
+ * Derives what the current authenticated user is permitted to do with a booking.
+ * All mutations are still enforced server-side; this is purely for rendering.
+ */
+export const buildBookingCapabilities = (
+  booking: {
+    userId: string;
+    status: CourtBooking['status'];
+    cancellationDeadline: string;
+  },
+  currentUserId: string | null,
+  isAdmin: boolean
+): CourtBookingCapabilities => {
+  const isOwnBooking = Boolean(currentUserId && currentUserId === booking.userId);
+  const withinDeadline = Date.now() <= new Date(booking.cancellationDeadline).getTime();
+  const isActive = booking.status === 'pending' || booking.status === 'confirmed';
+  return {
+    isOwnBooking,
+    canCancel: isActive && (isAdmin || (isOwnBooking && withinDeadline)),
+    canConfirm: isAdmin && booking.status === 'pending',
+    canViewPlayer: isAdmin
+  };
+};
+
+const mapCourtBookingRow = (
+  row: BookingRow,
+  currentUserId: string | null,
+  isAdmin: boolean
+): CourtBooking => {
   const court = mapCourtRow(row.courts ?? fallbackCourtRow(row));
   const startsAt = textValue(row.starts_at);
   const status = textValue(row.status, 'pending') as CourtBooking['status'];
@@ -140,9 +169,14 @@ const mapCourtBookingRow = (row: BookingRow): CourtBooking => {
     createdAt: textValue(row.created_at),
     updatedAt: textValue(row.updated_at, textValue(row.created_at)),
     cancelledAt: typeof row.cancelled_at === 'string' ? row.cancelled_at : null,
+    cancelledBy: typeof row.cancelled_by === 'string' ? row.cancelled_by : null,
     cancellationReason: typeof row.cancellation_reason === 'string' ? row.cancellation_reason : null,
-    canCancel: (status === 'pending' || status === 'confirmed') && Date.now() <= new Date(cancellationDeadline).getTime(),
-    cancellationDeadline
+    cancellationDeadline,
+    capabilities: buildBookingCapabilities(
+      { userId: textValue(row.user_id), status, cancellationDeadline },
+      currentUserId,
+      isAdmin
+    )
   };
 };
 
@@ -301,11 +335,15 @@ export const courtService = {
       .order('starts_at', { ascending: true })
       .limit(100);
     if (error) throw error;
-    return ((data ?? []) as BookingRow[]).map(mapCourtBookingRow);
+    return ((data ?? []) as BookingRow[]).map((row) =>
+      mapCourtBookingRow(row, authData.user.id, false)
+    );
   },
 
   async listAdminCourtBookings(courtId?: string): Promise<CourtBooking[]> {
     assertSupabaseConfigured();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
     let request = supabase
       .from('court_bookings')
       .select('*, courts:court_id(*), profiles:user_id(*)')
@@ -314,18 +352,22 @@ export const courtService = {
     if (courtId) request = request.eq('court_id', courtId);
     const { data, error } = await request;
     if (error) throw error;
-    return ((data ?? []) as BookingRow[]).map(mapCourtBookingRow);
+    return ((data ?? []) as BookingRow[]).map((row) =>
+      mapCourtBookingRow(row, authData?.user?.id ?? null, true)
+    );
   },
 
-  async getBooking(bookingId: string): Promise<CourtBooking> {
+  async getBooking(bookingId: string, isAdmin = false): Promise<CourtBooking> {
     assertSupabaseConfigured();
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData?.user?.id ?? null;
     const { data, error } = await supabase
       .from('court_bookings')
       .select('*, courts:court_id(*), profiles:user_id(*)')
       .eq('id', bookingId)
       .single();
     if (error) throw error;
-    return mapCourtBookingRow(data as BookingRow);
+    return mapCourtBookingRow(data as BookingRow, currentUserId, isAdmin);
   },
 
   async cancelBooking(bookingId: string, reason?: string): Promise<void> {
@@ -339,13 +381,18 @@ export const courtService = {
 
   async updateCourtBookingStatus(
     bookingId: string,
-    status: Extract<CourtBooking['status'], 'confirmed' | 'cancelled'>
+    status: Extract<CourtBooking['status'], 'confirmed' | 'cancelled'>,
+    reason?: string
   ): Promise<void> {
     assertSupabaseConfigured();
     const { error } = await supabase.rpc('update_court_booking_status', {
       target_booking_id: bookingId,
-      target_status: status
+      target_status: status,
+      cancellation_reason: status === 'cancelled' ? (reason?.trim() || null) : null
     });
-    if (error) throw error;
+    if (error) {
+      captureUnexpectedError(error, { operation: 'court.booking.updateStatus', extra: { bookingId, status } });
+      throw error;
+    }
   }
 };

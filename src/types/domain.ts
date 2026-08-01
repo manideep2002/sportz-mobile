@@ -370,6 +370,22 @@ export interface CourtAvailabilitySlot {
   currency: Court['currency'];
 }
 
+/**
+ * What the current authenticated user is permitted to do with this booking.
+ * Derived client-side from booking data + local admin flag; all mutations are
+ * still enforced server-side by the security-definer RPCs.
+ */
+export interface CourtBookingCapabilities {
+  /** Player within cancellation window, OR administrator (no window restriction). */
+  canCancel: boolean;
+  /** Administrator only, when booking.status === 'pending'. */
+  canConfirm: boolean;
+  /** Administrator — may view the booking owner's profile. */
+  canViewPlayer: boolean;
+  /** True when the current user is the booking owner. */
+  isOwnBooking: boolean;
+}
+
 export interface CourtBooking {
   id: ID;
   court: Court;
@@ -382,9 +398,11 @@ export interface CourtBooking {
   createdAt: string;
   updatedAt: string;
   cancelledAt: string | null;
+  /** User ID of whoever triggered the cancellation (player or admin). */
+  cancelledBy: string | null;
   cancellationReason: string | null;
-  canCancel: boolean;
   cancellationDeadline: string;
+  capabilities: CourtBookingCapabilities;
 }
 
 export interface Conversation {

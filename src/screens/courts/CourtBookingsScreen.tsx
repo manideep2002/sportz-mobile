@@ -70,12 +70,19 @@ export function CourtBookingsScreen() {
 
   const setStatus = async (
     booking: CourtBooking,
-    status: Extract<CourtBooking['status'], 'confirmed' | 'cancelled'>
+    status: Extract<CourtBooking['status'], 'confirmed' | 'cancelled'>,
+    reason?: string
   ) => {
     try {
-      await updateStatus.mutateAsync({ bookingId: booking.id, status });
+      await updateStatus.mutateAsync({ bookingId: booking.id, status, reason });
     } catch (error) {
-      Alert.alert('Update failed', error instanceof Error ? error.message : 'Please try again.');
+      const msg = error instanceof Error ? error.message : 'Please try again.';
+      // Surface slot conflict explicitly
+      const isConflict = msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('exclusion');
+      Alert.alert(
+        isConflict ? 'Slot conflict' : 'Update failed',
+        isConflict ? 'That slot was just booked by someone else. Refresh and try again.' : msg
+      );
     }
   };
 
@@ -165,6 +172,7 @@ export function CourtBookingsScreen() {
             <Button
               size="sm"
               variant="dark"
+              accessibilityLabel="View Details"
               onPress={() => navigation.navigate('CourtBookingDetail', {
                 bookingId: booking.id,
                 admin: adminMode
@@ -172,24 +180,31 @@ export function CourtBookingsScreen() {
             >
               View Details
             </Button>
-            {adminMode && booking.status === 'pending' ? (
-              <>
-                <Button
-                  size="sm"
-                  loading={updateStatus.isPending}
-                  onPress={() => void setStatus(booking, 'confirmed')}
-                >
-                  Confirm
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={updateStatus.isPending}
-                  onPress={() => void setStatus(booking, 'cancelled')}
-                >
-                  Cancel
-                </Button>
-              </>
+            {/* Confirm inline — no reason needed */}
+            {booking.capabilities.canConfirm ? (
+              <Button
+                size="sm"
+                loading={updateStatus.isPending}
+                accessibilityLabel="Confirm Booking"
+                onPress={() => void setStatus(booking, 'confirmed')}
+              >
+                Confirm
+              </Button>
+            ) : null}
+            {/* Admin cancel → navigate to detail for reason capture */}
+            {booking.capabilities.canCancel && booking.capabilities.canViewPlayer ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={updateStatus.isPending}
+                accessibilityLabel="Cancel Booking"
+                onPress={() => navigation.navigate('CourtBookingDetail', {
+                  bookingId: booking.id,
+                  admin: adminMode
+                })}
+              >
+                Cancel
+              </Button>
             ) : null}
           </View>
         </View>

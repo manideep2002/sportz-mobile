@@ -5,6 +5,7 @@ import {
   type CourtCoordinates,
   type CourtFilters
 } from '@/services/courtService';
+import { useAuthStore } from '@/store/authStore';
 
 const courtKeys = {
   all: ['courts'] as const,
@@ -74,21 +75,32 @@ export const useAdminCourtBookings = (courtId?: string, enabled = true) =>
     enabled
   });
 
-export const useCourtBooking = (bookingId: string) =>
-  useQuery({
+/**
+ * Fetches a single booking. Reads `profile.isAdmin` from the local auth store
+ * so that `booking.capabilities` reflects full admin authority when applicable.
+ */
+export const useCourtBooking = (bookingId: string) => {
+  const isAdmin = useAuthStore((state) => Boolean(state.profile?.isAdmin));
+  return useQuery({
     queryKey: courtKeys.booking(bookingId),
-    queryFn: () => courtService.getBooking(bookingId),
+    queryFn: () => courtService.getBooking(bookingId, isAdmin),
     enabled: Boolean(bookingId)
   });
+};
 
 export const useCancelCourtBooking = (bookingId?: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) => courtService.cancelBooking(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      courtService.cancelBooking(id, reason),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: courtKeys.bookings });
       if (bookingId) void queryClient.invalidateQueries({ queryKey: courtKeys.booking(bookingId) });
       void queryClient.invalidateQueries({ queryKey: courtKeys.all });
+    },
+    onError: () => {
+      // Re-fetch so the UI reflects the true server state after a failed cancel.
+      if (bookingId) void queryClient.invalidateQueries({ queryKey: courtKeys.booking(bookingId) });
     }
   });
 };
@@ -98,15 +110,21 @@ export const useUpdateCourtBookingStatus = (courtId?: string) => {
   return useMutation({
     mutationFn: ({
       bookingId,
-      status
+      status,
+      reason
     }: {
       bookingId: string;
       status: 'confirmed' | 'cancelled';
-    }) => courtService.updateCourtBookingStatus(bookingId, status),
+      reason?: string;
+    }) => courtService.updateCourtBookingStatus(bookingId, status, reason),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: courtKeys.adminBookings(courtId) });
       void queryClient.invalidateQueries({ queryKey: courtKeys.bookings });
       void queryClient.invalidateQueries({ queryKey: courtKeys.all });
+    },
+    onError: (_err, { bookingId }) => {
+      // Re-fetch individual booking on conflict or auth failure so list is coherent.
+      void queryClient.invalidateQueries({ queryKey: courtKeys.booking(bookingId) });
     }
   });
 };
