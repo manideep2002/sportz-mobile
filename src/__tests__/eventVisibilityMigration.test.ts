@@ -15,6 +15,10 @@ const validationMigrationPath = path.resolve(
   process.cwd(),
   'supabase/migrations/20260801000004_validate_event_visibility_scope.sql'
 );
+const searchResolutionMigrationPath = path.resolve(
+  process.cwd(),
+  'supabase/migrations/20260801000005_fix_search_content_column_resolution.sql'
+);
 
 describe('event visibility reconciliation migration', () => {
   const sql = fs.readFileSync(migrationPath, 'utf8');
@@ -22,6 +26,7 @@ describe('event visibility reconciliation migration', () => {
   const eventDetailSource = fs.readFileSync(eventDetailPath, 'utf8');
   const searchSql = fs.readFileSync(searchMigrationPath, 'utf8');
   const validationSql = fs.readFileSync(validationMigrationPath, 'utf8');
+  const searchResolutionSql = fs.readFileSync(searchResolutionMigrationPath, 'utf8');
 
   it('keeps public and follower events independent while limiting community events to group or invite', () => {
     expect(sql).toMatch(/community_id is null and visibility in \('public', 'followers', 'invite'\)/i);
@@ -41,6 +46,8 @@ describe('event visibility reconciliation migration', () => {
     expect(searchSql).toContain('public.can_access_sport_event(e.id)');
     expect(searchSql).toContain('public.can_discover_sport_event(e.organizer_id, e.visibility)');
     expect(searchSql).toContain('position(legacy_filter in search_definition) = 0');
+    expect(searchResolutionSql).toContain('#variable_conflict use_column');
+    expect(searchResolutionSql).toContain('search_content(text,text,integer,integer)');
   });
 
   it('serializes joins and RSVP writes against the event row', () => {
