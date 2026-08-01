@@ -50,7 +50,7 @@ const navigateForNotification = (
   notification: SportzNotification
 ) => {
   if (navigateFromNotificationData(navigationRef, notificationToRouteData(notification))) {
-    return;
+    return true;
   }
 
   const { kind, entityId, entityType, actor } = notification;
@@ -89,6 +89,7 @@ const navigateForNotification = (
       navigation.navigate('MainTabs', { screen: 'ProfileTab' });
       break;
   }
+  return true;
 };
 
 export function NotificationsScreen() {
@@ -125,17 +126,17 @@ export function NotificationsScreen() {
   }, [refetch]);
 
   const handleNotificationPress = (notification: SportzNotification) => {
-    if (!notification.read) {
+    const navigated = navigateForNotification(navigation, notification);
+    if (navigated && !notification.read) {
       markAsRead.mutate(notification.id);
     }
-    navigateForNotification(navigation, notification);
   };
 
   const handleCtaPress = (notification: SportzNotification) => {
-    if (!notification.read) {
+    const navigated = navigateForNotification(navigation, notification);
+    if (navigated && !notification.read) {
       markAsRead.mutate(notification.id);
     }
-    navigateForNotification(navigation, notification);
   };
 
   const handleInviteResponse = (notification: SportzNotification, approve: boolean) => {

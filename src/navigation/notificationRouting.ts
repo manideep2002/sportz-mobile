@@ -1,4 +1,5 @@
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { RootStackParamList } from '@/navigation/routes';
 import type { SportzNotification } from '@/types/domain';
@@ -33,9 +34,59 @@ export type PushNotificationRouteData = {
   booking_id?: unknown;
   offerId?: unknown;
   offer_id?: unknown;
+  securityEventId?: unknown;
+  security_event_id?: unknown;
 };
 
 const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
+const pendingNotificationDestinationKey = 'sportz.pending-notification-destination.v1';
+
+export const normalizeNotificationDestination = (data: PushNotificationRouteData): PushNotificationRouteData => {
+  const normalized = Object.fromEntries(
+    Object.entries(data).flatMap(([key, value]) => {
+      const string = stringValue(value);
+      return string ? [[key, string]] : [];
+    })
+  );
+  return normalized as PushNotificationRouteData;
+};
+
+export const pendingNotificationDestination = {
+  async save(data: PushNotificationRouteData): Promise<void> {
+    const normalized = normalizeNotificationDestination(data);
+    await AsyncStorage.setItem(pendingNotificationDestinationKey, JSON.stringify(normalized));
+  },
+  async peek(): Promise<PushNotificationRouteData | null> {
+    try {
+      const raw = await AsyncStorage.getItem(pendingNotificationDestinationKey);
+      return raw ? normalizeNotificationDestination(JSON.parse(raw) as PushNotificationRouteData) : null;
+    } catch {
+      await AsyncStorage.removeItem(pendingNotificationDestinationKey);
+      return null;
+    }
+  },
+  async clear(): Promise<void> {
+    await AsyncStorage.removeItem(pendingNotificationDestinationKey);
+  }
+};
+
+let openingPendingNotification = false;
+export async function openPendingNotificationDestination(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  authenticated: boolean
+): Promise<boolean> {
+  if (!authenticated || !navigationRef.isReady() || openingPendingNotification) return false;
+  openingPendingNotification = true;
+  try {
+    const destination = await pendingNotificationDestination.peek();
+    if (!destination) return false;
+    const handled = navigateFromNotificationData(navigationRef, destination);
+    if (handled) await pendingNotificationDestination.clear();
+    return handled;
+  } finally {
+    openingPendingNotification = false;
+  }
+}
 
 export const notificationToRouteData = (notification: SportzNotification): PushNotificationRouteData => ({
   ...(notification.data ?? {}),
@@ -54,7 +105,8 @@ export const notificationToRouteData = (notification: SportzNotification): PushN
       ? notification.entityId
       : undefined,
   bookingId: notification.entityType === 'court_booking' ? notification.entityId : undefined,
-  offerId: notification.entityType === 'team_offer' ? notification.entityId : undefined
+  offerId: notification.entityType === 'team_offer' ? notification.entityId : undefined,
+  securityEventId: notification.entityType === 'security_event' ? notification.entityId : undefined
 });
 
 export function navigateFromNotificationData(
@@ -66,6 +118,12 @@ export function navigateFromNotificationData(
   const screen = stringValue(data.screen);
   const entityType = stringValue(data.entityType) ?? stringValue(data.entity_type);
   const entityId = stringValue(data.entityId) ?? stringValue(data.entity_id);
+  const kind = stringValue(data.kind) ?? stringValue(data.type);
+
+  if (kind === 'security' || entityType === 'security_event' || stringValue(data.securityEventId) || stringValue(data.security_event_id)) {
+    navigationRef.navigate('App', { screen: 'AccountSecurity' });
+    return true;
+  }
 
   const postId =
     stringValue(data.postId) ??
@@ -157,7 +215,6 @@ export function navigateFromNotificationData(
   }
 
   // Achievement notifications → own profile tab (no entity ID needed).
-  const kind = stringValue(data.kind) ?? stringValue(data.type);
   if (kind === 'achievement') {
     navigationRef.navigate('App', { screen: 'MainTabs', params: { screen: 'ProfileTab' } });
     return true;

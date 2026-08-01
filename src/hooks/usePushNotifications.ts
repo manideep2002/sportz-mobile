@@ -9,7 +9,11 @@ import {
   shouldHandleNotification
 } from '@/lib/notifications';
 import { navigationRef } from '@/navigation/navigationRef';
-import { navigateFromNotificationData, type PushNotificationRouteData } from '@/navigation/notificationRouting';
+import {
+  openPendingNotificationDestination,
+  pendingNotificationDestination,
+  type PushNotificationRouteData
+} from '@/navigation/notificationRouting';
 import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
@@ -18,6 +22,7 @@ import { captureUnexpectedError } from '@/lib/monitoring';
 
 export const usePushNotifications = () => {
   const userId = useAuthStore((state) => state.user?.id);
+  const authStatus = useAuthStore((state) => state.authStatus);
   const setNotificationUnreadCount = useUiStore((state) => state.setNotificationUnreadCount);
   const handleNewRealtimeNotification = useCallback(() => {}, []);
 
@@ -29,10 +34,11 @@ export const usePushNotifications = () => {
       const data = response.notification.request.content.data as PushNotificationRouteData;
       void (async () => {
         if (!(await shouldHandleNotification(data as Record<string, unknown>))) return;
-        navigateFromNotificationData(navigationRef, data);
+        await pendingNotificationDestination.save(data);
+        await openPendingNotificationDestination(navigationRef, authStatus === 'signedIn');
       })();
     },
-    []
+    [authStatus]
   );
 
   useEffect(() => {

@@ -26,7 +26,8 @@ const mockRemoveResponse = jest.fn();
 const mockAddReceivedListener = jest.fn().mockReturnValue({ remove: mockRemoveForeground });
 const mockAddResponseListener = jest.fn().mockReturnValue({ remove: mockRemoveResponse });
 const mockGetLastResponse = jest.fn().mockResolvedValue(null);
-const mockNavigateFromNotificationData = jest.fn();
+const mockSavePendingNotification = jest.fn().mockResolvedValue(undefined);
+const mockOpenPendingNotification = jest.fn().mockResolvedValue(true);
 
 // Realtime notification mock
 const mockUseRealtimeNotifications = jest.fn();
@@ -64,8 +65,8 @@ jest.mock('@/services/notificationService', () => ({
 }));
 
 jest.mock('@/store/authStore', () => ({
-  useAuthStore: (selector: (s: { user: { id: string } | null }) => unknown) =>
-    selector({ user: { id: 'user-1' } })
+  useAuthStore: (selector: (s: { user: { id: string } | null; authStatus: string }) => unknown) =>
+    selector({ user: { id: 'user-1' }, authStatus: 'signedIn' })
 }));
 
 jest.mock('@/store/uiStore', () => ({
@@ -80,8 +81,8 @@ jest.mock('@/hooks/useNotifications', () => ({
 
 jest.mock('@/navigation/navigationRef', () => ({ navigationRef: {} }));
 jest.mock('@/navigation/notificationRouting', () => ({
-  navigateFromNotificationData: (...args: unknown[]) =>
-    mockNavigateFromNotificationData(...args)
+  pendingNotificationDestination: { save: (...args: unknown[]) => mockSavePendingNotification(...args) },
+  openPendingNotificationDestination: (...args: unknown[]) => mockOpenPendingNotification(...args)
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
@@ -107,6 +108,8 @@ describe('usePushNotifications', () => {
     mockRegisterForPush.mockResolvedValue('ExponentPushToken[test]');
     mockHydrateNotificationSettings.mockResolvedValue({ enabled: true });
     mockRevokePushInstallation.mockResolvedValue(undefined);
+    mockSavePendingNotification.mockResolvedValue(undefined);
+    mockOpenPendingNotification.mockResolvedValue(true);
     mockGetLastResponse.mockResolvedValue(null);
     mockAddReceivedListener.mockReturnValue({ remove: mockRemoveForeground });
     mockAddResponseListener.mockReturnValue({ remove: mockRemoveResponse });
@@ -227,10 +230,31 @@ describe('usePushNotifications', () => {
         await renderHook(() => usePushNotifications());
       });
 
-      expect(mockNavigateFromNotificationData).toHaveBeenCalledWith(
-        expect.anything(),
-        fakeResponse.notification.request.content.data
-      );
+      expect(mockSavePendingNotification).toHaveBeenCalledWith(fakeResponse.notification.request.content.data);
+      expect(mockOpenPendingNotification).toHaveBeenCalledWith(expect.anything(), true);
+    });
+
+    it('queues and opens a foreground notification tap through the same pending route', async () => {
+      await act(async () => {
+        await renderHook(() => usePushNotifications());
+      });
+
+      const responseListener = mockAddResponseListener.mock.calls[0][0] as (response: unknown) => void;
+      const fakeResponse = {
+        notification: {
+          request: {
+            content: { data: { kind: 'security', entityType: 'security_event', entityId: 'security-1' } }
+          }
+        }
+      };
+
+      await act(async () => {
+        responseListener(fakeResponse);
+        await Promise.resolve();
+      });
+
+      expect(mockSavePendingNotification).toHaveBeenCalledWith(fakeResponse.notification.request.content.data);
+      expect(mockOpenPendingNotification).toHaveBeenCalledWith(expect.anything(), true);
     });
 
     it('handles a rejected getLastNotificationResponseAsync without unhandled rejection', async () => {
@@ -259,7 +283,8 @@ describe('usePushNotifications', () => {
         await renderHook(() => usePushNotifications());
       });
 
-      expect(mockNavigateFromNotificationData).not.toHaveBeenCalled();
+      expect(mockSavePendingNotification).not.toHaveBeenCalled();
+      expect(mockOpenPendingNotification).not.toHaveBeenCalled();
     });
 
     it('calls remove() on both listeners during cleanup', async () => {

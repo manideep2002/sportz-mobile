@@ -297,6 +297,11 @@ describe('navigateFromNotificationData', () => {
     });
   });
 
+  it('routes security and security-event notifications to Account Security', () => {
+    navigate({ kind: 'security', entityType: 'security_event', entityId: 'security-1' });
+    expect(mockNavigate).toHaveBeenCalledWith('App', { screen: 'AccountSecurity' });
+  });
+
   // ── Generic fallback ──────────────────────────────────────────────────────────
 
   it('falls back to Notifications screen for unknown payload', () => {
@@ -404,5 +409,15 @@ describe('notificationToRouteData', () => {
     const data = notificationToRouteData({ ...base, kind: 'comment' });
     expect(data.kind).toBe('comment');
     expect(data.type).toBe('comment');
+  });
+
+  it('maps a security event to the typed security destination', () => {
+    const data = notificationToRouteData({
+      ...base,
+      kind: 'security',
+      entityType: 'security_event',
+      entityId: 'security-42'
+    });
+    expect(data.securityEventId).toBe('security-42');
   });
 });

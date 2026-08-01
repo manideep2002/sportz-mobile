@@ -77,6 +77,7 @@ import {
   parseCanonicalDestination,
   pendingCanonicalDestination
 } from '@/services/canonicalLinkService';
+import { openPendingNotificationDestination } from '@/navigation/notificationRouting';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -240,8 +241,13 @@ export function RootNavigator() {
     } as NavigatorScreenParams<AppStackParamList>);
   };
 
+  const openPendingNotification = async () => {
+    await openPendingNotificationDestination(navigationRef, authenticated);
+  };
+
   useEffect(() => {
     void openPendingDestination();
+    void openPendingNotification();
     // Navigation readiness is handled by onReady; this effect handles login/profile completion.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated]);
@@ -264,6 +270,7 @@ export function RootNavigator() {
         registerNavigationContainer(navigationRef);
         recordNavigationRoute(navigationRef.getCurrentRoute()?.name);
         void openPendingDestination();
+        void openPendingNotification();
       }}
       onStateChange={() => {
         recordNavigationRoute(navigationRef.getCurrentRoute()?.name);
