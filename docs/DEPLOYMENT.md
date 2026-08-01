@@ -69,7 +69,30 @@ eas submit --platform ios --profile production
 eas update --branch production --message "SPORTZ production update"
 ```
 
-Only ship OTA updates for JavaScript/assets. Native dependency changes require a new binary build.
+SPORTZ uses Expo's `fingerprint` runtime policy. EAS derives a different runtime compatibility value whenever native dependencies, config plugins, permissions, or native configuration change. Preview and production remain isolated on their respective `preview` and `production` channels.
+
+Before every build or update, run:
+
+```bash
+npm run config:runtime
+```
+
+This resolves the iOS and Android fingerprints and is enforced in CI for native configuration and dependency changes. Use `eas update --channel preview` only for preview binaries and `eas update --channel production` only for production binaries. Native changes require a new binary build; an update published under a new fingerprint is deliberately not delivered to older incompatible binaries.
+
+### Existing 1.0.0 installs
+
+Already-installed 1.0.0 binaries were built with the old `appVersion` runtime (`1.0.0`). Do not publish a fingerprint-runtime update expecting those clients to receive it. Release a new 1.0.0+ binary (with a store build number increment) first; it will use the new fingerprint runtime. Keep any essential JavaScript-only hotfix for legacy 1.0.0 clients on the old runtime only until the replacement binary rollout is complete, then retire that legacy update branch.
+
+## Location permission scope
+
+SPORTZ requests location only while the app is in use for court discovery and optional city/location tagging. It does not request Always location, background location, or a location foreground service. After changing location configuration, regenerate and inspect native projects before shipping:
+
+```bash
+npx expo prebuild --clean --platform ios --no-install
+npx expo prebuild --clean --platform android --no-install
+```
+
+Confirm iOS `Info.plist` contains `NSLocationWhenInUseUsageDescription` but no `NSLocationAlways*` keys or `UIBackgroundModes` `location` entry; confirm Android has no `ACCESS_BACKGROUND_LOCATION` or location foreground-service permission. On a physical iPhone, install the new binary, choose **Allow While Using App**, verify nearby-court and location-tag actions work in the foreground, then background/lock the app and verify no additional location prompt or background indicator appears.
 
 ## Supabase Edge Functions
 

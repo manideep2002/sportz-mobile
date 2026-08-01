@@ -75,7 +75,12 @@ module.exports = {
       [
         'expo-location',
         {
-          locationAlwaysAndWhenInUsePermission: 'SPORTZ uses location to recommend courts and events near you.'
+          locationWhenInUsePermission: 'SPORTZ uses location to show nearby courts and local events.',
+          locationAlwaysAndWhenInUsePermission: false,
+          locationAlwaysPermission: false,
+          isIosBackgroundLocationEnabled: false,
+          isAndroidBackgroundLocationEnabled: false,
+          isAndroidForegroundServiceEnabled: false
         }
       ],
       [
@@ -132,7 +137,7 @@ module.exports = {
       url: 'https://u.expo.dev/2961c035-fb1f-4581-8f72-798e998d175a'
     },
     runtimeVersion: {
-      policy: 'appVersion'
+      policy: 'fingerprint'
     }
   }
 };
