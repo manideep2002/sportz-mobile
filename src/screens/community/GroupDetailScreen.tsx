@@ -45,6 +45,7 @@ import { profileService } from '@/services/profileService';
 import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 import { useAuthStore } from '@/store/authStore';
 import type { CommunityJoinRequest, CommunityMember, CommunityMemberRole, UserProfile } from '@/types/domain';
+import { getCommunityMemberManagementCapabilities } from '@/utils/communityCapabilities';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'GroupDetail'>;
@@ -103,6 +104,8 @@ export function GroupDetailScreen() {
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState<UserProfile[]>([]);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
 
   const refreshAll = async () => {
     const tasks: Promise<unknown>[] = [refetch()];
@@ -360,12 +363,17 @@ export function GroupDetailScreen() {
               {!membersLoading && !membersIsError && members.length === 0 ? (
                 <AppText variant="bodyMuted">No members yet.</AppText>
               ) : null}
-              {members.map((member) => (
+              {memberActionError ? <AppText accessibilityRole="alert" style={{ color: theme.danger }}>{memberActionError}</AppText> : null}
+              {members.map((member) => {
+                const capabilities = getCommunityMemberManagementCapabilities(community, member, currentUserId);
+                return (
                 <MemberRow
                   key={member.userId}
                   member={member}
-                  canManage={Boolean(community.isOwner) && member.userId !== currentUserId && member.role !== 'owner'}
+                  canChangeRole={capabilities.canChangeRole}
+                  canRemove={capabilities.canRemove}
                   busy={updateMemberRole.isPending || removeMember.isPending}
+                  removing={removingMemberId === member.userId}
                   onToggleAdmin={() => updateMemberRole.mutate(
                     { userId: member.userId, role: member.role === 'admin' ? 'member' : 'admin' },
                     {
@@ -380,16 +388,23 @@ export function GroupDetailScreen() {
                       {
                         text: 'Remove',
                         style: 'destructive',
-                        onPress: () => removeMember.mutate(member.userId, {
-                          onError: (error) => {
-                            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
-                          }
-                        })
+                        onPress: () => {
+                          setMemberActionError(null);
+                          setRemovingMemberId(member.userId);
+                          removeMember.mutate(member.userId, {
+                            onSuccess: () => setRemovingMemberId(null),
+                            onError: (error) => {
+                              setRemovingMemberId(null);
+                              setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
+                            }
+                          });
+                        }
                       }
                     ]);
                   }}
                 />
-              ))}
+                );
+              })}
             </View>
 
             <View style={styles.section}>
@@ -563,14 +578,18 @@ function JoinRequestsList({
 
 function MemberRow({
   member,
-  canManage,
+  canChangeRole,
+  canRemove,
   busy,
+  removing,
   onToggleAdmin,
   onRemove
 }: {
   member: CommunityMember;
-  canManage: boolean;
+  canChangeRole: boolean;
+  canRemove: boolean;
   busy: boolean;
+  removing: boolean;
   onToggleAdmin: () => void;
   onRemove: () => void;
 }) {
@@ -595,9 +614,9 @@ function MemberRow({
         <AppText variant="small">@{member.profile.username}</AppText>
       </View>
       <Badge tone={member.role === 'owner' || member.role === 'admin' ? 'orange' : 'dark'}>{roleLabel(member.role)}</Badge>
-      {canManage ? (
+      {canChangeRole || canRemove ? (
         <View style={styles.memberActions}>
-          <IconButton
+          {canChangeRole ? <IconButton
             icon={Shield}
             size={34}
             iconSize={16}
@@ -605,8 +624,12 @@ function MemberRow({
             accessibilityLabel={member.role === 'admin' ? `Remove admin role from ${member.profile.displayName}` : `Make ${member.profile.displayName} an admin`}
             disabled={busy}
             onPress={onToggleAdmin}
-          />
-          <IconButton icon={UserMinus} size={34} iconSize={16} color={theme.danger} accessibilityLabel={`Remove ${member.profile.displayName} from community`} disabled={busy} onPress={onRemove} />
+          /> : null}
+          {canRemove ? (removing ? (
+            <ActivityIndicator accessibilityLabel={`Removing ${member.profile.displayName}`} color={theme.danger} />
+          ) : (
+            <IconButton icon={UserMinus} size={34} iconSize={16} color={theme.danger} accessibilityLabel={`Remove ${member.profile.displayName} from community`} disabled={busy} onPress={onRemove} />
+          )) : null}
         </View>
       ) : null}
     </View>

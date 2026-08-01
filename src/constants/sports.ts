@@ -13,7 +13,9 @@ export const allSports: Sport[] = [
   'Tennis',
   'Table Tennis',
   'Swimming',
-  'Cycling'
+  'Cycling',
+  'Boxing',
+  'Other'
 ];
 
 export const sportsFilters = [

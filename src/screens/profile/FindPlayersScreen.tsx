@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-na
 
 import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, SportIcon, VerifiedName } from '@/components/ui';
 
+import { allSports } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import type { AppStackParamList } from '@/navigation/routes';
@@ -16,7 +17,8 @@ import type { Sport, UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-const sports: ('All Sports' | Sport)[] = ['All Sports', 'Basketball', 'Football', 'Cricket', 'Badminton', 'Tennis'];
+export const playerSportFilters: readonly ('All Sports' | Sport)[] = ['All Sports', ...allSports];
+export const playerSportQueryValue = (sport: 'All Sports' | Sport) => sport === 'All Sports' ? undefined : sport;
 const PAGE_SIZE = 30;
 
 export function FindPlayersScreen() {
@@ -47,7 +49,7 @@ export function FindPlayersScreen() {
     try {
       const results = await profileService.listPlayers(
         nextQuery,
-        nextSport === 'All Sports' ? undefined : nextSport,
+        playerSportQueryValue(nextSport),
         nextPage,
         PAGE_SIZE
       );
@@ -115,7 +117,7 @@ export function FindPlayersScreen() {
         contentContainerStyle={styles.filterContent}
         style={styles.filterScroller}
       >
-        {sports.map((item) => (
+        {playerSportFilters.map((item) => (
           <Chip
             key={item}
             selected={item === sport}

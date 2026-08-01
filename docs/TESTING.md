@@ -29,6 +29,12 @@ npx supabase test db
   is intentionally deferred.
 - Feed: infinite scroll, optimistic like rollback, post create/edit/delete, media upload, comments and replies.
 - Profiles: edit profile, public follow, private follow request accept/decline, hireable filters.
+- Find Players: verify every canonical sport filter, including Kabaddi, Hockey, Athletics, Swimming,
+  Table Tennis, Volleyball, Boxing, and Other, sends its exact stored taxonomy value.
+- Communities: verify owners can remove administrators/members/followers, administrators can remove
+  members/followers but not owners or peer administrators, ordinary members see no management actions,
+  confirmations prevent accidental removal, failed removals roll member caches back, and successful
+  removals appear in the administration audit log.
 - Events: create event, join, waitlist when full, refresh/restart persistence, leave waitlist,
   duplicate join, RSVP, FIFO promotion and promotion notification, concurrent join/leave,
   organizer attendee/waitlist removal, capacity-checked manual promotion, player count updates,

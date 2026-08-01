@@ -144,7 +144,38 @@ export const useRemoveCommunityMember = (communityId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => communityService.removeMember(communityId, userId),
-    onSuccess: () => {
+    onMutate: async (userId) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: communityKeys.members(communityId) }),
+        queryClient.cancelQueries({ queryKey: communityKeys.detail(communityId) })
+      ]);
+      const previousMembers = queryClient.getQueryData(communityKeys.members(communityId));
+      const previousCommunity = queryClient.getQueryData(communityKeys.detail(communityId));
+      queryClient.setQueryData(communityKeys.members(communityId), (members: unknown) =>
+        Array.isArray(members)
+          ? members.filter((member) => (member as { userId?: string }).userId !== userId)
+          : members
+      );
+      queryClient.setQueryData(communityKeys.detail(communityId), (community: unknown) => {
+        if (!community || typeof community !== 'object') return community;
+        const current = community as { memberCount?: number; followerCount?: number };
+        return {
+          ...current,
+          memberCount: Math.max(0, (current.memberCount ?? 0) - 1),
+          followerCount: current.followerCount == null ? current.followerCount : Math.max(0, current.followerCount - 1)
+        };
+      });
+      return { previousMembers, previousCommunity };
+    },
+    onError: (_error, _userId, context) => {
+      if (context?.previousMembers !== undefined) {
+        queryClient.setQueryData(communityKeys.members(communityId), context.previousMembers);
+      }
+      if (context?.previousCommunity !== undefined) {
+        queryClient.setQueryData(communityKeys.detail(communityId), context.previousCommunity);
+      }
+    },
+    onSettled: () => {
       invalidateCommunity(queryClient, communityId);
     }
   });

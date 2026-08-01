@@ -34,7 +34,9 @@ import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { communityService } from '@/services/communityService';
 import { storageService } from '@/services/storageService';
+import { useAuthStore } from '@/store/authStore';
 import type { CommunityMember, CommunityPostingPermission } from '@/types/domain';
+import { getCommunityMemberManagementCapabilities } from '@/utils/communityCapabilities';
 import { timeAgo } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -47,6 +49,7 @@ export function CommunityAdminScreen() {
   const route = useRoute<Route>();
   const { colors: theme } = useAppTheme();
   const communityId = route.params.communityId;
+  const currentUserId = useAuthStore((state) => state.user?.id ?? state.profile?.id);
   const { data: community, isLoading, refetch } = useCommunity(communityId);
   const updateSettings = useUpdateCommunitySettings(communityId);
   const updateRole = useUpdateCommunityMemberRole(communityId);
@@ -80,6 +83,8 @@ export function CommunityAdminScreen() {
   const [memberTotal, setMemberTotal] = useState(0);
   const [memberHasMore, setMemberHasMore] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!community) return;
@@ -184,6 +189,36 @@ export function CommunityAdminScreen() {
             },
             onError: (error) => Alert.alert('Transfer failed', error.message)
           })
+        }
+      ]
+    );
+  };
+
+  const confirmRemoveMember = (member: CommunityMember) => {
+    Alert.alert(
+      'Remove member?',
+      `${member.profile.displayName} will lose access to this community.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setMemberActionError(null);
+            setRemovingMemberId(member.userId);
+            removeMember.mutate(member.userId, {
+              onSuccess: () => {
+                setMembers((current) => current.filter((item) => item.userId !== member.userId));
+                setMemberTotal((current) => Math.max(0, current - 1));
+                setRemovingMemberId(null);
+                void refetchAudit();
+              },
+              onError: (error) => {
+                setRemovingMemberId(null);
+                setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
+              }
+            });
+          }
         }
       ]
     );
@@ -408,19 +443,24 @@ export function CommunityAdminScreen() {
           </View>
           <Button size="sm" variant="dark" onPress={() => void loadMembers(0)}>Search</Button>
         </View>
-        {members.map((member) => (
+        {memberActionError ? <AppText accessibilityRole="alert" style={{ color: theme.danger }}>{memberActionError}</AppText> : null}
+        {members.map((member) => {
+          const capabilities = getCommunityMemberManagementCapabilities(community, member, currentUserId);
+          const hasActions = capabilities.canChangeRole || capabilities.canTransferOwnership || capabilities.canRemove;
+          return (
           <View key={member.userId} style={[styles.memberRow, { borderColor: theme.border }]}>
             <Avatar initials={member.profile.initials} uri={member.profile.avatarUrl} size={42} />
             <View style={styles.memberMeta}>
               <VerifiedName profile={member.profile} numberOfLines={1} />
               <AppText variant="small">{member.role}</AppText>
             </View>
-            {member.role !== 'owner' && isOwner ? (
+            {hasActions ? (
               <View style={styles.memberButtons}>
-                <Button
+                {capabilities.canChangeRole ? <Button
                   size="sm"
                   variant="dark"
                   loading={updateRole.isPending}
+                  disabled={removeMember.isPending}
                   onPress={() => updateRole.mutate({
                     userId: member.userId,
                     role: member.role === 'admin' ? (community.type === 'page' ? 'follower' : 'member') : 'admin'
@@ -433,31 +473,29 @@ export function CommunityAdminScreen() {
                   })}
                 >
                   {member.role === 'admin' ? 'Demote' : 'Admin'}
-                </Button>
-                {member.role !== 'follower' ? (
+                </Button> : null}
+                {capabilities.canTransferOwnership ? (
                   <IconButton
                     accessibilityLabel={`Transfer ownership to ${member.profile.displayName}`}
                     icon={UserCog}
                     onPress={() => confirmTransfer(member)}
                   />
                 ) : null}
-                <IconButton
+                {capabilities.canRemove ? (removingMemberId === member.userId ? (
+                  <ActivityIndicator accessibilityLabel={`Removing ${member.profile.displayName}`} color={theme.danger} />
+                ) : <IconButton
                   accessibilityLabel={`Remove ${member.profile.displayName}`}
                   icon={Trash2}
-                  onPress={() => removeMember.mutate(member.userId, {
-                    onSuccess: () => {
-                      void loadMembers(0);
-                      void refetchAudit();
-                    },
-                    onError: (error) => Alert.alert('Remove failed', error.message)
-                  })}
-                />
+                  disabled={removeMember.isPending || updateRole.isPending}
+                  onPress={() => confirmRemoveMember(member)}
+                />) : null}
               </View>
             ) : (
               <Badge tone={member.role === 'owner' ? 'orange' : 'blue'}>{member.role}</Badge>
             )}
           </View>
-        ))}
+          );
+        })}
         {memberHasMore ? (
           <Button
             size="sm"
