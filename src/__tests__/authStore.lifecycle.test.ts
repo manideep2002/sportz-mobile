@@ -145,6 +145,29 @@ describe('auth lifecycle synchronization', () => {
     });
   });
 
+  it('clears in-memory and persisted user data before loading a different signed-in account', async () => {
+    const previous = createSession('previous');
+    const next = createSession('next');
+    const nextProfile = createProfile('next');
+    useAuthStore.setState({
+      session: previous,
+      user: previous.user,
+      profile: createProfile('previous'),
+      authStatus: 'signedIn',
+      bootstrapped: true
+    });
+    mockGetAuthProfileState.mockResolvedValue({ profile: nextProfile, isComplete: true });
+
+    await useAuthStore.getState().handleAuthStateChange('SIGNED_IN', next);
+
+    expect(mockClearUserScopedData).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      user: next.user,
+      profile: nextProfile,
+      authStatus: 'signedIn'
+    });
+  });
+
   it('uses the same synchronized flow for OAuth ID-token sign-in', async () => {
     const session = createSession('google');
     mockSignInWithIdToken.mockResolvedValue({ session });

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { MutationCache, QueryClient, onlineManager } from '@tanstack/react-query';
+import { MutationCache, QueryClient, onlineManager, type Query } from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { captureUnexpectedError } from '@/lib/monitoring';
 
@@ -52,8 +52,21 @@ queryClient.getQueryCache().subscribe((event) => {
   }
 });
 
+const LEGACY_QUERY_CACHE_KEY = 'SPORTZ_QUERY_CACHE';
+const PUBLIC_QUERY_CACHE_KEY = 'SPORTZ_PUBLIC_QUERY_CACHE_V2';
+
+/** Only public, non-account-specific data may survive an app restart. */
+export const shouldPersistQuery = (query: Query): boolean => {
+  if (query.meta?.persist === false) return false;
+  const [scope, resource] = query.queryKey;
+  return scope === 'search' && resource === 'trending-tags';
+};
+
 export const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
-  key: 'SPORTZ_QUERY_CACHE',
+  key: PUBLIC_QUERY_CACHE_KEY,
   throttleTime: 1000
 });
+
+/** Removes the pre-IG-11 broad cache before it can be restored again. */
+export const clearLegacyPersistedQueryCache = () => AsyncStorage.removeItem(LEGACY_QUERY_CACHE_KEY);

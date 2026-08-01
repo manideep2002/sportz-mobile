@@ -23,6 +23,13 @@
 - Account deletion must go through the `delete-account` Edge Function; never expose auth admin APIs in the client.
 - Run security review on OAuth redirect URLs before App Store submission.
 
+## Client session and cache storage
+
+- Native Supabase sessions use Expo SecureStore (iOS Keychain / Android encrypted keystore), not AsyncStorage. On the first launch after this change, an existing AsyncStorage session is copied only after the secure write succeeds, then the plaintext key is removed. A failed secure write leaves the legacy value intact rather than risking session loss.
+- The generic React Query persister is an explicit public-data allowlist. At present only public trending tags may persist across restart; messages, notifications, account-security data, profiles, saved content, and all other account-scoped queries are memory-only. The lower-level hot cache is also memory-only unless a caller explicitly opts in.
+- The former broad `SPORTZ_QUERY_CACHE` and `SPORTZ_HOT_CACHE` namespaces are never rehydrated and are removed during app bootstrap. Sign-out and account switching cancel requests and clear React Query memory, both persisted cache keys, hot cache entries, story state, and session-scoped UI/messaging state.
+- Adding or changing a native secure-storage dependency changes the Expo fingerprint runtime. Release a new binary before publishing an update that relies on it.
+
 ## Court discovery and bookings
 
 - Court distance, discovery filters, opening state, and future availability are calculated by database RPCs.

@@ -39,6 +39,7 @@ export const useConversation = (conversationId: string) => {
     queryKey: messageKeys.conversation(conversationId),
     queryFn: () => messageService.getConversation(conversationId),
     enabled: Boolean(conversationId),
+    meta: { persist: false },
     placeholderData: () => queryClient
       .getQueryData<Conversation[]>(messageKeys.conversations)
       ?.find((conversation) => conversation.id === conversationId)
@@ -51,14 +52,16 @@ export const useConversations = () => {
     queryKey: messageKeys.conversations,
     queryFn: () => messageService.listConversations(readConversationIds),
     staleTime: 30_000,
-    refetchOnReconnect: true
+    refetchOnReconnect: true,
+    meta: { persist: false }
   });
 };
 
 export const useConversationMessages = (conversationId: string) =>
   useQuery({
     queryKey: messageKeys.messages(conversationId),
-    queryFn: () => messageService.listMessages(conversationId)
+    queryFn: () => messageService.listMessages(conversationId),
+    meta: { persist: false }
   });
 
 export const useMarkConversationRead = (conversationId: string) => {

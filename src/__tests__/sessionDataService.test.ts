@@ -1,6 +1,7 @@
 const mockCancelQueries = jest.fn();
 const mockClearQueries = jest.fn();
 const mockRemoveClient = jest.fn();
+const mockRemoveLegacyClient = jest.fn();
 const mockClearHotCache = jest.fn();
 const mockClearSeenState = jest.fn();
 const mockResetMessaging = jest.fn();
@@ -11,7 +12,8 @@ jest.mock('@/lib/queryClient', () => ({
     cancelQueries: () => mockCancelQueries(),
     clear: () => mockClearQueries()
   },
-  asyncStoragePersister: { removeClient: () => mockRemoveClient() }
+  asyncStoragePersister: { removeClient: () => mockRemoveClient() },
+  clearLegacyPersistedQueryCache: () => mockRemoveLegacyClient()
 }));
 jest.mock('@/services/hotCacheService', () => ({
   hotCacheService: { clearAll: () => mockClearHotCache() }
@@ -34,6 +36,7 @@ describe('sessionDataService', () => {
     jest.clearAllMocks();
     mockCancelQueries.mockResolvedValue(undefined);
     mockRemoveClient.mockResolvedValue(undefined);
+    mockRemoveLegacyClient.mockResolvedValue(undefined);
     mockClearHotCache.mockResolvedValue(undefined);
     mockClearSeenState.mockResolvedValue(undefined);
   });
@@ -46,6 +49,7 @@ describe('sessionDataService', () => {
     expect(mockResetMessaging).toHaveBeenCalledTimes(1);
     expect(mockResetUi).toHaveBeenCalledTimes(1);
     expect(mockRemoveClient).toHaveBeenCalledTimes(1);
+    expect(mockRemoveLegacyClient).toHaveBeenCalledTimes(1);
     expect(mockClearHotCache).toHaveBeenCalledTimes(1);
     expect(mockClearSeenState).toHaveBeenCalledTimes(1);
   });

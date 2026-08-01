@@ -8,10 +8,13 @@ interface CacheEntry<T> {
 
 interface CacheOptions {
   ttlMs: number;
+  /** Persistence is opt-in and reserved for explicitly public cache keys. */
   persist?: boolean;
 }
 
-const STORAGE_PREFIX = 'SPORTZ_HOT_CACHE:';
+const LEGACY_STORAGE_PREFIX = 'SPORTZ_HOT_CACHE:';
+const STORAGE_PREFIX = 'SPORTZ_HOT_CACHE_V2:';
+const PERSISTABLE_PUBLIC_CACHE_KEYS = new Set(['public:trending-tags']);
 const memoryCache = new Map<string, CacheEntry<unknown>>();
 
 const storageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
@@ -52,6 +55,16 @@ const safeRemovePersisted = async (key: string) => {
   }
 };
 
+const clearPersistedByPrefix = async (prefix: string) => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const matchingKeys = keys.filter((key) => key.startsWith(prefix));
+    if (matchingKeys.length) await AsyncStorage.multiRemove(matchingKeys);
+  } catch {
+    // Persisted cache cleanup is best effort; in-memory values are cleared separately.
+  }
+};
+
 export const hotCacheService = {
   async get<T>(key: string): Promise<T | null> {
     const memoryEntry = memoryCache.get(key) as CacheEntry<T> | undefined;
@@ -73,7 +86,7 @@ export const hotCacheService = {
     };
 
     memoryCache.set(key, entry);
-    if (options.persist !== false) {
+    if (options.persist === true && PERSISTABLE_PUBLIC_CACHE_KEYS.has(key)) {
       await safeWritePersisted(key, entry);
     }
 
@@ -100,25 +113,18 @@ export const hotCacheService = {
       }
     }
 
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const matchingKeys = keys.filter((key) => key.startsWith(storageKey(prefix)));
-      if (matchingKeys.length) await AsyncStorage.multiRemove(matchingKeys);
-    } catch {
-      // Persisted cache cleanup is best effort.
-    }
+    await clearPersistedByPrefix(storageKey(prefix));
   },
 
   async clearAll() {
     memoryCache.clear();
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const matchingKeys = keys.filter((key) => key.startsWith(STORAGE_PREFIX));
-      if (matchingKeys.length) await AsyncStorage.multiRemove(matchingKeys);
-    } catch {
-      // Persisted cache cleanup is best effort.
-    }
+    await Promise.all([
+      clearPersistedByPrefix(STORAGE_PREFIX),
+      clearPersistedByPrefix(LEGACY_STORAGE_PREFIX)
+    ]);
   },
+
+  clearLegacyPersistedCache: () => clearPersistedByPrefix(LEGACY_STORAGE_PREFIX),
 
   clearMemory() {
     memoryCache.clear();

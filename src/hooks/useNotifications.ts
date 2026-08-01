@@ -16,7 +16,8 @@ export const notificationKeys = {
 export const useNotifications = () =>
   useQuery({
     queryKey: notificationKeys.all,
-    queryFn: (): Promise<SportzNotification[]> => notificationService.listNotifications()
+    queryFn: (): Promise<SportzNotification[]> => notificationService.listNotifications(),
+    meta: { persist: false }
   });
 
 export const useInfiniteNotifications = () =>
@@ -31,7 +32,8 @@ export const useInfiniteNotifications = () =>
       return lastPage.length === NOTIFICATIONS_PAGE_SIZE
         ? lastPageParam + NOTIFICATIONS_PAGE_SIZE
         : undefined;
-    }
+    },
+    meta: { persist: false }
   });
 
 export const useMarkNotificationsRead = () => {

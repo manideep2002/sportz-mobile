@@ -1,4 +1,8 @@
-import { asyncStoragePersister, queryClient } from '@/lib/queryClient';
+import {
+  asyncStoragePersister,
+  clearLegacyPersistedQueryCache,
+  queryClient
+} from '@/lib/queryClient';
 import { hotCacheService } from '@/services/hotCacheService';
 import { storyService } from '@/services/storyService';
 import { useMessagingStore } from '@/store/messagingStore';
@@ -15,6 +19,7 @@ export const sessionDataService = {
 
     await Promise.allSettled([
       asyncStoragePersister.removeClient(),
+      clearLegacyPersistedQueryCache(),
       hotCacheService.clearAll(),
       storyService.clearSeenState()
     ]);

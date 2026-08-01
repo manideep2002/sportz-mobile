@@ -26,11 +26,33 @@ describe('hotCacheService', () => {
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
-  it('hydrates memory from persisted cache', async () => {
+  it('persists only when explicitly opted in', async () => {
+    await hotCacheService.set('public:trending-tags', { id: 'tag-1' }, { ttlMs: 1000, persist: true });
+    hotCacheService.clearMemory();
+
+    await expect(hotCacheService.get('public:trending-tags')).resolves.toEqual({ id: 'tag-1' });
+  });
+
+  it('keeps private keys in memory only by default', async () => {
     await hotCacheService.set('profile:v1:user-1', { id: 'user-1' }, { ttlMs: 1000 });
     hotCacheService.clearMemory();
 
-    await expect(hotCacheService.get('profile:v1:user-1')).resolves.toEqual({ id: 'user-1' });
+    await expect(hotCacheService.get('profile:v1:user-1')).resolves.toBeNull();
+  });
+
+  it('ignores persistence opt-in for non-allowlisted keys', async () => {
+    await hotCacheService.set('profile:v1:user-1', { id: 'user-1' }, { ttlMs: 1000, persist: true });
+    hotCacheService.clearMemory();
+
+    await expect(hotCacheService.get('profile:v1:user-1')).resolves.toBeNull();
+  });
+
+  it('removes the legacy persisted namespace without rehydrating it', async () => {
+    await AsyncStorage.setItem('SPORTZ_HOT_CACHE:profile:v1:user-1', JSON.stringify({ value: { id: 'user-1' } }));
+
+    await hotCacheService.clearLegacyPersistedCache();
+
+    await expect(AsyncStorage.getItem('SPORTZ_HOT_CACHE:profile:v1:user-1')).resolves.toBeNull();
   });
 
   it('reloads expired values', async () => {
