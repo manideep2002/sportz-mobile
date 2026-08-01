@@ -73,7 +73,7 @@ describe('ManageEventScreen', () => {
   });
 
   it('saves editable fee and date fields after material-change confirmation', async () => {
-    render(<ManageEventScreen />);
+    await render(<ManageEventScreen />);
     await waitFor(() => expect(screen.getByLabelText('Title').props.value).toBe('Friday Hoops'));
 
     fireEvent.changeText(screen.getByLabelText('Entry fee'), '50');
