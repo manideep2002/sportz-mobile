@@ -11,16 +11,23 @@ const searchMigrationPath = path.resolve(
   process.cwd(),
   'supabase/migrations/20260801000003_reconcile_event_search_visibility.sql'
 );
+const validationMigrationPath = path.resolve(
+  process.cwd(),
+  'supabase/migrations/20260801000004_validate_event_visibility_scope.sql'
+);
 
 describe('event visibility reconciliation migration', () => {
   const sql = fs.readFileSync(migrationPath, 'utf8');
   const manageEventSource = fs.readFileSync(manageEventPath, 'utf8');
   const eventDetailSource = fs.readFileSync(eventDetailPath, 'utf8');
   const searchSql = fs.readFileSync(searchMigrationPath, 'utf8');
+  const validationSql = fs.readFileSync(validationMigrationPath, 'utf8');
 
   it('keeps public and follower events independent while limiting community events to group or invite', () => {
     expect(sql).toMatch(/community_id is null and visibility in \('public', 'followers', 'invite'\)/i);
     expect(sql).toMatch(/community_id is not null and visibility in \('group', 'invite'\)/i);
+    expect(validationSql).toMatch(/set visibility = 'group'[\s\S]*?community_id is not null/i);
+    expect(validationSql).toMatch(/validate constraint sport_events_visibility_scope_valid/i);
   });
 
   it('authorizes participation with the same public, follower, group, and invitation rules used for visibility', () => {
