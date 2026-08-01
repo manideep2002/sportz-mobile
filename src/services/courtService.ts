@@ -5,6 +5,7 @@ import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { mapProfileRow } from '@/services/profileMapper';
 import type { Court, CourtAvailabilitySlot, CourtBooking, Sport } from '@/types/domain';
 import { captureUnexpectedError } from '@/lib/monitoring';
+import { clampCourtBookingWindowDays } from '@/utils/courtTime';
 
 export interface CourtCoordinates {
   latitude: number;
@@ -102,7 +103,7 @@ const mapCourtRow = (court: CourtRow): Court => {
     availabilityLabel: openNow ? 'Open now' : futureBookable ? 'Bookable' : 'Unavailable',
     timezone: textValue(court.timezone, 'Asia/Kolkata'),
     slotDurationMinutes: numberValue(court.slot_duration_minutes, 60),
-    bookingWindowDays: numberValue(court.booking_window_days, 30),
+    bookingWindowDays: clampCourtBookingWindowDays(numberValue(court.booking_window_days, 30)),
     cancellationNoticeHours: numberValue(court.cancellation_notice_hours, 6),
     bookingRequiresApproval: court.booking_requires_approval !== false,
     paymentPolicy: court.payment_policy === 'not_required' ? 'not_required' : 'external'

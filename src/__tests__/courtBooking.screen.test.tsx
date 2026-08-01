@@ -9,6 +9,7 @@ const mockRoute = { params: { courtId: 'court-1' } };
 const mockBookCourt = jest.fn();
 const mockRefetchCourt = jest.fn();
 const mockRefetchAvailability = jest.fn();
+const mockAvailabilityArgs = jest.fn();
 
 const court = {
   id: 'court-1',
@@ -55,13 +56,16 @@ jest.mock('@/hooks/useCourts', () => ({
     isRefetching: false,
     refetch: mockRefetchCourt
   }),
-  useCourtAvailability: () => ({
+  useCourtAvailability: (...args: unknown[]) => {
+    mockAvailabilityArgs(...args);
+    return ({
     data: slots,
     isLoading: false,
     isError: false,
     isRefetching: false,
     refetch: mockRefetchAvailability
-  }),
+    });
+  },
   useBookCourt: () => ({
     mutateAsync: (...args: unknown[]) => mockBookCourt(...args),
     isPending: false
@@ -94,6 +98,9 @@ describe('CourtBookingScreen', () => {
 
     expect(screen.getByText('Indiranagar Arena')).toBeTruthy();
     expect(screen.getByText(/Payment is handled directly by the venue/)).toBeTruthy();
+    expect(mockAvailabilityArgs).toHaveBeenCalledWith('court-1', '2026-07-14', '2026-08-12');
+    expect(screen.getByRole('button', { name: 'Next booking dates' })).toBeTruthy();
+    expect(screen.getByText(/Wed, 15 Jul/i).parent?.props.accessibilityState.disabled).toBe(true);
     expect(screen.queryByRole('button', { name: '7:00 PM' })).toBeNull();
 
     await waitFor(() => expect(screen.getByRole('button', { name: /6:00\s*pm/i })).toBeTruthy());

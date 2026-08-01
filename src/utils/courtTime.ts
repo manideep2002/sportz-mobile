@@ -20,6 +20,39 @@ export const courtDateKey = (iso: string, timeZone: string) => {
   return `${parts.year}-${parts.month}-${parts.day}`;
 };
 
+export const clampCourtBookingWindowDays = (value: number) => {
+  if (!Number.isFinite(value)) return 30;
+  return Math.min(90, Math.max(1, Math.trunc(value)));
+};
+
+export const addCourtDateKeyDays = (dateKey: string, amount: number) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount, 12));
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0')
+  ].join('-');
+};
+
+export const buildCourtBookingDateKeys = (
+  nowIso: string,
+  timeZone: string,
+  bookingWindowDays: number
+) => {
+  const start = courtDateKey(nowIso, timeZone);
+  const days = clampCourtBookingWindowDays(bookingWindowDays);
+  return Array.from({ length: days }, (_, index) => addCourtDateKeyDays(start, index));
+};
+
+export const formatCourtDateKey = (dateKey: string) =>
+  new Intl.DateTimeFormat(activeLocale(), {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  }).format(new Date(`${dateKey}T12:00:00.000Z`));
+
 export const formatCourtDate = (iso: string, timeZone: string) =>
   new Intl.DateTimeFormat(activeLocale(), {
     timeZone,

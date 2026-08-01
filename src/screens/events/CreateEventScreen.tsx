@@ -313,25 +313,27 @@ export function CreateEventScreen() {
           </ScrollView>
         </View>
 
-        <View style={styles.group}>
-          <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
-          <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
-            {eventVisibilityOptions.map((option) => (
-              <Chip
-                key={option.value}
-                selected={option.value === visibility}
-                onPress={() => setVisibility(option.value)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </ScrollView>
-          {visibilityDescription ? (
-            <AppText variant="small" style={styles.helper}>
-              {visibilityDescription}
-            </AppText>
-          ) : null}
-        </View>
+        {!communityId ? (
+          <View style={styles.group}>
+            <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
+            <ScrollView horizontal style={styles.chipScroller} contentContainerStyle={styles.chipContent} showsHorizontalScrollIndicator={false}>
+              {eventVisibilityOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  selected={option.value === visibility}
+                  onPress={() => setVisibility(option.value)}
+                >
+                  {option.label}
+                </Chip>
+              ))}
+            </ScrollView>
+            {visibilityDescription ? (
+              <AppText variant="small" style={styles.helper}>
+                {visibilityDescription}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
 
         <Input
           label="Description"

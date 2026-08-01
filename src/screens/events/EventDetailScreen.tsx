@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CalendarDays, ChevronLeft, Clock, Flag, MapPin, Share2, MessageCircle } from 'lucide-react-native';
@@ -38,7 +38,9 @@ type Route = RouteProp<AppStackParamList, 'EventDetail'>;
 
 interface RsvpControlProps {
   event: SportEvent;
-  participationStatus: EventParticipationStatus;
+  participationStatus?: EventParticipationStatus;
+  participationLoading: boolean;
+  participationError: boolean;
   isOrganizer: boolean;
   invitation: { id: string; status: string } | null | undefined;
   joinEvent: ReturnType<typeof useJoinEvent>;
@@ -50,6 +52,8 @@ interface RsvpControlProps {
   onLeave: () => void;
   onLeaveWaitlist: () => void;
   onRespondToInvitation: (accept: boolean) => Promise<void>;
+  onRsvp: (status: 'interested' | 'declined') => Promise<void>;
+  onRetryParticipation: () => void;
   onNavigateToChat: () => void;
   onNavigateToManage: () => void;
 }
@@ -68,6 +72,8 @@ interface RsvpControlProps {
 function RsvpControl({
   event,
   participationStatus,
+  participationLoading,
+  participationError,
   isOrganizer,
   invitation,
   joinEvent,
@@ -79,6 +85,8 @@ function RsvpControl({
   onLeave,
   onLeaveWaitlist,
   onRespondToInvitation,
+  onRsvp,
+  onRetryParticipation,
   onNavigateToChat,
   onNavigateToManage
 }: RsvpControlProps) {
@@ -90,14 +98,6 @@ function RsvpControl({
   const isDeclined = participationStatus === 'declined';
   const canJoin = !isCancelled && !isGoing && !isWaitlisted &&
     (event.status === 'open' || event.status === 'full');
-
-  const handleRsvp = async (status: 'interested' | 'declined') => {
-    try {
-      await rsvpEvent.mutateAsync({ eventId: event.id, status });
-    } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update RSVP.');
-    }
-  };
 
   if (isOrganizer) {
     return (
@@ -124,6 +124,25 @@ function RsvpControl({
           </Button>
         ) : null}
       </>
+    );
+  }
+
+  if (participationLoading) {
+    return (
+      <Button full size="lg" variant="dark" disabled accessibilityLabel="Checking participation status">
+        Checking participation…
+      </Button>
+    );
+  }
+
+  if (participationError || participationStatus === undefined) {
+    return (
+      <View style={rsvpStyles.statusError}>
+        <AppText variant="bodyMuted">Participation status is unavailable. Retry before joining or responding.</AppText>
+        <Button full size="lg" variant="dark" accessibilityLabel="Retry participation status" onPress={onRetryParticipation}>
+          Retry Status
+        </Button>
+      </View>
     );
   }
 
@@ -234,7 +253,7 @@ function RsvpControl({
               // Remove interest → treated as leave (back to none)
               onLeave();
             } else {
-              void handleRsvp('interested');
+              void onRsvp('interested');
             }
           }}
         >
@@ -252,7 +271,7 @@ function RsvpControl({
             if (isDeclined) {
               onLeave();
             } else {
-              void handleRsvp('declined');
+              void onRsvp('declined');
             }
           }}
         >
@@ -270,6 +289,10 @@ const rsvpStyles = StyleSheet.create({
   },
   softBtn: {
     flex: 1
+  },
+  statusError: {
+    alignItems: 'center',
+    gap: spacing.sm
   }
 });
 
@@ -282,7 +305,9 @@ export function EventDetailScreen() {
   const route = useRoute<Route>();
   const { data: event, isLoading, isError, isRefetching, error, refetch } = useEvent(route.params.eventId);
   const {
-    data: participationStatus = 'none',
+    data: participationStatus,
+    isLoading: participationLoading,
+    isError: participationIsError,
     isRefetching: participationRefetching,
     refetch: refetchParticipation
   } = useEventParticipation(route.params.eventId);
@@ -295,13 +320,16 @@ export function EventDetailScreen() {
   const profile = useAuthStore((state) => state.profile);
   const [useRawCover, setUseRawCover] = useState(false);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const participationActionInFlightRef = useRef(false);
 
   useEffect(() => {
     setUseRawCover(false);
   }, [event?.coverUrl]);
 
   const handleJoin = async () => {
-    if (!event) return;
+    if (!event || participationLoading || participationIsError || participationStatus === undefined) return;
+    if (participationActionInFlightRef.current) return;
+    participationActionInFlightRef.current = true;
     try {
       const result = await joinEvent.mutateAsync(event.id);
       if (result === 'waitlisted') {
@@ -312,6 +340,21 @@ export function EventDetailScreen() {
       await Promise.all([refetch(), refetchParticipation()]);
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to join event');
+    } finally {
+      participationActionInFlightRef.current = false;
+    }
+  };
+
+  const handleRsvp = async (status: 'interested' | 'declined') => {
+    if (!event || participationLoading || participationIsError || participationStatus === undefined) return;
+    if (participationActionInFlightRef.current) return;
+    participationActionInFlightRef.current = true;
+    try {
+      await rsvpEvent.mutateAsync({ eventId: event.id, status });
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update RSVP.');
+    } finally {
+      participationActionInFlightRef.current = false;
     }
   };
 
@@ -323,11 +366,15 @@ export function EventDetailScreen() {
         text: 'Leave Waitlist',
         style: 'destructive',
         onPress: async () => {
+          if (participationActionInFlightRef.current) return;
+          participationActionInFlightRef.current = true;
           try {
             await leaveWaitlist.mutateAsync(event.id);
             Alert.alert('Waitlist left', 'You are no longer waiting for this event.');
           } catch (err) {
             Alert.alert('Error', err instanceof Error ? err.message : 'Failed to leave the waitlist');
+          } finally {
+            participationActionInFlightRef.current = false;
           }
         }
       }
@@ -342,10 +389,14 @@ export function EventDetailScreen() {
         text: 'Leave',
         style: 'destructive',
         onPress: async () => {
+          if (participationActionInFlightRef.current) return;
+          participationActionInFlightRef.current = true;
           try {
             await leaveEvent.mutateAsync(event.id);
           } catch (err) {
             Alert.alert('Error', err instanceof Error ? err.message : 'Failed to leave event');
+          } finally {
+            participationActionInFlightRef.current = false;
           }
         }
       }
@@ -359,13 +410,16 @@ export function EventDetailScreen() {
   };
 
   const respondToInvitation = async (accept: boolean) => {
-    if (!invitation) return;
+    if (!invitation || participationActionInFlightRef.current) return;
+    participationActionInFlightRef.current = true;
     try {
       const result = await respondInvitation.mutateAsync({ invitationId: invitation.id, accept });
       await Promise.all([refetch(), refetchParticipation(), refetchInvitation()]);
       if (accept) Alert.alert(result === 'waitlisted' ? 'Added to waitlist' : 'Invitation accepted', result === 'waitlisted' ? 'The event is full, so you have been added to the waitlist.' : 'You are on the attendee list.');
     } catch (err) {
       Alert.alert('Invitation update failed', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      participationActionInFlightRef.current = false;
     }
   };
 
@@ -419,7 +473,6 @@ export function EventDetailScreen() {
   }
 
   const isOrganizer = profile?.id === event.organizer.id;
-  const hasJoined = participationStatus === 'going';
   const isWaitlisted = participationStatus === 'waitlisted';
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
   const optimizedCoverUrl = mediaVariants.eventCover(event.coverUrl);
@@ -551,6 +604,8 @@ export function EventDetailScreen() {
         <RsvpControl
           event={event}
           participationStatus={participationStatus}
+          participationLoading={participationLoading}
+          participationError={participationIsError}
           isOrganizer={isOrganizer}
           invitation={invitation}
           joinEvent={joinEvent}
@@ -562,6 +617,8 @@ export function EventDetailScreen() {
           onLeave={handleLeave}
           onLeaveWaitlist={handleLeaveWaitlist}
           onRespondToInvitation={respondToInvitation}
+          onRsvp={handleRsvp}
+          onRetryParticipation={() => void refetchParticipation()}
           onNavigateToChat={() => navigation.navigate('EventChat', { eventId: event.id })}
           onNavigateToManage={() => navigation.navigate('ManageEvent', { eventId: event.id })}
         />

@@ -19,6 +19,10 @@ const mockEventsRefetch = jest.fn();
 const mockBatchParticipationRefetch = jest.fn();
 let mockParticipation: string | undefined;
 let mockParticipationBatch: Record<string, string> = {};
+let mockParticipationLoading = false;
+let mockParticipationError: Error | null = null;
+let mockBatchParticipationLoading = false;
+let mockBatchParticipationError: Error | null = null;
 let mockEventsData: Record<string, any>[] = [];
 let mockEventData: Record<string, any> | undefined;
 
@@ -55,6 +59,9 @@ jest.mock('@/hooks/useEvents', () => ({
   useRespondEventInvitation: () => ({ mutateAsync: mockRespondEventInvitation, isPending: false }),
   useEventParticipation: () => ({
     data: mockParticipation,
+    isLoading: mockParticipationLoading,
+    isError: mockParticipationError !== null,
+    error: mockParticipationError,
     isRefetching: false,
     refetch: mockParticipationRefetch
   }),
@@ -67,6 +74,9 @@ jest.mock('@/hooks/useEvents', () => ({
   }),
   useEventParticipationBatch: () => ({
     data: mockParticipationBatch,
+    isLoading: mockBatchParticipationLoading,
+    isError: mockBatchParticipationError !== null,
+    error: mockBatchParticipationError,
     isRefetching: false,
     refetch: mockBatchParticipationRefetch
   })
@@ -132,8 +142,12 @@ describe('event creation and joining', () => {
     alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockRoute.params = {};
     mockEventData = undefined;
-    mockParticipation = undefined;
+    mockParticipation = 'none';
     mockParticipationBatch = {};
+    mockParticipationLoading = false;
+    mockParticipationError = null;
+    mockBatchParticipationLoading = false;
+    mockBatchParticipationError = null;
     mockEventsData = [];
     mockCreateEvent.mockResolvedValue({ id: 'created-event-id' });
     mockJoinEvent.mockResolvedValue('going');
@@ -199,6 +213,38 @@ describe('event creation and joining', () => {
     expect(mockParticipationRefetch).toHaveBeenCalled();
   });
 
+  it('does not expose participation actions while status is loading', async () => {
+    mockRoute.params = { eventId: event.id };
+    mockEventData = event;
+    mockParticipation = undefined;
+    mockParticipationLoading = true;
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByRole('button', { name: 'Checking participation status' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Join Event' })).toBeNull();
+  });
+
+  it('shows a retry instead of participation actions when status fails', async () => {
+    mockRoute.params = { eventId: event.id };
+    mockEventData = event;
+    mockParticipation = undefined;
+    mockParticipationError = new Error('Participation lookup failed');
+    await render(<EventDetailScreen />);
+
+    expect(screen.getByRole('button', { name: 'Retry participation status' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Join Event' })).toBeNull();
+  });
+
+  it('renders no live list action when batch participation is unavailable', async () => {
+    mockEventsData = [event];
+    mockParticipationBatch = {};
+    mockBatchParticipationError = new Error('Status service unavailable');
+    await render(<EventsScreen />);
+
+    expect(screen.getByText('Status service unavailable')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Join Event' })).toBeNull();
+  });
+
   it('opens event chat only for an attendee', async () => {
     mockRoute.params = { eventId: event.id };
     mockEventData = event;
@@ -258,6 +304,8 @@ describe('event RSVP — interested / declined', () => {
     alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockRoute.params = { eventId: event.id };
     mockEventData = event;
+    mockParticipationLoading = false;
+    mockParticipationError = null;
     mockRsvpEvent.mockResolvedValue(undefined);
     mockLeaveEvent.mockResolvedValue(undefined);
     mockJoinEvent.mockResolvedValue('going');
@@ -377,4 +425,5 @@ describe('event RSVP — interested / declined', () => {
 
     expect(screen.getByRole('button', { name: 'Join Waitlist' })).toBeTruthy();
   });
+
 });

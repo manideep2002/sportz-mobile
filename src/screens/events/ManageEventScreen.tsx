@@ -229,7 +229,7 @@ export function ManageEventScreen() {
           city: city.trim(),
           maxPlayers: capacity,
           entryFeeCents: Math.round(feeAmount * 100),
-          visibility: event.communityId ? 'group' : visibility,
+          visibility,
           coverImageUri: coverRemoved ? null : coverImage !== event.coverUrl ? coverImage : undefined
         }
       });
@@ -427,7 +427,11 @@ export function ManageEventScreen() {
             {event.communityId ? (
               <View style={styles.group}>
                 <AppText style={[styles.label, { color: theme.textSubtle }]}>Visibility</AppText>
-                <AppText variant="bodyMuted">Group members only. This cannot be changed for a group event.</AppText>
+                <View style={styles.dateAdjust}>
+                  <Chip accessibilityLabel="Group members" selected={visibility === 'group'} onPress={() => setVisibility('group')}>Group members</Chip>
+                  <Chip accessibilityLabel="Invite-only" selected={visibility === 'invite'} onPress={() => setVisibility('invite')}>Invite-only</Chip>
+                </View>
+                <AppText variant="bodyMuted">Group events stay limited to group members or explicitly invited members.</AppText>
               </View>
             ) : (
               <View style={styles.group}>
@@ -617,6 +621,11 @@ const styles = StyleSheet.create({
   },
   chipContent: {
     alignItems: 'flex-start'
+  },
+  dateAdjust: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   },
   cover: {
     height: 164,

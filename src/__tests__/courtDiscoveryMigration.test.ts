@@ -13,11 +13,16 @@ const openStateFixPath = path.resolve(
   process.cwd(),
   'supabase/migrations/20260723000004_separate_court_open_state.sql'
 );
+const bookingWindowPath = path.resolve(
+  process.cwd(),
+  'supabase/migrations/20260801000002_court_booking_window.sql'
+);
 
 describe('court discovery and booking lifecycle migration', () => {
   const sql = fs.readFileSync(migrationPath, 'utf8');
   const cancellationFixSql = fs.readFileSync(cancellationFixPath, 'utf8');
   const openStateFixSql = fs.readFileSync(openStateFixPath, 'utf8');
+  const bookingWindowSql = fs.readFileSync(bookingWindowPath, 'utf8');
 
   it('adds timezone-aware operating hours, closures, and court policies', () => {
     expect(sql).toContain('create table if not exists public.court_operating_hours');
@@ -44,6 +49,14 @@ describe('court discovery and booking lifecycle migration', () => {
     expect(sql).toMatch(/join public\.court_operating_hours[\s\S]*?not h\.is_closed/i);
     expect(sql).toMatch(/public\.court_closures[\s\S]*?tstzrange/i);
     expect(sql).toMatch(/public\.court_bookings[\s\S]*?booking\.status in \('pending', 'confirmed'\)/i);
+  });
+
+  it('honors the complete 1-90 day court-local booking window and today cutoff', () => {
+    expect(bookingWindowSql).toMatch(/range_end - range_start > 89/i);
+    expect(bookingWindowSql).toMatch(/now\(\) at time zone selected_court\.timezone/i);
+    expect(bookingWindowSql).toMatch(/selected_court\.booking_window_days/i);
+    expect(bookingWindowSql).toMatch(/candidate\.slot_start > now\(\)/i);
+    expect(bookingWindowSql).toMatch(/court_closures[\s\S]*?tstzrange/i);
   });
 
   it('serializes booking and preserves the exclusion conflict guarantee', () => {

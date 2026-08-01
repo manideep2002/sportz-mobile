@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { addDays, format } from 'date-fns';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { AppRefreshControl, AppText, Button, Chip, IconButton, Screen } from '@/components/ui';
@@ -11,52 +10,80 @@ import { colors, spacing } from '@/design/tokens';
 import { useBookCourt, useCourt, useCourtAvailability } from '@/hooks/useCourts';
 import type { AppStackParamList } from '@/navigation/routes';
 import type { CourtAvailabilitySlot } from '@/types/domain';
-import { courtDateKey, formatCourtDate, formatCourtTime } from '@/utils/courtTime';
+import {
+  buildCourtBookingDateKeys,
+  courtDateKey,
+  formatCourtDate,
+  formatCourtDateKey,
+  formatCourtTime
+} from '@/utils/courtTime';
 import { currency } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'CourtBooking'>;
 
-const addDaysToKey = (dateKey: string, amount: number) =>
-  format(addDays(new Date(`${dateKey}T12:00:00.000Z`), amount), 'yyyy-MM-dd');
+const DATE_PAGE_SIZE = 14;
 
 export function CourtBookingScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const route = useRoute<Route>();
   const { data: court, isLoading, isError, isRefetching, refetch } = useCourt(route.params.courtId);
-  const timezone = court?.timezone ?? 'Asia/Kolkata';
-  const rangeStart = courtDateKey(new Date().toISOString(), timezone);
-  const rangeEnd = addDaysToKey(rangeStart, Math.min(court?.bookingWindowDays ?? 7, 7));
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
+  const timezone = court?.timezone ?? 'UTC';
+  const dateKeys = useMemo(
+    () => court
+      ? buildCourtBookingDateKeys(nowIso, court.timezone, court.bookingWindowDays)
+      : [],
+    [court, nowIso]
+  );
+  const rangeStart = dateKeys[0] ?? '';
+  const rangeEnd = dateKeys[dateKeys.length - 1] ?? '';
   const availability = useCourtAvailability(route.params.courtId, rangeStart, rangeEnd);
   const bookCourt = useBookCourt(route.params.courtId);
   const [selectedDay, setSelectedDay] = useState('');
   const [selectedStartsAt, setSelectedStartsAt] = useState('');
+  const [datePage, setDatePage] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowIso(new Date().toISOString()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const slotsByDay = useMemo(() => {
     const grouped = new Map<string, CourtAvailabilitySlot[]>();
     for (const slot of availability.data ?? []) {
+      if (new Date(slot.startsAt).getTime() <= new Date(nowIso).getTime()) continue;
       const day = courtDateKey(slot.startsAt, timezone);
       grouped.set(day, [...(grouped.get(day) ?? []), slot]);
     }
     return grouped;
-  }, [availability.data, timezone]);
+  }, [availability.data, nowIso, timezone]);
 
-  const days = useMemo(() => [...slotsByDay.keys()], [slotsByDay]);
+  const availableDateKeys = useMemo(() => new Set(slotsByDay.keys()), [slotsByDay]);
+  const visibleDateKeys = dateKeys.slice(
+    datePage * DATE_PAGE_SIZE,
+    (datePage + 1) * DATE_PAGE_SIZE
+  );
+  const pageCount = Math.max(1, Math.ceil(dateKeys.length / DATE_PAGE_SIZE));
   const selectedSlots = slotsByDay.get(selectedDay) ?? [];
   const selectedSlot = selectedSlots.find((slot) => slot.startsAt === selectedStartsAt);
 
   useEffect(() => {
-    if (!days.length) {
+    if (!dateKeys.length) {
       setSelectedDay('');
       setSelectedStartsAt('');
+      setDatePage(0);
       return;
     }
-    if (!slotsByDay.has(selectedDay)) {
-      setSelectedDay(days[0]);
+    if (!dateKeys.includes(selectedDay) || !slotsByDay.has(selectedDay)) {
+      const nextDay = dateKeys.find((dateKey) => slotsByDay.has(dateKey)) ?? dateKeys[0];
+      setSelectedDay(nextDay);
       setSelectedStartsAt('');
+      setDatePage(Math.floor(dateKeys.indexOf(nextDay) / DATE_PAGE_SIZE));
     }
-  }, [days, selectedDay, slotsByDay]);
+    setDatePage((current) => Math.min(current, pageCount - 1));
+  }, [dateKeys, pageCount, selectedDay, slotsByDay]);
 
   const refresh = async () => {
     await Promise.all([refetch(), availability.refetch()]);
@@ -141,7 +168,7 @@ export function CourtBookingScreen() {
           <Button size="sm" onPress={() => void availability.refetch()}>Retry</Button>
         </View>
       ) : null}
-      {!availability.isLoading && !availability.isError && days.length === 0 ? (
+      {!availability.isLoading && !availability.isError && (availability.data ?? []).length === 0 ? (
         <View style={styles.state}>
           <AppText variant="h4">No available slots</AppText>
           <AppText variant="bodyMuted">
@@ -151,22 +178,47 @@ export function CourtBookingScreen() {
         </View>
       ) : null}
 
-      {days.length ? (
+      {dateKeys.length && !availability.isLoading && !availability.isError ? (
         <>
           <AppText style={[styles.label, { color: theme.textSubtle }]}>Available date</AppText>
+          {pageCount > 1 ? (
+            <View style={styles.dateNavigation}>
+              <Button
+                size="sm"
+                variant="dark"
+                disabled={datePage === 0}
+                accessibilityLabel="Previous booking dates"
+                onPress={() => setDatePage((page) => Math.max(0, page - 1))}
+              >
+                Previous
+              </Button>
+              <AppText variant="small">{datePage + 1} of {pageCount}</AppText>
+              <Button
+                size="sm"
+                variant="dark"
+                disabled={datePage >= pageCount - 1}
+                accessibilityLabel="Next booking dates"
+                onPress={() => setDatePage((page) => Math.min(pageCount - 1, page + 1))}
+              >
+                Next
+              </Button>
+            </View>
+          ) : null}
           <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-            {days.map((day) => {
-              const firstSlot = slotsByDay.get(day)?.[0];
+            {visibleDateKeys.map((day) => {
+              const available = availableDateKeys.has(day);
               return (
                 <Chip
                   key={day}
                   selected={selectedDay === day}
+                  disabled={!available}
+                  accessibilityLabel={`${formatCourtDateKey(day)}${available ? '' : ', unavailable'}`}
                   onPress={() => {
                     setSelectedDay(day);
                     setSelectedStartsAt('');
                   }}
                 >
-                  {firstSlot ? formatCourtDate(firstSlot.startsAt, timezone) : day}
+                  {formatCourtDateKey(day)}
                 </Chip>
               );
             })}
@@ -228,7 +280,14 @@ const styles = StyleSheet.create({
     flexGrow: 0
   },
   filterContent: {
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: spacing.xs
+  },
+  dateNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm
   },
   label: {
     color: colors.text.tertiary,

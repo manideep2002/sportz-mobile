@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus, RefreshCw } from 'lucide-react-native';
@@ -50,7 +50,10 @@ export function EventsScreen() {
   const leaveWaitlist = useLeaveEventWaitlist();
   const rsvpEvent = useRsvpEvent();
   const {
-    data: participationByEvent = {},
+    data: participationByEvent,
+    isLoading: participationLoading,
+    isError: participationIsError,
+    error: participationError,
     isRefetching: participationRefetching,
     refetch: refetchParticipation
   } = useEventParticipationBatch(events.map((event) => event.id));
@@ -61,6 +64,22 @@ export function EventsScreen() {
   const [participationActionEventId, setParticipationActionEventId] = useState<string | null>(null);
   const [rsvpActionEventId, setRsvpActionEventId] = useState<string | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+  const participationLocksRef = useRef(new Set<string>());
+
+  const participationIsKnown = (eventId: string) =>
+    !participationLoading
+    && !participationIsError
+    && participationByEvent?.[eventId] !== undefined;
+
+  const beginParticipationAction = (eventId: string) => {
+    if (participationLocksRef.current.has(eventId)) return false;
+    participationLocksRef.current.add(eventId);
+    return true;
+  };
+
+  const finishParticipationAction = (eventId: string) => {
+    participationLocksRef.current.delete(eventId);
+  };
 
   const leaveEventWaitlist = (eventId: string) => {
     Alert.alert('Leave waitlist', 'You will lose your current place in the queue.', [
@@ -69,6 +88,7 @@ export function EventsScreen() {
         text: 'Leave Waitlist',
         style: 'destructive',
         onPress: async () => {
+          if (!participationIsKnown(eventId) || !beginParticipationAction(eventId)) return;
           setParticipationActionEventId(eventId);
           try {
             await leaveWaitlist.mutateAsync(eventId);
@@ -76,6 +96,7 @@ export function EventsScreen() {
           } catch (error) {
             Alert.alert('Error', error instanceof Error ? error.message : 'Failed to leave the waitlist');
           } finally {
+            finishParticipationAction(eventId);
             setParticipationActionEventId(null);
           }
         }
@@ -84,14 +105,16 @@ export function EventsScreen() {
   };
 
   const handleParticipationAction = async (eventId: string) => {
-    if (participationActionEventId) return;
-    const currentStatus = participationByEvent[eventId] ?? 'none';
+    if (!participationIsKnown(eventId) || participationActionEventId || rsvpActionEventId) return;
+    const currentStatus = participationByEvent?.[eventId];
+    if (!currentStatus) return;
     if (currentStatus === 'waitlisted') {
       leaveEventWaitlist(eventId);
       return;
     }
     // none, interested, and declined may all attempt to join
     if (currentStatus === 'going') return;
+    if (!beginParticipationAction(eventId)) return;
 
     setParticipationActionEventId(eventId);
     try {
@@ -104,12 +127,14 @@ export function EventsScreen() {
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to join event');
     } finally {
+      finishParticipationAction(eventId);
       setParticipationActionEventId(null);
     }
   };
 
   const handleRsvpAction = async (eventId: string, status: 'interested' | 'declined' | null) => {
-    if (rsvpActionEventId) return;
+    if (!participationIsKnown(eventId) || rsvpActionEventId || participationActionEventId) return;
+    if (!beginParticipationAction(eventId)) return;
     setRsvpActionEventId(eventId);
     try {
       if (status === null) {
@@ -121,6 +146,7 @@ export function EventsScreen() {
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update RSVP.');
     } finally {
+      finishParticipationAction(eventId);
       setRsvpActionEventId(null);
     }
   };
@@ -246,6 +272,14 @@ export function EventsScreen() {
             {t('events.loadError')}
           </AppText>
         ) : null}
+        {participationIsError ? (
+          <View style={styles.participationError}>
+            <AppText variant="bodyMuted">
+              {participationError instanceof Error ? participationError.message : 'Could not load participation status.'}
+            </AppText>
+            <Button size="sm" onPress={() => void refetchParticipation()}>Retry status</Button>
+          </View>
+        ) : null}
         {!isLoading && !isError && todayEvents.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>
             {t('events.empty')}
@@ -255,9 +289,11 @@ export function EventsScreen() {
           <EventCard
             key={event.id}
             event={event}
-            participationStatus={participationByEvent[event.id] ?? 'none'}
-            actionPending={participationActionEventId === event.id}
-            rsvpPending={rsvpActionEventId === event.id}
+            participationStatus={participationByEvent?.[event.id]}
+            participationLoading={participationLoading}
+            participationError={participationIsError || (!participationLoading && participationByEvent?.[event.id] === undefined)}
+            actionPending={participationActionEventId === event.id || rsvpActionEventId === event.id}
+            rsvpPending={rsvpActionEventId === event.id || participationActionEventId === event.id}
             onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
             onParticipationAction={() => void handleParticipationAction(event.id)}
             onRsvpAction={(status) => void handleRsvpAction(event.id, status)}
@@ -296,12 +332,12 @@ export function EventsScreen() {
                     <AppText variant="small">{event.eventType}</AppText>
                     <AppText variant="small">{event.locationName}</AppText>
                     <AppText style={[styles.upcomingDate, { color: theme.textSubtle }]}>{formatLocalizedDate(event.startsAt, { weekday: 'short', month: 'short', day: 'numeric' })}</AppText>
-                    {participationLabel(participationByEvent[event.id] ?? 'none', t) ? (
+                    {participationByEvent?.[event.id] && participationLabel(participationByEvent[event.id], t) ? (
                       <AppText style={[styles.participationStatus, { color: theme.success }]}>
-                        {participationLabel(participationByEvent[event.id] ?? 'none', t)}
+                        {participationLabel(participationByEvent[event.id], t)}
                       </AppText>
                     ) : null}
-                    {participationByEvent[event.id] === 'waitlisted' ? (
+                    {participationByEvent?.[event.id] === 'waitlisted' ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -406,6 +442,11 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     marginVertical: 20
+  },
+  participationError: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm
   },
   upcoming: {
     width: 160,

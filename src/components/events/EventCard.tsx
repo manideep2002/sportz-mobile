@@ -10,6 +10,8 @@ import { eventDate, formatTime } from '@/utils/format';
 interface EventCardProps {
   event: SportEvent;
   participationStatus?: EventParticipationStatus;
+  participationLoading?: boolean;
+  participationError?: boolean;
   actionPending?: boolean;
   /** Pending specifically for a soft RSVP write (interested/declined). */
   rsvpPending?: boolean;
@@ -25,7 +27,9 @@ interface EventCardProps {
 
 export function EventCard({
   event,
-  participationStatus = 'none',
+  participationStatus,
+  participationLoading = false,
+  participationError = false,
   actionPending = false,
   rsvpPending = false,
   onPress,
@@ -35,8 +39,9 @@ export function EventCard({
   const { colors: theme } = useAppTheme();
   const color = event.sport === 'Football' ? theme.success : theme.accent;
   const isFull = event.playerCount >= event.maxPlayers || event.status === 'full';
+  const participationKnown = participationStatus !== undefined && !participationLoading && !participationError;
   // Users who are going or waitlisted cannot re-join; everyone else can attempt it.
-  const canJoin = !['going', 'waitlisted'].includes(participationStatus) &&
+  const canJoin = participationKnown && !['going', 'waitlisted'].includes(participationStatus) &&
     (event.status === 'open' || event.status === 'full');
   const canLeaveWaitlist = participationStatus === 'waitlisted';
   const isGoing = participationStatus === 'going';
@@ -45,13 +50,17 @@ export function EventCard({
 
   // Show soft RSVP row when the user is not yet committed (going/waitlisted) and the
   // event is in a state where soft RSVPs make sense.
-  const showSoftRsvp =
+  const showSoftRsvp = participationKnown &&
     onRsvpAction != null &&
     !isGoing &&
     !canLeaveWaitlist &&
     !['cancelled', 'completed'].includes(event.status);
 
-  const actionLabel = isGoing
+  const actionLabel = participationLoading
+    ? 'Checking status…'
+    : participationError || participationStatus === undefined
+      ? 'Status unavailable'
+      : isGoing
     ? 'Joined'
     : canLeaveWaitlist
       ? 'Leave Waitlist'
@@ -116,7 +125,7 @@ export function EventCard({
               size="sm"
               variant={canLeaveWaitlist || isFull ? 'ghost' : isGoing ? 'dark' : participationStatus === 'none' || isInterested || isDeclined ? 'primary' : 'dark'}
               loading={actionPending}
-              disabled={!canJoin && !canLeaveWaitlist}
+              disabled={!participationKnown || actionPending || rsvpPending || (!canJoin && !canLeaveWaitlist)}
               onPress={(e) => {
                 e.stopPropagation();
                 onParticipationAction?.();
