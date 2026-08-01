@@ -18,7 +18,17 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 const metricValue = (value: number) =>
   Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.?0+$/, '');
 
-export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
+interface StructuredStatsPanelProps {
+  profile: UserProfile;
+  selectedSport?: StructuredSport;
+  onSelectSport?: (sport: StructuredSport) => void;
+}
+
+export function StructuredStatsPanel({
+  profile,
+  selectedSport,
+  onSelectSport
+}: StructuredStatsPanelProps) {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -29,13 +39,25 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
       .filter((sport): sport is StructuredSport => Boolean(sport)))),
     [profile.primarySport, profile.sports]
   );
-  const [sport, setSport] = useState<StructuredSport | undefined>(profileSports[0]);
-  const seasonsQuery = useAthleteSeasons(profile.id, sport);
-  const [seasonId, setSeasonId] = useState<string | undefined>();
+  const [internalSport, setInternalSport] = useState<StructuredSport | undefined>(profileSports[0]);
+
+  const activeSport = selectedSport && profileSports.includes(selectedSport)
+    ? selectedSport
+    : internalSport;
+
+  const handleSelectSport = (nextSport: StructuredSport) => {
+    setInternalSport(nextSport);
+    onSelectSport?.(nextSport);
+  };
 
   useEffect(() => {
-    if (!sport && profileSports[0]) setSport(profileSports[0]);
-  }, [profileSports, sport]);
+    if (!activeSport || !profileSports.includes(activeSport)) {
+      if (profileSports[0]) handleSelectSport(profileSports[0]);
+    }
+  }, [profileSports, activeSport]);
+
+  const seasonsQuery = useAthleteSeasons(profile.id, activeSport);
+  const [seasonId, setSeasonId] = useState<string | undefined>();
 
   useEffect(() => {
     if (!seasonsQuery.data?.length) {
@@ -47,14 +69,14 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
     }
   }, [seasonId, seasonsQuery.data]);
 
-  const summaryQuery = useAthleteStatSummary(profile.id, sport ?? 'basketball', seasonId);
+  const summaryQuery = useAthleteStatSummary(profile.id, activeSport ?? 'basketball', seasonId);
 
-  if (!sport) {
+  if (!activeSport) {
     return (
       <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <AppText variant="h4">Structured Statistics</AppText>
         <AppText variant="bodyMuted">
-          Structured match statistics are available for basketball, football, and cricket.
+          Structured match statistics are available for all supported sports.
         </AppText>
         {isOwnProfile ? (
           <Button icon={Plus} onPress={() => navigation.navigate('StatsEntry')}>Record Match</Button>
@@ -71,7 +93,7 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
       <View style={styles.titleRow}>
         <View style={styles.titleCopy}>
           <AppText variant="h4">Structured Statistics</AppText>
-          <AppText variant="bodyMuted">{sportLabelFor(sport)}</AppText>
+          <AppText variant="bodyMuted">{sportLabelFor(activeSport)}</AppText>
         </View>
         {summary?.verifiedMatchCount ? (
           <Badge tone="blue">{summary.verifiedMatchCount} VERIFIED</Badge>
@@ -85,9 +107,9 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
           {profileSports.map((item) => (
             <Chip
               key={item}
-              selected={item === sport}
+              selected={item === activeSport}
               onPress={() => {
-                setSport(item);
+                handleSelectSport(item);
                 setSeasonId(undefined);
               }}
             >
@@ -113,7 +135,7 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
         <View style={styles.empty}>
           <AppText variant="bodyMuted">
             {isOwnProfile
-              ? `Create a ${sportLabelFor(sport)} season and record your first match.`
+              ? `Create a ${sportLabelFor(activeSport)} season and record your first match.`
               : 'No structured statistics have been recorded for this sport.'}
           </AppText>
         </View>
@@ -165,7 +187,7 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
           icon={History}
           onPress={() => navigation.navigate('MatchHistory', {
             userId: profile.id,
-            sport,
+            sport: activeSport,
             seasonId
           })}
         >
@@ -175,7 +197,7 @@ export function StructuredStatsPanel({ profile }: { profile: UserProfile }) {
           <Button
             style={styles.action}
             icon={Plus}
-            onPress={() => navigation.navigate('StatsEntry', { sport })}
+            onPress={() => navigation.navigate('StatsEntry', { sport: activeSport })}
           >
             Record Match
           </Button>

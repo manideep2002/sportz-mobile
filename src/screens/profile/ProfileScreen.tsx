@@ -16,6 +16,8 @@ import { colors, spacing, typography } from '@/design/tokens';
 import { useUserPosts } from '@/hooks/useFeed';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { sportKeyFor } from '@/services/athleteStatsService';
+import type { StructuredSport } from '@/types/domain';
 import { authService } from '@/services/authService';
 import { compactNumber } from '@/utils/format';
 
@@ -30,7 +32,16 @@ export function ProfileScreen() {
   const profile = useAuthStore((state) => state.profile);
   const setProfile = useAuthStore((state) => state.setProfile);
   const [tab, setTab] = useState<Tab>('Posts');
+  const [selectedSport, setSelectedSport] = useState<StructuredSport | undefined>();
   const [refreshing, setRefreshing] = useState(false);
+
+  const handleSportPress = (sportName: string) => {
+    const key = sportKeyFor(sportName);
+    if (key) {
+      setSelectedSport(key);
+      setTab('Stats');
+    }
+  };
 
   const refreshProfile = async () => {
     if (!profile) return;
@@ -90,9 +101,11 @@ export function ProfileScreen() {
         <AppText variant="bodyMuted">{profile.bio}</AppText>
         <View style={styles.badges}>
           {profile.sports.map((sport) => (
-            sport === profile.primarySport
-              ? <SportBadge key={sport} sport={sport} />
-              : <Badge key={sport}>{sport}</Badge>
+            <SportBadge
+              key={sport}
+              sport={sport}
+              onPress={() => handleSportPress(sport)}
+            />
           ))}
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
@@ -128,7 +141,13 @@ export function ProfileScreen() {
         />
       </View>
       {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
-      {tab === 'Stats' ? <StructuredStatsPanel profile={profile} /> : null}
+      {tab === 'Stats' ? (
+        <StructuredStatsPanel
+          profile={profile}
+          selectedSport={selectedSport}
+          onSelectSport={setSelectedSport}
+        />
+      ) : null}
       {tab === 'Highlights' ? <HighlightsPanel userId={profile.id} /> : null}
     </Screen>
   );

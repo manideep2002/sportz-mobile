@@ -87,7 +87,22 @@ export interface TeamOfferHistoryEntry {
   createdAt: string;
 }
 
-export type StructuredSport = 'basketball' | 'football' | 'cricket';
+export type StructuredSport =
+  | 'basketball'
+  | 'football'
+  | 'cricket'
+  | 'kabaddi'
+  | 'badminton'
+  | 'tennis'
+  | 'volleyball'
+  | 'table_tennis'
+  | 'hockey'
+  | 'athletics'
+  | 'running'
+  | 'swimming'
+  | 'cycling'
+  | 'boxing'
+  | 'other';
 export type MatchOutcome = 'win' | 'loss' | 'draw' | 'no_result';
 export type StatVerificationStatus = 'self_reported' | 'pending' | 'verified' | 'rejected';
 

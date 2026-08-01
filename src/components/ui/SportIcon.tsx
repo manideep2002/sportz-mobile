@@ -1,4 +1,4 @@
-import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Image, Pressable, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 
 import { AppText } from './AppText';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -38,9 +38,13 @@ export function SportIcon({ sport, size = 15 }: SportIconProps) {
   );
 }
 
-export function SportBadge({ sport }: Pick<SportIconProps, 'sport'>) {
+interface SportBadgeProps extends Pick<SportIconProps, 'sport'> {
+  onPress?: () => void;
+}
+
+export function SportBadge({ sport, onPress }: SportBadgeProps) {
   const { colors: theme } = useAppTheme();
-  return (
+  const badge = (
     <View
       accessibilityLabel={`${sport} sport`}
       style={[styles.badge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}
@@ -49,6 +53,21 @@ export function SportBadge({ sport }: Pick<SportIconProps, 'sport'>) {
       <AppText style={[styles.badgeText, { color: theme.accent }]}>{sport}</AppText>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${sport} statistics`}
+        onPress={onPress}
+        style={({ pressed }) => [pressed ? { opacity: 0.75 } : null]}
+      >
+        {badge}
+      </Pressable>
+    );
+  }
+
+  return badge;
 }
 
 const styles = StyleSheet.create({

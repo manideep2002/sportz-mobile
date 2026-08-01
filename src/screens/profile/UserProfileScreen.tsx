@@ -18,6 +18,8 @@ import type { AppStackParamList } from '@/navigation/routes';
 import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 import { messageService } from '@/services/messageService';
 import { reportReasons, reportService } from '@/services/reportService';
+import { sportKeyFor } from '@/services/athleteStatsService';
+import type { StructuredSport } from '@/types/domain';
 import { compactNumber } from '@/utils/format';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -37,8 +39,17 @@ export function UserProfileScreen() {
   const toggleFollow = useToggleFollow(userId);
   const toggleBlock = useToggleBlock(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
+  const [selectedSport, setSelectedSport] = useState<StructuredSport | undefined>();
   const [messageLoading, setMessageLoading] = useState(false);
   const blockActionLoading = isBlockedLoading || toggleBlock.isPending;
+
+  const handleSportPress = (sportName: string) => {
+    const key = sportKeyFor(sportName);
+    if (key) {
+      setSelectedSport(key);
+      setTab('Stats');
+    }
+  };
 
   const refreshProfile = async () => {
     await Promise.all([
@@ -263,7 +274,13 @@ export function UserProfileScreen() {
         </View>
 
         <View style={styles.badges}>
-          <SportBadge sport={profile.primarySport} />
+          {(profile.sports && profile.sports.length ? profile.sports : [profile.primarySport]).map((sport) => (
+            <SportBadge
+              key={sport}
+              sport={sport}
+              onPress={() => handleSportPress(sport)}
+            />
+          ))}
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>
@@ -339,7 +356,13 @@ export function UserProfileScreen() {
 
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
         {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}
-        {tab === 'Stats' ? <StructuredStatsPanel profile={profile} /> : null}
+        {tab === 'Stats' ? (
+          <StructuredStatsPanel
+            profile={profile}
+            selectedSport={selectedSport}
+            onSelectSport={setSelectedSport}
+          />
+        ) : null}
         {tab === 'Highlights' ? <HighlightsPanel userId={profile.id} /> : null}
       </View>
     </Screen>

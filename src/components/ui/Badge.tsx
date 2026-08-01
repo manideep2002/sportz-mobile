@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { AppText } from './AppText';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -10,9 +10,10 @@ type BadgeTone = 'orange' | 'dark' | 'green' | 'blue' | 'red' | 'yellow';
 interface BadgeProps {
   tone?: BadgeTone;
   style?: ViewStyle;
+  onPress?: () => void;
 }
 
-export function Badge({ children, tone = 'dark', style }: PropsWithChildren<BadgeProps>) {
+export function Badge({ children, tone = 'dark', style, onPress }: PropsWithChildren<BadgeProps>) {
   const { colors: theme, isDark } = useAppTheme();
   const toneStyle =
     tone === 'orange'
@@ -26,11 +27,25 @@ export function Badge({ children, tone = 'dark', style }: PropsWithChildren<Badg
             : tone === 'red'
               ? { backgroundColor: theme.dangerSoft, color: theme.danger }
               : { backgroundColor: theme.warningSoft, color: theme.warning };
-  return (
+  const badge = (
     <View style={[styles.badge, { backgroundColor: toneStyle.backgroundColor }, style]}>
       <AppText style={[styles.label, { color: toneStyle.color }]}>{children}</AppText>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [pressed ? { opacity: 0.75 } : null]}
+      >
+        {badge}
+      </Pressable>
+    );
+  }
+
+  return badge;
 }
 
 const styles = StyleSheet.create({

@@ -16,7 +16,23 @@ import type {
 
 type StatSchema = Omit<SportStatDefinition, 'id' | 'sport'>;
 
-export const STRUCTURED_SPORTS: StructuredSport[] = ['basketball', 'football', 'cricket'];
+export const STRUCTURED_SPORTS: StructuredSport[] = [
+  'basketball',
+  'football',
+  'cricket',
+  'kabaddi',
+  'badminton',
+  'tennis',
+  'volleyball',
+  'table_tennis',
+  'hockey',
+  'athletics',
+  'running',
+  'swimming',
+  'cycling',
+  'boxing',
+  'other'
+];
 
 export const SPORT_STAT_SCHEMAS: Readonly<Record<StructuredSport, readonly StatSchema[]>> = {
   basketball: [
@@ -42,16 +58,76 @@ export const SPORT_STAT_SCHEMAS: Readonly<Record<StructuredSport, readonly StatS
     { key: 'overs_bowled', label: 'Overs bowled', valueType: 'decimal', unit: 'OV', aggregation: 'sum', required: false, minimum: 0, maximum: 100, displayOrder: 40 },
     { key: 'runs_conceded', label: 'Runs conceded', valueType: 'integer', unit: 'RC', aggregation: 'sum', required: false, minimum: 0, maximum: 1000, displayOrder: 50 },
     { key: 'catches', label: 'Catches', valueType: 'integer', unit: 'CT', aggregation: 'sum', required: false, minimum: 0, maximum: 20, displayOrder: 60 }
+  ],
+  kabaddi: [
+    { key: 'raid_points', label: 'Raid Points', valueType: 'integer', unit: 'PTS', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 10 },
+    { key: 'tackle_points', label: 'Tackle Points', valueType: 'integer', unit: 'PTS', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 20 },
+    { key: 'raids', label: 'Raids', valueType: 'integer', unit: 'RDS', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 30 },
+    { key: 'super_raids', label: 'Super Raids', valueType: 'integer', unit: 'SR', aggregation: 'sum', required: false, minimum: 0, maximum: 20, displayOrder: 40 },
+    { key: 'super_tackles', label: 'Super Tackles', valueType: 'integer', unit: 'ST', aggregation: 'sum', required: false, minimum: 0, maximum: 20, displayOrder: 50 }
+  ],
+  badminton: [
+    { key: 'matches_won', label: 'Matches Won', valueType: 'integer', unit: 'MW', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 10 },
+    { key: 'games_won', label: 'Games Won', valueType: 'integer', unit: 'GW', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 20 },
+    { key: 'points_scored', label: 'Points Scored', valueType: 'integer', unit: 'PTS', aggregation: 'sum', required: true, minimum: 0, maximum: 1000, displayOrder: 30 },
+    { key: 'aces', label: 'Aces', valueType: 'integer', unit: 'ACE', aggregation: 'sum', required: false, minimum: 0, maximum: 100, displayOrder: 40 }
+  ],
+  tennis: [
+    { key: 'aces', label: 'Aces', valueType: 'integer', unit: 'ACE', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 10 },
+    { key: 'first_serve_pct', label: 'First Serve %', valueType: 'decimal', unit: '%', aggregation: 'average', required: true, minimum: 0, maximum: 100, displayOrder: 20 },
+    { key: 'double_faults', label: 'Double Faults', valueType: 'integer', unit: 'DF', aggregation: 'sum', required: false, minimum: 0, maximum: 50, displayOrder: 30 }
+  ],
+  volleyball: [
+    { key: 'kills', label: 'Kills', valueType: 'integer', unit: 'K', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 10 },
+    { key: 'blocks', label: 'Blocks', valueType: 'integer', unit: 'BLK', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 20 },
+    { key: 'aces', label: 'Aces', valueType: 'integer', unit: 'ACE', aggregation: 'sum', required: false, minimum: 0, maximum: 30, displayOrder: 30 }
+  ],
+  table_tennis: [
+    { key: 'matches_won', label: 'Matches Won', valueType: 'integer', unit: 'MW', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 10 },
+    { key: 'games_won', label: 'Games Won', valueType: 'integer', unit: 'GW', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 20 },
+    { key: 'points_scored', label: 'Points Scored', valueType: 'integer', unit: 'PTS', aggregation: 'sum', required: true, minimum: 0, maximum: 1000, displayOrder: 30 }
+  ],
+  hockey: [
+    { key: 'goals', label: 'Goals', valueType: 'integer', unit: 'G', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 10 },
+    { key: 'assists', label: 'Assists', valueType: 'integer', unit: 'A', aggregation: 'sum', required: true, minimum: 0, maximum: 50, displayOrder: 20 }
+  ],
+  athletics: [
+    { key: 'distance', label: 'Distance', valueType: 'decimal', unit: 'M', aggregation: 'maximum', required: false, minimum: 0, maximum: 1000, displayOrder: 10 },
+    { key: 'time_seconds', label: 'Time', valueType: 'decimal', unit: 'SEC', aggregation: 'minimum', required: false, minimum: 0, maximum: 10000, displayOrder: 20 }
+  ],
+  running: [
+    { key: 'distance', label: 'Distance', valueType: 'decimal', unit: 'KM', aggregation: 'sum', required: true, minimum: 0, maximum: 1000, displayOrder: 10 },
+    { key: 'duration_minutes', label: 'Duration', valueType: 'decimal', unit: 'MIN', aggregation: 'sum', required: true, minimum: 0, maximum: 1440, displayOrder: 20 }
+  ],
+  swimming: [
+    { key: 'distance', label: 'Distance', valueType: 'decimal', unit: 'M', aggregation: 'sum', required: true, minimum: 0, maximum: 10000, displayOrder: 10 },
+    { key: 'time_seconds', label: 'Time', valueType: 'decimal', unit: 'SEC', aggregation: 'minimum', required: true, minimum: 0, maximum: 3600, displayOrder: 20 }
+  ],
+  cycling: [
+    { key: 'distance', label: 'Distance', valueType: 'decimal', unit: 'KM', aggregation: 'sum', required: true, minimum: 0, maximum: 1000, displayOrder: 10 },
+    { key: 'avg_speed', label: 'Avg Speed', valueType: 'decimal', unit: 'KM/H', aggregation: 'average', required: true, minimum: 0, maximum: 100, displayOrder: 20 }
+  ],
+  boxing: [
+    { key: 'rounds_fought', label: 'Rounds Fought', valueType: 'integer', unit: 'RND', aggregation: 'sum', required: true, minimum: 0, maximum: 100, displayOrder: 10 },
+    { key: 'knockouts', label: 'Knockouts', valueType: 'integer', unit: 'KO', aggregation: 'sum', required: false, minimum: 0, maximum: 50, displayOrder: 20 }
+  ],
+  other: [
+    { key: 'points', label: 'Points', valueType: 'integer', unit: 'PTS', aggregation: 'sum', required: true, minimum: 0, maximum: 1000, displayOrder: 10 },
+    { key: 'games_played', label: 'Games Played', valueType: 'integer', unit: 'GP', aggregation: 'sum', required: false, minimum: 0, maximum: 500, displayOrder: 20 }
   ]
 };
 
 export const sportKeyFor = (sport: string): StructuredSport | undefined => {
-  const normalized = sport.trim().toLowerCase();
+  if (!sport) return undefined;
+  const normalized = sport.trim().toLowerCase().replace(/[\s-]+/g, '_');
   return STRUCTURED_SPORTS.find((candidate) => candidate === normalized);
 };
 
 export const sportLabelFor = (sport: StructuredSport) =>
-  sport.charAt(0).toUpperCase() + sport.slice(1);
+  sport
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 
 export const validateSportStats = (
   sport: StructuredSport,
@@ -149,6 +225,41 @@ const ACHIEVEMENT_RULES: Readonly<Record<StructuredSport, readonly {
   cricket: [
     { key: 'century', title: 'Century', statKey: 'runs', metric: 'maximum', threshold: 100 },
     { key: 'five_wickets', title: 'Five-Wicket Haul', statKey: 'wickets', metric: 'maximum', threshold: 5 }
+  ],
+  kabaddi: [
+    { key: 'super_10', title: 'Super 10', statKey: 'raid_points', metric: 'maximum', threshold: 10 },
+    { key: 'high_5', title: 'High 5', statKey: 'tackle_points', metric: 'maximum', threshold: 5 }
+  ],
+  badminton: [
+    { key: 'smash_master', title: 'Smash Master', statKey: 'points_scored', metric: 'sum', threshold: 100 }
+  ],
+  tennis: [
+    { key: 'ace_king', title: 'Ace King', statKey: 'aces', metric: 'maximum', threshold: 10 }
+  ],
+  volleyball: [
+    { key: 'spike_specialist', title: 'Spike Specialist', statKey: 'kills', metric: 'maximum', threshold: 15 }
+  ],
+  table_tennis: [
+    { key: 'rally_champ', title: 'Rally Champ', statKey: 'points_scored', metric: 'sum', threshold: 100 }
+  ],
+  hockey: [
+    { key: 'hat_trick', title: 'Hockey Hat Trick', statKey: 'goals', metric: 'maximum', threshold: 3 }
+  ],
+  athletics: [],
+  running: [
+    { key: 'marathoner', title: 'Marathoner', statKey: 'distance', metric: 'sum', threshold: 42 }
+  ],
+  swimming: [
+    { key: 'water_dash', title: 'Century Swimmer', statKey: 'distance', metric: 'sum', threshold: 1000 }
+  ],
+  cycling: [
+    { key: 'century_ride', title: 'Century Ride', statKey: 'distance', metric: 'sum', threshold: 100 }
+  ],
+  boxing: [
+    { key: 'knockout_king', title: 'Knockout King', statKey: 'knockouts', metric: 'sum', threshold: 5 }
+  ],
+  other: [
+    { key: 'first_victory', title: 'Point Leader', statKey: 'points', metric: 'sum', threshold: 50 }
   ]
 };
 

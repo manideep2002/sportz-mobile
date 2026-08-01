@@ -11,6 +11,10 @@ const migration = fs.readFileSync(
   path.resolve(process.cwd(), 'supabase/migrations/20260727000002_structured_athlete_stats.sql'),
   'utf8'
 );
+const expandSportsMigration = fs.readFileSync(
+  path.resolve(process.cwd(), 'supabase/migrations/20260801000008_expand_structured_athlete_sports.sql'),
+  'utf8'
+);
 const integrityMigration = fs.readFileSync(
   path.resolve(process.cwd(), 'supabase/migrations/20260727000003_structured_stats_integrity.sql'),
   'utf8'
@@ -41,6 +45,16 @@ describe('sport-aware stat validation', () => {
       wickets: 2,
       balls_faced: 61
     });
+    expect(validateSportStats('kabaddi', { raid_points: 12, tackle_points: 6, raids: 18 })).toEqual({
+      raid_points: 12,
+      tackle_points: 6,
+      raids: 18
+    });
+    expect(validateSportStats('badminton', { matches_won: 3, games_won: 6, points_scored: 126 })).toEqual({
+      matches_won: 3,
+      games_won: 6,
+      points_scored: 126
+    });
   });
 
   it('rejects missing, invalid, and cross-sport fields', () => {
@@ -54,6 +68,8 @@ describe('sport-aware stat validation', () => {
       balls_faced: 12,
       rebounds: 4
     })).toThrow('rebounds is not a valid Cricket statistic');
+    expect(() => validateSportStats('kabaddi', { raid_points: 5 }))
+      .toThrow('Tackle Points is required');
   });
 });
 
@@ -94,6 +110,9 @@ describe('deterministic aggregation and achievements', () => {
     expect(generatedAchievementKeys('cricket', [
       { stats: { runs: 101, wickets: 5, balls_faced: 90 } }
     ])).toEqual(['century', 'five_wickets']);
+    expect(generatedAchievementKeys('kabaddi', [
+      { stats: { raid_points: 12, tackle_points: 6, raids: 18 } }
+    ])).toEqual(['super_10', 'high_5']);
   });
 });
 
@@ -104,6 +123,9 @@ describe('structured stats database authorization', () => {
     expect(migration).toContain('Stat definition does not belong to the match sport.');
     expect(migration).toContain('Missing required stats: %');
     expect(migration).toContain('Match date must fall within the selected season.');
+    expect(expandSportsMigration).toContain("check (sport in (");
+    expect(expandSportsMigration).toContain("'kabaddi'");
+    expect(expandSportsMigration).toContain("'badminton'");
   });
 
   it('prevents athletes editing another athlete and restricts verification', () => {
