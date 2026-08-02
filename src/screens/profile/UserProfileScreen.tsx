@@ -8,7 +8,7 @@ import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, Vie
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { StructuredStatsPanel } from '@/components/profile/StructuredStatsPanel';
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SportBadge, StatCard, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SkillLevelBadge, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -255,8 +255,13 @@ export function UserProfileScreen() {
         style={styles.cover}
         testID="public-profile-cover"
       />
-      <View style={[styles.avatarWrap, { borderColor: theme.background }]}>
-        <Avatar initials={profile.initials} uri={profile.avatarUrl} size={80} online={profile.isOnline} />
+      <View style={styles.avatarHeaderRow}>
+        <View style={[styles.avatarWrap, { borderColor: theme.background }]}>
+          <Avatar initials={profile.initials} uri={profile.avatarUrl} size={80} online={profile.isOnline} />
+        </View>
+        <View style={styles.headerRightArea}>
+          <SkillLevelBadge skillLevel={profile.skillLevel} />
+        </View>
       </View>
       <View style={styles.body}>
         <View style={styles.nameRow}>
@@ -288,7 +293,6 @@ export function UserProfileScreen() {
               />
             );
           })}
-          <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>
           ))}
@@ -552,13 +556,23 @@ const styles = StyleSheet.create({
     height: 200,
     marginTop: -52
   },
+  avatarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingRight: spacing.screen,
+    marginTop: -40
+  },
   avatarWrap: {
-    marginTop: -40,
     marginLeft: spacing.screen,
     width: 88,
     borderWidth: 4,
     borderColor: colors.dark[950],
     borderRadius: 44
+  },
+  headerRightArea: {
+    marginBottom: 4,
+    alignItems: 'flex-end'
   },
   body: {
     padding: spacing.screen,

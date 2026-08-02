@@ -16,5 +16,6 @@ export * from './SectionHeader';
 export * from './SegmentedControl';
 export * from './StatCard';
 export * from './SportIcon';
+export * from './SkillLevelBadge';
 export * from './VerifiedName';
 export * from './VideoPlayer';
