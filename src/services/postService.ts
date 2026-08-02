@@ -88,6 +88,8 @@ interface PostRow {
   display_name?: string | null;
   username?: string | null;
   avatar_url?: string | null;
+  skill_level?: string | null;
+  is_verified?: boolean | null;
   likes_count?: number | null;
   comments_count?: number | null;
   shares_count?: number | null;
@@ -159,7 +161,9 @@ const mapPostRow = (
     id: row.author_id,
     display_name: row.display_name ?? null,
     username: row.username ?? null,
-    avatar_url: row.avatar_url ?? null
+    avatar_url: row.avatar_url ?? null,
+    skill_level: row.skill_level ?? null,
+    is_verified: row.is_verified ?? null
   }),
   communityId: row.community_id,
   kind: row.kind ?? 'post',
@@ -289,8 +293,42 @@ const mapFeedRows = async (rows: PostRow[]): Promise<FeedPage> => {
   // Query functions must be deterministic. Deduplicate only within this
   // response; a process-wide "seen" set can empty a concurrent refetch.
   const uniqueRows = feedDedupeService.keepUnique(rows, (row) => row.id);
-  const engagement = await loadPostEngagement(uniqueRows.map((row) => row.id));
-  const items = uniqueRows.map((row) => mapPostRow(row, engagement));
+  const missingAuthorIds = Array.from(new Set(
+    uniqueRows
+      .filter((row) => !row.profiles?.skill_level && !row.skill_level)
+      .map((row) => row.author_id)
+      .filter(Boolean)
+  ));
+
+  const [engagement, profilesResult] = await Promise.all([
+    loadPostEngagement(uniqueRows.map((row) => row.id)),
+    missingAuthorIds.length
+      ? supabase
+          .from('profiles')
+          .select('id, display_name, username, avatar_url, skill_level, is_verified')
+          .in('id', missingAuthorIds)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+
+  const profilesMap = new Map(
+    ((profilesResult.data ?? []) as any[]).map((p) => [p.id, p])
+  );
+
+  const items = uniqueRows.map((row) => {
+    const fetchedProfile = profilesMap.get(row.author_id);
+    const mergedProfiles = row.profiles
+      ? { ...row.profiles, ...(fetchedProfile ?? {}) }
+      : (fetchedProfile ?? {
+          id: row.author_id,
+          display_name: row.display_name ?? null,
+          username: row.username ?? null,
+          avatar_url: row.avatar_url ?? null,
+          skill_level: row.skill_level ?? null,
+          is_verified: row.is_verified ?? null
+        });
+
+    return mapPostRow({ ...row, profiles: mergedProfiles }, engagement);
+  });
 
   return {
     items,

@@ -60,6 +60,9 @@ export function ProfileScreen() {
     }
   };
 
+  const primaryKey = profile ? (sportKeyFor(profile.primarySport) ?? sportKeyFor(profile.sports[0])) : undefined;
+  const activeSportKey = selectedSport ?? primaryKey;
+
   if (!profile) {
     return (
       <Screen withTabPadding contentContainerStyle={styles.content}>
@@ -100,13 +103,18 @@ export function ProfileScreen() {
         </View>
         <AppText variant="bodyMuted">{profile.bio}</AppText>
         <View style={styles.badges}>
-          {profile.sports.map((sport) => (
-            <SportBadge
-              key={sport}
-              sport={sport}
-              onPress={() => handleSportPress(sport)}
-            />
-          ))}
+          {profile.sports.map((sport) => {
+            const key = sportKeyFor(sport);
+            const isSelected = Boolean(key && key === activeSportKey);
+            return (
+              <SportBadge
+                key={sport}
+                sport={sport}
+                selected={isSelected}
+                onPress={() => handleSportPress(sport)}
+              />
+            );
+          })}
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>

@@ -22,7 +22,7 @@ interface VerifiedNameProps {
 }
 
 export const shouldShowProVerifiedBadge = (profile: Pick<UserProfile, 'skillLevel'> | null | undefined) =>
-  profile?.skillLevel === 'Pro';
+  profile?.skillLevel?.trim().toLowerCase() === 'pro';
 
 export function VerifiedName({
   profile,

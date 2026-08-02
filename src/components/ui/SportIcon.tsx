@@ -40,17 +40,26 @@ export function SportIcon({ sport, size = 15 }: SportIconProps) {
 
 interface SportBadgeProps extends Pick<SportIconProps, 'sport'> {
   onPress?: () => void;
+  selected?: boolean;
 }
 
-export function SportBadge({ sport, onPress }: SportBadgeProps) {
+export function SportBadge({ sport, onPress, selected = true }: SportBadgeProps) {
   const { colors: theme } = useAppTheme();
+  const badgeStyle = selected
+    ? { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder, color: theme.accent }
+    : { backgroundColor: theme.surfaceMuted, borderColor: theme.border, color: theme.textMuted };
+
   const badge = (
     <View
-      accessibilityLabel={`${sport} sport`}
-      style={[styles.badge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}
+      accessibilityLabel={`${sport} sport${selected ? ' selected' : ''}`}
+      style={[
+        styles.badge,
+        { backgroundColor: badgeStyle.backgroundColor, borderColor: badgeStyle.borderColor },
+        !selected ? { opacity: 0.8 } : null
+      ]}
     >
       <SportIcon sport={sport} size={14} />
-      <AppText style={[styles.badgeText, { color: theme.accent }]}>{sport}</AppText>
+      <AppText style={[styles.badgeText, { color: badgeStyle.color }]}>{sport}</AppText>
     </View>
   );
 

@@ -274,13 +274,20 @@ export function UserProfileScreen() {
         </View>
 
         <View style={styles.badges}>
-          {(profile.sports && profile.sports.length ? profile.sports : [profile.primarySport]).map((sport) => (
-            <SportBadge
-              key={sport}
-              sport={sport}
-              onPress={() => handleSportPress(sport)}
-            />
-          ))}
+          {((profile.sports && profile.sports.length ? profile.sports : [profile.primarySport])).map((sport) => {
+            const primaryKey = sportKeyFor(profile.primarySport) ?? sportKeyFor(profile.sports[0]);
+            const activeSportKey = selectedSport ?? primaryKey;
+            const key = sportKeyFor(sport);
+            const isSelected = Boolean(key && key === activeSportKey);
+            return (
+              <SportBadge
+                key={sport}
+                sport={sport}
+                selected={isSelected}
+                onPress={() => handleSportPress(sport)}
+              />
+            );
+          })}
           <Badge tone="dark">{profile.skillLevel}</Badge>
           {profile.badges.map((badge) => (
             <Badge key={badge} tone="orange">{badge}</Badge>
