@@ -32,10 +32,19 @@ export function LoginScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (response?.type === 'success') {
-      const idToken = response.params.id_token;
+      const idToken = response.authentication?.idToken ?? response.params?.id_token;
+      const accessToken = response.authentication?.accessToken ?? response.params?.access_token;
       if (idToken) {
-        void signInWithIdToken('google', idToken).catch((error) => Alert.alert('Google login failed', error.message));
+        void signInWithIdToken('google', idToken, accessToken).catch((error) => {
+          const message = error instanceof Error ? error.message : 'Google login failed.';
+          Alert.alert('Google login failed', message);
+        });
+      } else {
+        Alert.alert('Google login failed', 'Google did not return a valid identity token. Please check your OAuth Client configuration.');
       }
+    } else if (response?.type === 'error') {
+      const errorMsg = response.error?.message ?? 'An unknown Google authentication error occurred.';
+      Alert.alert('Google login error', errorMsg);
     }
   }, [response, signInWithIdToken]);
 

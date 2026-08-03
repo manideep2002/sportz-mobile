@@ -102,12 +102,19 @@ export const authService = {
     return result;
   },
 
-  async signInWithIdToken(provider: 'google' | 'apple', idToken: string): Promise<AuthResult> {
+  async signInWithIdToken(
+    provider: 'google' | 'apple',
+    idToken: string,
+    accessToken?: string,
+    nonce?: string
+  ): Promise<AuthResult> {
     assertSupabaseConfigured();
 
     const { data, error } = await supabase.auth.signInWithIdToken({
       provider,
-      token: idToken
+      token: idToken,
+      ...(accessToken ? { access_token: accessToken } : {}),
+      ...(nonce ? { nonce } : {})
     });
     if (error) {
       captureUnexpectedError(error, { operation: `auth.sign_in_${provider}` });
