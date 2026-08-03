@@ -169,13 +169,19 @@ describe('ReportSheet — error flow', () => {
     expect(screen.getByText('Server error')).toBeTruthy();
   });
 
-  it('"Try Again" resets back to reason list', async () => {
+  it('"Try Again" re-submits the same reason and recovers on success', async () => {
+    mockReportEntity.mockRejectedValueOnce(new Error('Server error'));
+    mockReportEntity.mockResolvedValueOnce('accepted');
+
     await render(<ReportSheet {...defaultProps} />);
     fireEvent.press(screen.getByRole('button', { name: 'Report for Spam' }));
     await waitFor(() => screen.getByText('Try Again'));
-    fireEvent.press(screen.getByText('Try Again'));
+    await fireEvent.press(screen.getByText('Try Again'));
+
+    expect(mockReportEntity).toHaveBeenCalledTimes(2);
+    expect(mockReportEntity).toHaveBeenLastCalledWith('post', 'post-1', 'Spam');
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Report for Spam' })).toBeTruthy()
+      expect(screen.getByText('Report submitted')).toBeTruthy()
     );
   });
 });
