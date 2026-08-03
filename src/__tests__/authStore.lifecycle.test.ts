@@ -14,7 +14,8 @@ jest.mock('@/services/authService', () => ({
     getSession: () => mockGetSession(),
     signInWithPassword: jest.fn(),
     signUp: jest.fn(),
-    signInWithIdToken: (provider: string, idToken: string) => mockSignInWithIdToken(provider, idToken),
+    signInWithIdToken: (provider: string, idToken: string, accessToken?: string, nonce?: string) =>
+      mockSignInWithIdToken(provider, idToken, accessToken, nonce),
     resetPassword: jest.fn(),
     updatePassword: jest.fn(),
     signOut: jest.fn(),
@@ -173,9 +174,9 @@ describe('auth lifecycle synchronization', () => {
     mockSignInWithIdToken.mockResolvedValue({ session });
     mockGetAuthProfileState.mockResolvedValue({ profile: null, isComplete: false });
 
-    await useAuthStore.getState().signInWithIdToken('google', 'id-token');
+    await useAuthStore.getState().signInWithIdToken('google', 'id-token', 'access-token', 'nonce-val');
 
-    expect(mockSignInWithIdToken).toHaveBeenCalledWith('google', 'id-token');
+    expect(mockSignInWithIdToken).toHaveBeenCalledWith('google', 'id-token', 'access-token', 'nonce-val');
     expect(useAuthStore.getState().authStatus).toBe('profileCompletion');
   });
 

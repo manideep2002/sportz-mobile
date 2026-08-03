@@ -32,7 +32,7 @@ interface AuthState {
   completeProfile: (input: CompleteAuthProfileInput) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: RegisterInput) => Promise<AuthResult>;
-  signInWithIdToken: (provider: 'google' | 'apple', idToken: string) => Promise<void>;
+  signInWithIdToken: (provider: 'google' | 'apple', idToken: string, accessToken?: string, nonce?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   verifyMfaChallenge: (factorId: string, code: string) => Promise<void>;
@@ -286,10 +286,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signInWithIdToken: async (provider, idToken) => {
+  signInWithIdToken: async (provider, idToken, accessToken, nonce) => {
     set({ loading: true, error: null });
     try {
-      const { session } = await authService.signInWithIdToken(provider, idToken);
+      const { session } = await authService.signInWithIdToken(provider, idToken, accessToken, nonce);
       await get().handleAuthStateChange('SIGNED_IN', session);
     } catch (error) {
       set({ loading: false, error: errorMessage(error, 'Social login failed.') });
