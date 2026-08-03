@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { FlashList } from '@shopify/flash-list';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Heart } from 'lucide-react-native';
@@ -36,13 +37,19 @@ export function PostDetailScreen() {
     refetch: refetchPost
   } = usePost(route.params.postId);
   const {
-    data: comments = [],
+    data: commentsData,
     isLoading: commentsLoading,
     isError: commentsIsError,
     isRefetching: commentsRefetching,
     error: commentsError,
-    refetch: refetchComments
+    refetch: refetchComments,
+    fetchNextPage: fetchNextComments,
+    hasNextPage: hasNextComments,
+    isFetchingNextPage: fetchingNextComments
   } = useComments(route.params.postId);
+  const comments = Array.isArray(commentsData)
+    ? commentsData
+    : commentsData?.pages.flatMap((page) => page.comments) ?? [];
   usePostRealtimeUpdates(route.params.postId);
   const profile = useAuthStore((state) => state.profile);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -68,6 +75,7 @@ export function PostDetailScreen() {
   };
   return (
     <Screen
+      scroll={false}
       keyboard
       contentContainerStyle={styles.content}
       refreshControl={
@@ -133,8 +141,18 @@ export function PostDetailScreen() {
           <AppText variant="bodyMuted">No comments yet. Start the conversation.</AppText>
         </View>
       ) : null}
-      {comments.map((comment) => (
-        <Pressable
+      <FlashList
+        data={comments}
+        style={styles.commentsList}
+        keyExtractor={(comment) => comment.id}
+        estimatedItemSize={90}
+        onEndReached={() => {
+          if (hasNextComments && !fetchingNextComments) void fetchNextComments();
+        }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={fetchingNextComments ? <ActivityIndicator color={theme.accent} /> : null}
+        renderItem={({ item: comment }) => (
+          <Pressable
           key={comment.id}
           accessibilityRole="button"
           accessibilityLabel={`Comment by ${comment.author.displayName}`}
@@ -165,7 +183,7 @@ export function PostDetailScreen() {
               ], { cancelable: true });
             }
           }}
-        >
+          >
           <Avatar
             initials={comment.author.initials}
             uri={comment.author.avatarUrl}
@@ -194,8 +212,9 @@ export function PostDetailScreen() {
               <AppText variant="small">{comment.likes}</AppText>
             </Pressable>
           </View>
-        </Pressable>
-      ))}
+          </Pressable>
+        )}
+      />
       <CommentInput
         postId={route.params.postId}
         profile={profile}
@@ -261,6 +280,10 @@ const styles = StyleSheet.create({
   commentsHeader: {
     paddingHorizontal: spacing.screen,
     marginBottom: 12
+  },
+  commentsList: {
+    flex: 1,
+    minHeight: 120
   },
   loader: {
     paddingVertical: spacing.xl

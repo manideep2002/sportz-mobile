@@ -31,20 +31,6 @@ const FILTER_OPTIONS: FilterType[] = ['All', 'Mentions', 'Events', 'Social'];
 
 const stringValue = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
 
-const filterNotifications = (notifications: SportzNotification[], filter: FilterType) => {
-  switch (filter) {
-    case 'Events':
-      return notifications.filter((n) => n.kind === 'event' || n.kind === 'invite');
-    case 'Mentions':
-      return notifications.filter((n) => n.kind === 'comment' || n.kind === 'like' || n.kind === 'mention');
-    case 'Social':
-      return notifications.filter((n) => n.kind === 'follow' || n.kind === 'follow_request' || n.kind === 'achievement');
-    case 'All':
-    default:
-      return notifications;
-  }
-};
-
 const navigateForNotification = (
   navigation: Navigation,
   notification: SportzNotification
@@ -109,15 +95,16 @@ export function NotificationsScreen() {
     hasNextPage,
     fetchNextPage,
     refetch
-  } = useInfiniteNotifications();
-  // Flatten paginated results into a single array
-  const notifications: SportzNotification[] = infiniteData?.pages.flat() ?? [];
+  } = useInfiniteNotifications(filter);
+  const notifications: SportzNotification[] = infiniteData?.pages.flatMap((page) =>
+    Array.isArray(page) ? page : page.notifications
+  ) ?? [];
   const markAllRead = useMarkNotificationsRead();
   const markAsRead = useMarkNotificationRead();
   const respondInvite = useRespondCommunityInvite();
   const respondEventInvitation = useRespondEventInvitation();
 
-  const filteredNotifications = filterNotifications(notifications, filter);
+  const filteredNotifications = notifications;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -221,9 +208,8 @@ export function NotificationsScreen() {
             onRefresh={onRefresh}
           />
         }
-        // Trigger next page when the user scrolls within 30% of the bottom.
-        // We check hasNextPage on the *full* unfiltered list so that a narrow
-        // filter that yields 0 visible items still loads more data.
+        // The server applies the active category before pagination, so every
+        // page contains only matching notifications.
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) {
             void fetchNextPage();

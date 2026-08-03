@@ -61,12 +61,22 @@ export function CourtBookingsScreen() {
   const query = adminMode ? adminBookings : myBookings;
   const updateStatus = useUpdateCourtBookingStatus(courtId);
   const [filter, setFilter] = useState<CourtBookingFilter>('upcoming');
+  const bookings = Array.isArray(query.data)
+    ? query.data
+    : query.data?.pages.flatMap((page) => page.bookings) ?? [];
   const visibleBookings = useMemo(
     () => adminMode
-      ? query.data ?? []
-      : (query.data ?? []).filter((booking) => bookingMatchesFilter(booking, filter)),
-    [adminMode, filter, query.data]
+      ? bookings
+      : bookings.filter((booking) => bookingMatchesFilter(booking, filter)),
+    [adminMode, filter, bookings]
   );
+
+  const loadMore = (event: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    if (query.hasNextPage && !query.isFetchingNextPage && layoutMeasurement.height + contentOffset.y >= contentSize.height - 500) {
+      void query.fetchNextPage();
+    }
+  };
 
   const setStatus = async (
     booking: CourtBooking,
@@ -95,6 +105,8 @@ export function CourtBookingsScreen() {
           onRefresh={() => void query.refetch()}
         />
       }
+      onScroll={loadMore}
+      scrollEventThrottle={200}
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
@@ -209,6 +221,7 @@ export function CourtBookingsScreen() {
           </View>
         </View>
       ))}
+      {query.isFetchingNextPage ? <ActivityIndicator color={theme.accent} /> : null}
     </Screen>
   );
 }

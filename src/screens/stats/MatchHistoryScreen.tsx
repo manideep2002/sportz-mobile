@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { CalendarDays, ChevronLeft, Plus } from 'lucide-react-native';
 
-import { AppRefreshControl, AppText, Badge, Button, Chip, IconButton, Screen } from '@/components/ui';
+import { AppRefreshControl, AppText, Badge, Button, Chip, IconButton, QueryState, Screen } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import { useAthleteMatches, useAthleteSeasons } from '@/hooks/useAthleteStats';
@@ -45,11 +45,17 @@ export function MatchHistoryScreen() {
     () => Array.from(new Set((seasonsQuery.data ?? []).map((season) => season.sport))),
     [seasonsQuery.data]
   );
+  const historyError = seasonsQuery.isError || matchesQuery.isError;
+  const historyErrorMessage = seasonsQuery.error ?? matchesQuery.error;
+  const refetchHistory = () => {
+    void matchesQuery.refetch();
+    void seasonsQuery.refetch();
+  };
 
   return (
     <Screen
       contentContainerStyle={styles.content}
-      refreshControl={<AppRefreshControl refreshing={matchesQuery.isRefetching} onRefresh={() => void matchesQuery.refetch()} />}
+      refreshControl={<AppRefreshControl refreshing={matchesQuery.isRefetching || seasonsQuery.isRefetching} onRefresh={refetchHistory} />}
     >
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={() => navigation.goBack()} />
@@ -79,7 +85,10 @@ export function MatchHistoryScreen() {
       ) : null}
 
       {seasonsQuery.isLoading || matchesQuery.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
-      {!matchesQuery.isLoading && !(matchesQuery.data ?? []).length ? (
+      {historyError ? (
+        <QueryState error={historyErrorMessage} onRetry={refetchHistory} />
+      ) : null}
+      {!matchesQuery.isLoading && !historyError && !(matchesQuery.data ?? []).length ? (
         <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <CalendarDays size={36} color={theme.textSubtle} />
           <AppText variant="h4">No matches recorded</AppText>

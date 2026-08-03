@@ -72,6 +72,11 @@ interface BookingRow {
   profiles?: Record<string, unknown> | null;
 }
 
+export interface CourtBookingCursor {
+  startsAt: string;
+  id: string;
+}
+
 const textValue = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
 const numberValue = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
@@ -322,25 +327,27 @@ export const courtService = {
     };
   },
 
-  async listMyBookings(): Promise<CourtBooking[]> {
+  async listMyBookings(cursor?: CourtBookingCursor, limit = 100): Promise<{ bookings: CourtBooking[]; nextCursor: CourtBookingCursor | null }> {
     assertSupabaseConfigured();
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) throw new Error('You must be signed in to view bookings.');
 
-    const { data, error } = await supabase
+    let request = supabase
       .from('court_bookings')
       .select('*, courts:court_id(*), profiles:user_id(*)')
       .eq('user_id', authData.user.id)
       .order('starts_at', { ascending: true })
-      .limit(100);
+      .order('id', { ascending: true });
+    if (cursor) request = request.or(`starts_at.gt.${cursor.startsAt},and(starts_at.eq.${cursor.startsAt},id.gt.${cursor.id})`);
+    const { data, error } = await request.limit(limit + 1);
     if (error) throw error;
-    return ((data ?? []) as BookingRow[]).map((row) =>
-      mapCourtBookingRow(row, authData.user.id, false)
-    );
+    const rows = (data ?? []) as BookingRow[];
+    const pageRows = rows.slice(0, limit);
+    return { bookings: pageRows.map((row) => mapCourtBookingRow(row, authData.user.id, false)), nextCursor: rows.length > limit && pageRows.length ? { startsAt: String(pageRows[pageRows.length - 1].starts_at), id: String(pageRows[pageRows.length - 1].id) } : null };
   },
 
-  async listAdminCourtBookings(courtId?: string): Promise<CourtBooking[]> {
+  async listAdminCourtBookings(courtId?: string, cursor?: CourtBookingCursor, limit = 100): Promise<{ bookings: CourtBooking[]; nextCursor: CourtBookingCursor | null }> {
     assertSupabaseConfigured();
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
@@ -348,13 +355,14 @@ export const courtService = {
       .from('court_bookings')
       .select('*, courts:court_id(*), profiles:user_id(*)')
       .order('starts_at', { ascending: true })
-      .limit(100);
+      .order('id', { ascending: true });
     if (courtId) request = request.eq('court_id', courtId);
-    const { data, error } = await request;
+    if (cursor) request = request.or(`starts_at.gt.${cursor.startsAt},and(starts_at.eq.${cursor.startsAt},id.gt.${cursor.id})`);
+    const { data, error } = await request.limit(limit + 1);
     if (error) throw error;
-    return ((data ?? []) as BookingRow[]).map((row) =>
-      mapCourtBookingRow(row, authData?.user?.id ?? null, true)
-    );
+    const rows = (data ?? []) as BookingRow[];
+    const pageRows = rows.slice(0, limit);
+    return { bookings: pageRows.map((row) => mapCourtBookingRow(row, authData?.user?.id ?? null, true)), nextCursor: rows.length > limit && pageRows.length ? { startsAt: String(pageRows[pageRows.length - 1].starts_at), id: String(pageRows[pageRows.length - 1].id) } : null };
   },
 
   async getBooking(bookingId: string, isAdmin = false): Promise<CourtBooking> {

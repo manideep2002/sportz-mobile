@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ChevronLeft, Inbox, Send } from 'lucide-react-native';
 
-import { AppRefreshControl, AppText, Badge, IconButton, Screen, SegmentedControl } from '@/components/ui';
+import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen, SegmentedControl } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import { useTeamOffers } from '@/hooks/useTeamOffers';
@@ -78,10 +78,12 @@ export function OffersScreen() {
       {query.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
       {query.isError ? (
         <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <AppText variant="bodyMuted">Could not load offers.</AppText>
+          <AppText variant="h4">Could not load offers</AppText>
+          <AppText variant="bodyMuted">{query.error instanceof Error ? query.error.message : 'Please try again.'}</AppText>
+          <Button size="sm" onPress={() => void query.refetch()}>Retry</Button>
         </View>
       ) : null}
-      {!query.isLoading && !query.data?.length ? (
+      {!query.isLoading && !query.isError && !query.data?.length ? (
         <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {direction === 'Incoming'
             ? <Inbox size={36} color={theme.textSubtle} />
@@ -117,4 +119,3 @@ const styles = StyleSheet.create({
   empty: { padding: spacing.xl, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', gap: spacing.sm },
   centerText: { textAlign: 'center' }
 });
-

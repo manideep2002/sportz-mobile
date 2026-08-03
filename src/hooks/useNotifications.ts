@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { notificationService } from '@/services/notificationService';
+import { notificationService, type NotificationCategory, type NotificationPage } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import type { SportzNotification } from '@/types/domain';
@@ -10,7 +10,7 @@ const NOTIFICATIONS_PAGE_SIZE = 40;
 
 export const notificationKeys = {
   all: ['notifications'] as const,
-  infinite: ['notifications', 'infinite'] as const
+  infinite: (category: NotificationCategory = 'All') => ['notifications', 'infinite', category] as const
 };
 
 export const useNotifications = () =>
@@ -20,19 +20,13 @@ export const useNotifications = () =>
     meta: { persist: false }
   });
 
-export const useInfiniteNotifications = () =>
+export const useInfiniteNotifications = (category: NotificationCategory = 'All') =>
   useInfiniteQuery({
-    queryKey: notificationKeys.infinite,
+    queryKey: notificationKeys.infinite(category),
     queryFn: ({ pageParam }) =>
-      notificationService.listNotifications(NOTIFICATIONS_PAGE_SIZE, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-      // Guard against stale or malformed cache entries during hydration
-      if (!Array.isArray(lastPage)) return undefined;
-      return lastPage.length === NOTIFICATIONS_PAGE_SIZE
-        ? lastPageParam + NOTIFICATIONS_PAGE_SIZE
-        : undefined;
-    },
+      notificationService.listNotificationsPage(category, pageParam, NOTIFICATIONS_PAGE_SIZE),
+    initialPageParam: undefined as import('@/services/notificationService').NotificationCursor | undefined,
+    getNextPageParam: (lastPage: NotificationPage) => lastPage.nextCursor ?? undefined,
     meta: { persist: false }
   });
 
@@ -44,7 +38,7 @@ export const useMarkNotificationsRead = () => {
     onSuccess: () => {
       setNotificationUnreadCount(0);
       void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-      void queryClient.invalidateQueries({ queryKey: notificationKeys.infinite });
+      void queryClient.invalidateQueries({ queryKey: ['notifications', 'infinite'] });
     }
   });
 };
@@ -55,7 +49,7 @@ export const useMarkNotificationRead = () => {
     mutationFn: (notificationId: string) => notificationService.markAsRead(notificationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-      void queryClient.invalidateQueries({ queryKey: notificationKeys.infinite });
+      void queryClient.invalidateQueries({ queryKey: ['notifications', 'infinite'] });
     }
   });
 };
@@ -80,20 +74,23 @@ export const useRealtimeNotifications = (onNewNotification: (notification: Sport
           )
         );
         queryClient.setQueryData<{
-          pages: SportzNotification[][];
+          pages: NotificationPage[];
           pageParams: unknown[];
-        }>(notificationKeys.infinite, (old) =>
+        }>(notificationKeys.infinite(), (old) =>
           old
             ? {
                 ...old,
                 pages: [
-                  [notification, ...(old.pages[0] ?? []).filter((item) => item.id !== notification.id)].sort(
-                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                  ),
-                  ...old.pages.slice(1).map((page) => page.filter((item) => item.id !== notification.id))
+                  {
+                    ...old.pages[0],
+                    notifications: [notification, ...(old.pages[0]?.notifications ?? []).filter((item) => item.id !== notification.id)].sort(
+                      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    )
+                  },
+                  ...old.pages.slice(1).map((page) => ({ ...page, notifications: page.notifications.filter((item) => item.id !== notification.id) }))
                 ]
               }
-            : { pages: [[notification]], pageParams: [0] }
+            : { pages: [{ notifications: [notification], nextCursor: null }], pageParams: [undefined] }
         );
         if (event.type === 'INSERT' && !notification.read) {
           incrementNotificationUnreadCount(1);

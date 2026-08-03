@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   courtService,
+  type CourtBookingCursor,
   type CourtCoordinates,
   type CourtFilters
 } from '@/services/courtService';
@@ -62,16 +63,20 @@ export const useBookCourt = (courtId: string) => {
 };
 
 export const useMyCourtBookings = (enabled = true) =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: courtKeys.myBookings,
-    queryFn: () => courtService.listMyBookings(),
+    queryFn: ({ pageParam }) => courtService.listMyBookings(pageParam),
+    initialPageParam: undefined as CourtBookingCursor | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled
   });
 
 export const useAdminCourtBookings = (courtId?: string, enabled = true) =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: courtKeys.adminBookings(courtId),
-    queryFn: () => courtService.listAdminCourtBookings(courtId),
+    queryFn: ({ pageParam }) => courtService.listAdminCourtBookings(courtId, pageParam),
+    initialPageParam: undefined as CourtBookingCursor | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled
   });
 

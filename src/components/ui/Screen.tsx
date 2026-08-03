@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactElement } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout, spacing } from '@/design/tokens';
@@ -16,6 +16,8 @@ interface ScreenProps {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   refreshControl?: ReactElement<RefreshControlProps>;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  scrollEventThrottle?: number;
   maxWidth?: ScreenMaxWidth;
 }
 
@@ -28,6 +30,8 @@ export function Screen({
   style,
   contentContainerStyle,
   refreshControl,
+  onScroll,
+  scrollEventThrottle,
   maxWidth = 'content'
 }: PropsWithChildren<ScreenProps>) {
   const theme = useAppTheme();
@@ -59,6 +63,8 @@ export function Screen({
       style={[styles.root, { backgroundColor: theme.colors.background }, style]}
       contentContainerStyle={contentStyle}
       refreshControl={refreshControl}
+      onScroll={onScroll}
+      scrollEventThrottle={scrollEventThrottle}
       alwaysBounceVertical
       bounces
       overScrollMode="always"

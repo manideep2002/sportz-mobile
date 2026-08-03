@@ -131,3 +131,32 @@ export function SectionHeader({ title, action, onAction }: { title: string; acti
     </View>
   );
 }
+
+export function SkillLevelBadge() {
+  return null;
+}
+
+export function QueryState({ children, error, empty, emptyTitle, emptyMessage, onRetry }: Record<string, any>) {
+  if (error) {
+    return (
+      <View accessibilityRole="alert">
+        <Text>Could not load this</Text>
+        <Text>{error instanceof Error ? error.message : 'Please try again.'}</Text>
+        {onRetry ? (
+          <Pressable accessibilityRole="button" onPress={onRetry}>
+            <Text>Retry</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+  if (empty) {
+    return (
+      <View>
+        <Text>{emptyTitle ?? 'Nothing here yet'}</Text>
+        {emptyMessage ? <Text>{emptyMessage}</Text> : null}
+      </View>
+    );
+  }
+  return <>{children}</>;
+}

@@ -120,6 +120,18 @@ export interface EventMessagePage {
   nextCursor: EventMessageCursor | null;
 }
 
+export interface EventListCursor {
+  startsAt: string;
+  id: string;
+}
+
+export interface EventListPage {
+  events: SportEvent[];
+  nextCursor: EventListCursor | null;
+}
+
+export const EVENT_LIST_PAGE_SIZE = 40;
+
 export const EVENT_MESSAGE_PAGE_SIZE = 50;
 
 const newestEventMessageFirst = (a: EventMessage, b: EventMessage) => {
@@ -197,14 +209,22 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
 
 export const eventService = {
   async listEvents(): Promise<SportEvent[]> {
+    return (await eventService.listEventsPage()).events;
+  },
+
+  async listEventsPage(cursor?: EventListCursor, limit = EVENT_LIST_PAGE_SIZE): Promise<EventListPage> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    let request = supabase
       .from('sport_events')
       .select('*, profiles:organizer_id(*)')
       .gte('ends_at', new Date().toISOString())
       .order('starts_at', { ascending: true })
-      .limit(40);
+      .order('id', { ascending: true });
+    if (cursor) {
+      request = request.or(`starts_at.gt.${cursor.startsAt},and(starts_at.eq.${cursor.startsAt},id.gt.${cursor.id})`);
+    }
+    const { data, error } = await request.limit(limit + 1);
 
     if (error) throw error;
 
@@ -222,7 +242,14 @@ export const eventService = {
       });
     }
 
-    return (data ?? []).map((row) => mapEventRow(row as unknown as SportEventRow, counts.get(row.id) ?? 0));
+    const rows = (data ?? []) as unknown as SportEventRow[];
+    const pageRows = rows.slice(0, limit);
+    return {
+      events: pageRows.map((row) => mapEventRow(row, counts.get(row.id) ?? 0)),
+      nextCursor: rows.length > limit && pageRows.length
+        ? { startsAt: pageRows[pageRows.length - 1].starts_at, id: pageRows[pageRows.length - 1].id }
+        : null
+    };
   },
 
   async listLiveEvents(): Promise<SportEvent[]> {

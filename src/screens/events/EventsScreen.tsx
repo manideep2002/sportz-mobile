@@ -45,7 +45,11 @@ export function EventsScreen() {
   const navigation = useNavigation<Navigation>();
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
-  const { data: events = [], isLoading, isError, refetch, isRefetching } = useEvents();
+  const eventsQuery = useEvents();
+  const events = Array.isArray(eventsQuery.data)
+    ? eventsQuery.data
+    : eventsQuery.data?.pages.flatMap((page) => page.events) ?? [];
+  const { isLoading, isError, refetch, isRefetching, fetchNextPage, hasNextPage, isFetchingNextPage } = eventsQuery;
   const joinEvent = useJoinEvent();
   const leaveWaitlist = useLeaveEventWaitlist();
   const rsvpEvent = useRsvpEvent();
@@ -155,6 +159,13 @@ export function EventsScreen() {
     void Promise.all([refetch(), refetchParticipation()]);
   };
 
+  const loadMore = (event: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    if (hasNextPage && !isFetchingNextPage && layoutMeasurement.height + contentOffset.y >= contentSize.height - 500) {
+      void fetchNextPage();
+    }
+  };
+
   /* Filter events by selected sport */
   const sportFiltered =
     selectedSport === 'All' ? events : events.filter((e) => e.sport === selectedSport);
@@ -178,6 +189,8 @@ export function EventsScreen() {
           onRefresh={handleRefresh}
         />
       }
+      onScroll={loadMore}
+      scrollEventThrottle={200}
     >
       <View style={styles.header}>
         <AppText variant="h2">
@@ -299,6 +312,7 @@ export function EventsScreen() {
             onRsvpAction={(status) => void handleRsvpAction(event.id, status)}
           />
         ))}
+        {isFetchingNextPage ? <ActivityIndicator color={theme.accent} /> : null}
       </View>
 
       {upcomingEvents.length > 0 ? (

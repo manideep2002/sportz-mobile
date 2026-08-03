@@ -82,10 +82,30 @@ export const useEditablePost = (postId: string) =>
   });
 
 export const useComments = (postId: string) =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: feedKeys.comments(postId),
-    queryFn: () => postService.listComments(postId)
+    queryFn: ({ pageParam }) => postService.listComments(postId, pageParam),
+    initialPageParam: undefined as { createdAt: string; id: string } | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined
   });
+
+type CommentPage = {
+  comments: Comment[];
+  nextCursor: { createdAt: string; id: string } | null;
+};
+
+type CommentPages = {
+  pages: CommentPage[];
+  pageParams: unknown[];
+};
+
+const updateCommentPages = (
+  old: CommentPages | undefined,
+  update: (comments: Comment[]) => Comment[]
+): CommentPages | undefined => old ? {
+  ...old,
+  pages: old.pages.map((page) => ({ ...page, comments: update(page.comments) }))
+} : old;
 
 const prependUniquePost = (posts: Post[], post: Post) => [
   post,
@@ -259,7 +279,7 @@ export const useCreateComment = (postId: string) => {
         queryClient.cancelQueries({ queryKey: ['feed'] })
       ]);
 
-      const previousComments = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
+      const previousComments = queryClient.getQueryData<CommentPages>(feedKeys.comments(postId));
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
       const previousFeedQueries = snapshotFeedQueries(queryClient);
       const optimisticId = `optimistic-comment-${Date.now()}`;
@@ -274,14 +294,19 @@ export const useCreateComment = (postId: string) => {
         createdAt: new Date().toISOString()
       };
 
-      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) => [...old, optimisticComment]);
+      queryClient.setQueryData<CommentPages>(feedKeys.comments(postId), (old) => {
+        if (!old) return old;
+        const firstPage = old.pages[0];
+        if (!firstPage) return old;
+        return { ...old, pages: [{ ...firstPage, comments: [...firstPage.comments, optimisticComment] }, ...old.pages.slice(1)] };
+      });
       patchPostEverywhere(queryClient, postId, (post) => ({ ...post, comments: post.comments + 1 }));
 
       return { previousComments, previousPost, previousFeedQueries, optimisticId };
     },
     onSuccess: (comment, _variables, context) => {
-      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
-        old.map((item) => (item.id === context?.optimisticId ? comment : item))
+      queryClient.setQueryData<CommentPages>(feedKeys.comments(postId), (old) =>
+        updateCommentPages(old, (items) => items.map((item) => (item.id === context?.optimisticId ? comment : item)))
       );
     },
     onError: (_error, _variables, context) => {
@@ -331,17 +356,16 @@ export const useOptimisticCommentLike = (postId: string) => {
       postService.toggleCommentLike(commentId, liked),
     onMutate: async ({ commentId, liked }) => {
       await queryClient.cancelQueries({ queryKey: feedKeys.comments(postId) });
-      const previous = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
-      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
-        old.map((comment) =>
+      const previous = queryClient.getQueryData<CommentPages>(feedKeys.comments(postId));
+      queryClient.setQueryData<CommentPages>(feedKeys.comments(postId), (old) =>
+        updateCommentPages(old, (items) => items.map((comment) =>
           comment.id === commentId
             ? {
                 ...comment,
                 likedByMe: !liked,
                 likes: liked ? Math.max(0, comment.likes - 1) : comment.likes + 1
               }
-            : comment
-        )
+            : comment))
       );
       return { previous };
     },
@@ -357,8 +381,8 @@ export const useDeleteComment = (postId: string) => {
   return useMutation({
     mutationFn: (commentId: string) => postService.deleteComment(commentId),
     onSuccess: (_data, commentId) => {
-      queryClient.setQueryData<Comment[]>(feedKeys.comments(postId), (old = []) =>
-        old.filter((comment) => comment.id !== commentId)
+      queryClient.setQueryData<CommentPages>(feedKeys.comments(postId), (old) =>
+        updateCommentPages(old, (items) => items.filter((comment) => comment.id !== commentId))
       );
       patchPostEverywhere(queryClient, postId, (post) => ({
         ...post,
@@ -412,7 +436,7 @@ export const useDeletePost = () => {
       ]);
       const previousFeedQueries = snapshotFeedQueries(queryClient);
       const previousPost = queryClient.getQueryData<Post>(feedKeys.post(postId));
-      const previousComments = queryClient.getQueryData<Comment[]>(feedKeys.comments(postId));
+      const previousComments = queryClient.getQueryData<CommentPages>(feedKeys.comments(postId));
       queryClient.setQueriesData<unknown>(
         { queryKey: ['feed'] },
         (old: unknown) => removePostFromQueryData(old, postId)

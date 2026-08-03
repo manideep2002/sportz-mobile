@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { eventService, type CreateEventInput, type UpdateEventInput } from '@/services/eventService';
 import type { EventParticipationStatus, SportEvent } from '@/types/domain';
@@ -68,9 +68,11 @@ function optimisticParticipation(
 // ── queries ───────────────────────────────────────────────────────────────────
 
 export const useEvents = () =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: eventKeys.all,
-    queryFn: eventService.listEvents
+    queryFn: ({ pageParam }) => eventService.listEventsPage(pageParam),
+    initialPageParam: undefined as import('@/services/eventService').EventListCursor | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined
   });
 
 export const useEvent = (eventId: string) =>

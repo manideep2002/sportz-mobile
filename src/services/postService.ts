@@ -708,20 +708,25 @@ export const postService = {
     return rows.map((row) => mapPostRow(row, engagement));
   },
 
-  async listComments(postId: string): Promise<Comment[]> {
+  async listComments(postId: string, cursor?: { createdAt: string; id: string }, limit = 50): Promise<{ comments: Comment[]; nextCursor: { createdAt: string; id: string } | null }> {
     assertSupabaseConfigured();
 
-    const { data, error } = await supabase
+    let request = supabase
       .from('post_comments')
       .select('*, profiles:author_id(*)')
       .eq('post_id', postId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true });
+    if (cursor) request = request.or(`created_at.gt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`);
+    const { data, error } = await request.limit(limit + 1);
 
     if (error) throw error;
 
     const engagement = await loadCommentEngagement((data ?? []).map((row: CommentRow) => row.id));
 
-    return (data ?? []).map((row: CommentRow) => ({
+    const rows = (data ?? []) as CommentRow[];
+    const pageRows = rows.slice(0, limit);
+    return { comments: pageRows.map((row: CommentRow) => ({
       id: row.id,
       postId: row.post_id,
       parentCommentId: row.parent_id,
@@ -730,7 +735,7 @@ export const postService = {
       likes: engagement.likes.get(row.id) ?? 0,
       likedByMe: engagement.likedByMe.has(row.id),
       createdAt: row.created_at
-    } as Comment));
+    } as Comment)), nextCursor: rows.length > limit && pageRows.length ? { createdAt: pageRows[pageRows.length - 1].created_at, id: pageRows[pageRows.length - 1].id } : null };
   },
 
   async createComment(postId: string, body: string, parentCommentId?: string | null): Promise<Comment> {

@@ -52,6 +52,23 @@ const mapNotificationRow = (row: NotificationRow): SportzNotification => ({
   data: row.data ?? undefined
 });
 
+export type NotificationCategory = 'All' | 'Mentions' | 'Events' | 'Social';
+export interface NotificationCursor {
+  lastEventAt: string;
+  createdAt: string;
+  id: string;
+}
+export interface NotificationPage {
+  notifications: SportzNotification[];
+  nextCursor: NotificationCursor | null;
+}
+
+const categoryKinds: Record<Exclude<NotificationCategory, 'All'>, SportzNotification['kind'][]> = {
+  Mentions: ['mention', 'comment'],
+  Events: ['event', 'invite'],
+  Social: ['like', 'follow', 'follow_request', 'achievement', 'stat_verified']
+};
+
 export const notificationService = {
   async listNotifications(limit = 40, offset = 0): Promise<SportzNotification[]> {
     assertSupabaseConfigured();
@@ -70,6 +87,42 @@ export const notificationService = {
 
     if (error) throw error;
     return (data ?? []).map((row) => mapNotificationRow(row as unknown as NotificationRow));
+  },
+
+  async listNotificationsPage(
+    category: NotificationCategory = 'All',
+    cursor?: NotificationCursor,
+    limit = 40
+  ): Promise<NotificationPage> {
+    assertSupabaseConfigured();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) return { notifications: [], nextCursor: null };
+
+    let request = supabase
+      .from('notifications')
+      .select('*, actor:actor_id(*)')
+      .eq('user_id', authData.user.id)
+      .order('last_event_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false });
+    if (category !== 'All') request = request.in('kind', categoryKinds[category]);
+    if (cursor) {
+      request = request.or(
+        `last_event_at.lt.${cursor.lastEventAt},and(last_event_at.eq.${cursor.lastEventAt},created_at.lt.${cursor.createdAt}),and(last_event_at.eq.${cursor.lastEventAt},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+      );
+    }
+    const { data, error } = await request.limit(limit + 1);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as NotificationRow[];
+    const pageRows = rows.slice(0, limit);
+    const last = pageRows[pageRows.length - 1];
+    return {
+      notifications: pageRows.map(mapNotificationRow),
+      nextCursor: rows.length > limit && last
+        ? { lastEventAt: last.last_event_at ?? last.created_at, createdAt: last.created_at, id: last.id }
+        : null
+    };
   },
 
   async countUnread(): Promise<number> {
