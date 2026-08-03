@@ -8,7 +8,7 @@ import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, Vie
 
 import { ProfileCover } from '@/components/profile/ProfileCover';
 import { StructuredStatsPanel } from '@/components/profile/StructuredStatsPanel';
-import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Screen, SegmentedControl, SkillLevelBadge, SportBadge, StatCard, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, QueryState, Screen, SegmentedControl, SkillLevelBadge, SportBadge, StatCard, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -33,15 +33,18 @@ export function UserProfileScreen() {
   const { userId } = route.params;
 
   const { data: profile, isLoading, isError, isRefetching, refetch } = useProfile(userId);
-  const { data: isFollowing = false, refetch: refetchFollowing } = useIsFollowing(userId);
-  const { data: followRequestStatus = null, refetch: refetchFollowRequestStatus } = useFollowRequestStatus(userId);
-  const { data: isBlocked = false, isLoading: isBlockedLoading, refetch: refetchBlocked } = useIsBlocked(userId);
+  const { data: isFollowing = false, isLoading: isFollowingLoading, isError: isFollowingError, refetch: refetchFollowing } = useIsFollowing(userId);
+  const { data: followRequestStatus = null, isLoading: followRequestStatusLoading, isError: followRequestStatusError, refetch: refetchFollowRequestStatus } = useFollowRequestStatus(userId);
+  const { data: isBlocked = false, isLoading: isBlockedLoading, isError: isBlockedError, refetch: refetchBlocked } = useIsBlocked(userId);
   const toggleFollow = useToggleFollow(userId);
   const toggleBlock = useToggleBlock(userId);
   const [tab, setTab] = useState<'Posts' | 'Stats' | 'Highlights'>('Posts');
   const [selectedSport, setSelectedSport] = useState<StructuredSport | undefined>();
   const [messageLoading, setMessageLoading] = useState(false);
   const blockActionLoading = isBlockedLoading || toggleBlock.isPending;
+  const relationshipUnknown =
+    isFollowingLoading || followRequestStatusLoading || isBlockedLoading ||
+    isFollowingError || followRequestStatusError || isBlockedError;
 
   const handleSportPress = (sportName: string) => {
     const key = sportKeyFor(sportName);
@@ -62,6 +65,7 @@ export function UserProfileScreen() {
   };
 
   const handleFollow = () => {
+    if (relationshipUnknown) return;
     if (followRequestStatus === 'pending' && !isFollowing) {
       Alert.alert('Request pending', `${profile?.displayName ?? 'This player'} has not approved your follow request yet.`);
       return;
@@ -79,6 +83,7 @@ export function UserProfileScreen() {
 
   const openChat = async () => {
     if (!profile) return;
+    if (relationshipUnknown) return;
     if (isBlocked) {
       Alert.alert('Profile blocked', `Unblock ${profile.displayName} before messaging.`);
       return;
@@ -326,7 +331,7 @@ export function UserProfileScreen() {
               style={styles.actionButton}
               icon={UserX}
               variant="danger"
-              disabled={blockActionLoading}
+              disabled={relationshipUnknown || blockActionLoading}
               loading={blockActionLoading}
               onPress={handleBlockToggle}
             >
@@ -337,7 +342,7 @@ export function UserProfileScreen() {
               style={styles.actionButton}
               icon={isFollowing ? UserCheck : UserPlus}
               variant={isFollowing || followRequestStatus === 'pending' ? 'ghost' : 'primary'}
-              disabled={toggleFollow.isPending || blockActionLoading}
+              disabled={relationshipUnknown || toggleFollow.isPending || blockActionLoading}
               loading={toggleFollow.isPending}
               onPress={handleFollow}
             >
@@ -348,7 +353,7 @@ export function UserProfileScreen() {
             style={styles.actionButton}
             variant="ghost"
             loading={messageLoading}
-            disabled={isBlocked || messageLoading}
+            disabled={relationshipUnknown || isBlocked || messageLoading}
             onPress={() => void openChat()}
           >
             Message
@@ -385,7 +390,7 @@ export function UserProfileScreen() {
 function ProfileGrid({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
-  const { data: postsList = [], isLoading } = useUserPosts(userId);
+  const { data: postsList = [], isLoading, isError, error, refetch } = useUserPosts(userId);
 
   if (isLoading) {
     return (
@@ -393,6 +398,10 @@ function ProfileGrid({ userId }: { userId: string }) {
         <ActivityIndicator color={theme.accent} size="small" />
       </View>
     );
+  }
+
+  if (isError) {
+    return <QueryState error={error} onRetry={() => void refetch()} />;
   }
 
   if (postsList.length === 0) {
@@ -482,8 +491,25 @@ function currentPostStreak(posts: { createdAt: string }[]) {
 function HighlightsPanel({ userId }: { userId: string }) {
   const navigation = useNavigation<Navigation>();
   const { colors: theme, isDark } = useAppTheme();
-  const { data: postsList = [] } = useUserPosts(userId);
+  const { data: postsList = [], isLoading, isError, error, refetch } = useUserPosts(userId);
   const [filterKind, setFilterKind] = useState<'stats' | 'highlight' | null>(null);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.panel, styles.center, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <ActivityIndicator color={theme.accent} size="small" />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <QueryState error={error} onRetry={() => void refetch()} />
+      </View>
+    );
+  }
+
   const topStats = postsList
     .filter((post) => post.kind === 'stats')
     .sort((a, b) => b.likes + b.comments - (a.likes + a.comments))[0];

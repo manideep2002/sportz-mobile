@@ -145,7 +145,6 @@ export function PostDetailScreen() {
         data={comments}
         style={styles.commentsList}
         keyExtractor={(comment) => comment.id}
-        estimatedItemSize={90}
         onEndReached={() => {
           if (hasNextComments && !fetchingNextComments) void fetchNextComments();
         }}

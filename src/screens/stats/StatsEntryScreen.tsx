@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { ChevronLeft, Plus } from 'lucide-react-native';
 
-import { AppText, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
+import { AppText, Button, Chip, IconButton, Input, QueryState, Screen } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import {
@@ -54,6 +54,7 @@ export function StatsEntryScreen() {
   const [statValues, setStatValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (seasonsQuery.isError) return;
     const first = seasonsQuery.data?.[0];
     if (first && !seasonsQuery.data?.some((season) => season.id === seasonId)) {
       setSeasonId(first.id);
@@ -62,7 +63,7 @@ export function StatsEntryScreen() {
       setSeasonId('');
       setShowSeasonForm(true);
     }
-  }, [seasonId, seasonsQuery.data, seasonsQuery.isLoading]);
+  }, [seasonId, seasonsQuery.data, seasonsQuery.isLoading, seasonsQuery.isError]);
 
   useEffect(() => {
     setStatValues({});
@@ -135,7 +136,11 @@ export function StatsEntryScreen() {
         ))}
       </View>
 
-      {!showSeasonForm && (seasonsQuery.data ?? []).length ? (
+      {seasonsQuery.isError ? (
+        <QueryState error={seasonsQuery.error} onRetry={() => void seasonsQuery.refetch()} />
+      ) : null}
+
+      {!showSeasonForm && !seasonsQuery.isError && (seasonsQuery.data ?? []).length ? (
         <>
           <AppText variant="small" color={theme.textSubtle}>SEASON</AppText>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>

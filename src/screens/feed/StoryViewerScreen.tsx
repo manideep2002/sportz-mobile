@@ -3,6 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Trash2, Volume2, VolumeX, X } from 'lucide-react-native';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   AppState,
@@ -97,7 +98,13 @@ export function StoryViewerScreen() {
   const reducedMotion = useReducedMotion();
   const overlayRef = useRef<StoryReactionOverlayRef>(null);
 
-  const { data: stories = [] } = useStories();
+  const {
+    data: stories = [],
+    isLoading: storiesLoading,
+    isError: storiesError,
+    error: storiesErrorDetail,
+    refetch: refetchStories
+  } = useStories();
   const markStorySeen = useMarkStorySeen();
   const deleteStory = useDeleteStory();
 
@@ -470,23 +477,41 @@ export function StoryViewerScreen() {
 
       {/* Placeholder shown only when there is genuinely no media URL */}
       {!displayMediaUrl || mediaFailed ? (
-        <View pointerEvents="none" style={styles.placeholder}>
-          <Avatar initials={story?.user.initials ?? 'ST'} uri={story?.user.avatarUrl} size={96} />
-          {story ? (
-            <VerifiedName
-              profile={story.user}
-              variant="h2"
-              color={colors.light[0]}
-              badgeSize={17}
-            />
+        <View pointerEvents={storiesError ? 'auto' : 'none'} style={styles.placeholder}>
+          {storiesError ? (
+            <>
+              <AppText variant="h2">Could not load stories</AppText>
+              <AppText variant="bodyMuted">
+                {storiesErrorDetail instanceof Error ? storiesErrorDetail.message : 'Please try again.'}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading stories"
+                style={styles.retryButton}
+                onPress={() => void refetchStories()}
+              >
+                <AppText style={styles.retryText}>Retry</AppText>
+              </Pressable>
+            </>
+          ) : storiesLoading && !story ? (
+            <ActivityIndicator testID="story-loading-indicator" color={colors.light[0]} />
+          ) : story ? (
+            <>
+              <Avatar initials={story.user.initials ?? 'ST'} uri={story.user.avatarUrl} size={96} />
+              <VerifiedName
+                profile={story.user}
+                variant="h2"
+                color={colors.light[0]}
+                badgeSize={17}
+              />
+              <AppText variant="bodyMuted">Media unavailable</AppText>
+            </>
           ) : (
-            <AppText variant="h2">Story unavailable</AppText>
+            <>
+              <AppText variant="h2">Story unavailable</AppText>
+              <AppText variant="bodyMuted">This story is no longer available.</AppText>
+            </>
           )}
-          <AppText variant="bodyMuted">
-            {story
-              ? 'Media unavailable'
-              : 'This story is no longer available.'}
-          </AppText>
         </View>
       ) : null}
       {story?.user.id && !isOwnStory ? (
@@ -600,6 +625,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md
+  },
+  retryButton: {
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.55)'
+  },
+  retryText: {
+    color: colors.light[0],
+    fontWeight: '700'
   },
   replyBar: {
     position: 'absolute',

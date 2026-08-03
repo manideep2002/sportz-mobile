@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CheckCircle2, History, Plus } from 'lucide-react-native';
 
-import { AppText, Badge, Button, Chip, StatCard } from '@/components/ui';
+import { AppText, Badge, Button, Chip, QueryState, StatCard } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import { useAthleteSeasons, useAthleteStatSummary } from '@/hooks/useAthleteStats';
@@ -87,6 +87,12 @@ export function StructuredStatsPanel({
 
   const summary = summaryQuery.data;
   const hasStats = Boolean(summary?.matchCount);
+  const panelError = seasonsQuery.isError || summaryQuery.isError;
+  const panelErrorMessage = seasonsQuery.error ?? summaryQuery.error;
+  const refetchPanel = () => {
+    void seasonsQuery.refetch();
+    void summaryQuery.refetch();
+  };
 
   return (
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -95,11 +101,13 @@ export function StructuredStatsPanel({
           <AppText variant="h4">Structured Statistics</AppText>
           <AppText variant="bodyMuted">{sportLabelFor(activeSport)}</AppText>
         </View>
-        {summary?.verifiedMatchCount ? (
-          <Badge tone="blue">{summary.verifiedMatchCount} VERIFIED</Badge>
-        ) : (
-          <Badge tone="dark">SELF-REPORTED</Badge>
-        )}
+        {!summaryQuery.isLoading && !summaryQuery.isError ? (
+          summary?.verifiedMatchCount ? (
+            <Badge tone="blue">{summary.verifiedMatchCount} VERIFIED</Badge>
+          ) : (
+            <Badge tone="dark">SELF-REPORTED</Badge>
+          )
+        ) : null}
       </View>
 
       {profileSports.length > 1 ? (
@@ -131,7 +139,11 @@ export function StructuredStatsPanel({
 
       {seasonsQuery.isLoading || summaryQuery.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
 
-      {!seasonsQuery.isLoading && !(seasonsQuery.data ?? []).length ? (
+      {panelError ? (
+        <QueryState error={panelErrorMessage} onRetry={refetchPanel} />
+      ) : null}
+
+      {!seasonsQuery.isLoading && !panelError && !(seasonsQuery.data ?? []).length ? (
         <View style={styles.empty}>
           <AppText variant="bodyMuted">
             {isOwnProfile

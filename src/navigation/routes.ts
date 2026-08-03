@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { StructuredSport } from '@/types/domain';
+
 export type AuthStackParamList = {
   Splash: undefined;
   Login: undefined;
@@ -43,10 +45,10 @@ export type AppStackParamList = {
   CreateOffer: { recipientId: string };
   Offers: { initialDirection?: 'incoming' | 'outgoing' } | undefined;
   OfferDetail: { offerId: string };
-  StatsEntry: { sport?: 'basketball' | 'football' | 'cricket' } | undefined;
+  StatsEntry: { sport?: StructuredSport } | undefined;
   MatchHistory: {
     userId?: string;
-    sport?: 'basketball' | 'football' | 'cricket';
+    sport?: StructuredSport;
     seasonId?: string;
   } | undefined;
   VerificationQueue: undefined;
