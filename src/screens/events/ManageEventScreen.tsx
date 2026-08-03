@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -25,8 +25,8 @@ import {
   useUpdateEvent
 } from '@/hooks/useEvents';
 import { useCommunityMembers } from '@/hooks/useCommunities';
-import { profileService } from '@/services/profileService';
-import type { EventType, EventVisibility, Sport, UserProfile } from '@/types/domain';
+import { usePlayerSearch } from '@/hooks/usePlayerSearch';
+import type { EventType, EventVisibility, Sport } from '@/types/domain';
 import type { AppStackParamList } from '@/navigation/routes';
 import { formatDateInput, formatTimeInput, getErrorMessage, parseManualStartDate } from '@/utils/eventDateValidation';
 
@@ -67,10 +67,16 @@ export function ManageEventScreen() {
   const [entryFee, setEntryFee] = useState(event ? String(event.entryFeeCents / 100) : '0');
   const [coverImage, setCoverImage] = useState<string | null>(event?.coverUrl ?? null);
   const [coverRemoved, setCoverRemoved] = useState(false);
-  const [playerQuery, setPlayerQuery] = useState('');
-  const [playerResults, setPlayerResults] = useState<UserProfile[]>([]);
   const initialForm = useRef<string | null>(null);
   const initializedEventId = useRef<string | null>(null);
+  const excludedPlayerIds = useMemo(
+    () => new Set([
+      ...(event ? [event.organizer.id] : []),
+      ...(event?.attendees ?? []).map((attendee) => attendee.id)
+    ]),
+    [event]
+  );
+  const playerSearch = usePlayerSearch({ excludeIds: excludedPlayerIds });
 
   const formSnapshot = (values: {
     title: string;
@@ -538,17 +544,29 @@ export function ManageEventScreen() {
               <>
                 <AppText variant="h4">Invite Players</AppText>
                 {event.communityId ? <AppText variant="bodyMuted">Only current group members can be invited to this group event.</AppText> : (
-                  <Input
-                    label="Find players"
-                    value={playerQuery}
-                    onChangeText={async (value) => {
-                      setPlayerQuery(value);
-                      setPlayerResults(value.trim() ? await profileService.listPlayers(value) : []);
-                    }}
-                    placeholder="Search players"
-                  />
+                  <>
+                    <Input
+                      label="Find players"
+                      value={playerSearch.query}
+                      onChangeText={playerSearch.setQuery}
+                      placeholder="Search players"
+                    />
+                    {playerSearch.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
+                    {playerSearch.isError ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry player search"
+                        onPress={() => void playerSearch.retry()}
+                      >
+                        <AppText variant="bodyMuted">Could not search players. Tap to retry.</AppText>
+                      </Pressable>
+                    ) : null}
+                    {!playerSearch.isLoading && !playerSearch.isError && playerSearch.query.trim() && playerSearch.results.length === 0 ? (
+                      <AppText variant="bodyMuted">No players found.</AppText>
+                    ) : null}
+                  </>
                 )}
-                {(event.communityId ? communityMembers.map((member) => member.profile) : playerResults)
+                {(event.communityId ? communityMembers.map((member) => member.profile) : playerSearch.results)
                   .filter((player) => player.id !== event.organizer.id && !event.attendees.some((attendee) => attendee.id === player.id))
                   .map((player) => {
                     const existing = invitations.find((invitation) => invitation.invitee?.id === player.id);

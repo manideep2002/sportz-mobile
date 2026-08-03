@@ -1,6 +1,5 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import {
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';import {
   CalendarDays,
   Check,
   ChevronLeft,
@@ -18,7 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 import { EventCard } from '@/components/events/EventCard';
@@ -40,8 +39,8 @@ import {
 } from '@/hooks/useCommunities';
 import { flattenCommunityPostPages, useCommunityPosts } from '@/hooks/useFeed';
 import { useCommunityEvents } from '@/hooks/useEvents';
+import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
-import { profileService } from '@/services/profileService';
 import { shareCanonicalEntity } from '@/services/canonicalLinkService';
 import { useAuthStore } from '@/store/authStore';
 import type { CommunityJoinRequest, CommunityMember, CommunityMemberRole, UserProfile } from '@/types/domain';
@@ -101,11 +100,14 @@ export function GroupDetailScreen() {
   const updateMemberRole = useUpdateCommunityMemberRole(route.params.communityId);
   const removeMember = useRemoveCommunityMember(route.params.communityId);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteQuery, setInviteQuery] = useState('');
-  const [inviteResults, setInviteResults] = useState<UserProfile[]>([]);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const memberIds = useMemo(
+    () => new Set(members.map((member) => member.profile?.id).filter((id): id is string => Boolean(id))),
+    [members]
+  );
+  const inviteSearch = usePlayerSearch({ excludeIds: memberIds });
 
   const refreshAll = async () => {
     const tasks: Promise<unknown>[] = [refetch()];
@@ -457,23 +459,26 @@ export function GroupDetailScreen() {
           <Pressable style={[styles.inviteCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
             <AppText variant="h3">Invite players</AppText>
             <Input
-              value={inviteQuery}
-              onChangeText={async (value) => {
-                setInviteQuery(value);
-                if (!value.trim()) {
-                  setInviteResults([]);
-                  return;
-                }
-                try {
-                  setInviteResults(await profileService.listPlayers(value));
-                } catch (error) {
-                  Alert.alert('Search failed', error instanceof Error ? error.message : 'Please try again.');
-                }
-              }}
+              value={inviteSearch.query}
+              onChangeText={inviteSearch.setQuery}
               placeholder="Search players"
             />
+            {inviteSearch.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
+            {inviteSearch.isError ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry player search"
+                style={styles.searchError}
+                onPress={() => void inviteSearch.retry()}
+              >
+                <AppText variant="bodyMuted">Could not search players. Tap to retry.</AppText>
+              </Pressable>
+            ) : null}
+            {!inviteSearch.isLoading && !inviteSearch.isError && inviteSearch.query.trim() && inviteSearch.results.length === 0 ? (
+              <AppText variant="bodyMuted" style={styles.searchError}>No players found.</AppText>
+            ) : null}
             <ScrollView style={styles.inviteList}>
-              {inviteResults.map((player) => (
+              {inviteSearch.results.map((player) => (
                 <Pressable
                   key={player.id}
                   accessibilityRole="button"
@@ -846,6 +851,10 @@ const styles = StyleSheet.create({
   },
   inviteList: {
     maxHeight: 300
+  },
+  searchError: {
+    textAlign: 'center',
+    paddingVertical: spacing.sm
   },
   inviteRow: {
     flexDirection: 'row',

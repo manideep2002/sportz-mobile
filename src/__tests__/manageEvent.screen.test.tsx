@@ -21,6 +21,13 @@ jest.mock('expo-image-picker', () => ({
 }));
 jest.mock('@/hooks/useCommunities', () => ({ useCommunityMembers: () => ({ data: [] }) }));
 jest.mock('@/services/profileService', () => ({ profileService: { listPlayers: jest.fn() } }));
+jest.mock('@/hooks/usePlayerSearch', () => ({
+  usePlayerSearch: () => ({
+    query: '', setQuery: jest.fn(), results: [],
+    isLoading: false, isFetching: false, isError: false, error: null,
+    retry: jest.fn(), hasMore: false, loadMore: jest.fn()
+  })
+}));
 jest.mock('@/hooks/useEvents', () => ({
   useEvent: () => ({ data: mockEvent, isLoading: false, isError: false, isRefetching: false, error: null, refetch: jest.fn() }),
   useEventWaitlist: () => ({ data: [], isError: false, isRefetching: false, refetch: jest.fn() }),

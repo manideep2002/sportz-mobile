@@ -141,7 +141,7 @@ export const profileService = {
     });
   },
 
-  async listPlayers(query?: string, sport?: string, page = 0, pageSize = 30): Promise<UserProfile[]> {
+  async listPlayers(query?: string, sport?: string, page = 0, pageSize = 30, signal?: AbortSignal): Promise<UserProfile[]> {
     assertSupabaseConfigured();
 
     const { data: authData } = await supabase.auth.getUser();
@@ -158,6 +158,9 @@ export const profileService = {
     }
     if (sport?.trim()) {
       request = request.eq('primary_sport', sport.trim());
+    }
+    if (signal) {
+      request = request.abortSignal(signal);
     }
 
     const { data, error } = await request;

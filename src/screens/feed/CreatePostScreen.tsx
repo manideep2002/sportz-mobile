@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
@@ -11,8 +11,8 @@ import { postSports } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
 import { useCreatePost, useEditablePost, useUpdatePost } from '@/hooks/useFeed';
+import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
-import { profileService } from '@/services/profileService';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
 import type { Post, Sport, UserProfile } from '@/types/domain';
@@ -56,8 +56,6 @@ export function CreatePostScreen() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [taggedUsers, setTaggedUsers] = useState<UserProfile[]>([]);
-  const [tagSearchQuery, setTagSearchQuery] = useState('');
-  const [tagSearchResults, setTagSearchResults] = useState<UserProfile[]>([]);
   const [hydratedEditPost, setHydratedEditPost] = useState(false);
   const [mediaRemoved, setMediaRemoved] = useState(false);
   const {
@@ -69,6 +67,8 @@ export function CreatePostScreen() {
   } = useEditablePost(editPostId ?? '');
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
+  const taggedIds = useMemo(() => new Set(taggedUsers.map((user) => user.id)), [taggedUsers]);
+  const tagSearch = usePlayerSearch({ excludeIds: taggedIds });
   const communityId = route.params?.communityId ?? editPost?.communityId ?? undefined;
   const isCommunityPost = Boolean(communityId);
   const communityVisibilityLabel = editPost?.visibility === 'public' ? 'Public' : COMMUNITY_LABEL;
@@ -347,17 +347,24 @@ export function CreatePostScreen() {
             </View>
             <Input
               placeholder="Search players..."
-              value={tagSearchQuery}
-              onChangeText={async (q) => {
-                setTagSearchQuery(q);
-                if (!q.trim()) { setTagSearchResults([]); return; }
-                try {
-                  const results = await profileService.listPlayers(q.trim());
-                  setTagSearchResults(results.filter((p) => !taggedUsers.some((t) => t.id === p.id)));
-                } catch { /* ignore */ }
-              }}
+              value={tagSearch.query}
+              onChangeText={tagSearch.setQuery}
             />
-            {tagSearchResults.map((user) => (
+            {tagSearch.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
+            {tagSearch.isError ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry player search"
+                style={styles.searchError}
+                onPress={() => void tagSearch.retry()}
+              >
+                <AppText variant="bodyMuted">Could not search players. Tap to retry.</AppText>
+              </Pressable>
+            ) : null}
+            {!tagSearch.isLoading && !tagSearch.isError && tagSearch.query.trim() && tagSearch.results.length === 0 ? (
+              <AppText variant="bodyMuted" style={styles.searchError}>No players found.</AppText>
+            ) : null}
+            {tagSearch.results.map((user) => (
               <Pressable
                 key={user.id}
                 style={styles.tagOption}
@@ -367,8 +374,7 @@ export function CreatePostScreen() {
                     const mention = `@${user.username}`;
                     return old.includes(mention) ? old : `${mention} ${old}`.trimEnd();
                   });
-                  setTagSearchResults([]);
-                  setTagSearchQuery('');
+                  tagSearch.setQuery('');
                 }}
               >
                 <Avatar initials={user.initials} uri={user.avatarUrl} size={38} />
@@ -585,6 +591,10 @@ const styles = StyleSheet.create({
   },
   tagOptionMeta: {
     flex: 1
+  },
+  searchError: {
+    textAlign: 'center',
+    paddingVertical: spacing.sm
   },
   communityBanner: {
     flexDirection: 'row',

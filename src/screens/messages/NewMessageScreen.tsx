@@ -1,17 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, Search, Users } from 'lucide-react-native';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Avatar, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
 import { messageKeys, useConversation } from '@/hooks/useMessages';
+import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
-import { profileService } from '@/services/profileService';
 import type { UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -24,8 +24,6 @@ export function NewMessageScreen() {
   const route = useRoute<Route>();
   const addToConversationId = route.params?.addToConversationId;
   const { data: targetConversation } = useConversation(addToConversationId ?? '');
-  const [query, setQuery] = useState('');
-  const [players, setPlayers] = useState<UserProfile[]>([]);
   const [selected, setSelected] = useState<UserProfile[]>([]);
   const [groupTitle, setGroupTitle] = useState('');
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -37,22 +35,9 @@ export function NewMessageScreen() {
     [targetConversation?.participants]
   );
   const isAddMode = Boolean(addToConversationId);
-
-  useEffect(() => {
-    if (!query.trim()) {
-      setPlayers([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const results = await profileService.listPlayers(query);
-        setPlayers(isAddMode ? results.filter((player) => !existingMemberIds.has(player.id)) : results);
-      } catch (error) {
-        Alert.alert('Search failed', error instanceof Error ? error.message : 'Please try again.');
-      }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [existingMemberIds, isAddMode, query]);
+  const search = usePlayerSearch({
+    excludeIds: isAddMode ? existingMemberIds : null
+  });
 
   const toggleSelected = (player: UserProfile) => {
     setSelected((current) =>
@@ -114,11 +99,22 @@ export function NewMessageScreen() {
 
       <Input
         icon={Search}
-        value={query}
-        onChangeText={setQuery}
+        value={search.query}
+        onChangeText={search.setQuery}
         placeholder="Search players"
         autoFocus
       />
+      {search.isLoading ? <ActivityIndicator color={theme.accent} /> : null}
+      {search.isError ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Retry player search"
+          style={styles.searchError}
+          onPress={() => void search.retry()}
+        >
+          <AppText variant="bodyMuted">Could not search players. Tap to retry.</AppText>
+        </Pressable>
+      ) : null}
 
       {selected.length ? (
         <View style={[styles.selectedPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -144,7 +140,7 @@ export function NewMessageScreen() {
       ) : null}
 
       <View style={styles.results}>
-        {players.map((player) => {
+        {search.results.map((player) => {
           const isSelected = selectedIds.has(player.id);
           return (
             <View key={player.id} style={[styles.playerRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -166,7 +162,7 @@ export function NewMessageScreen() {
             </View>
           );
         })}
-        {query.trim() && players.length === 0 ? (
+        {search.query.trim() && search.results.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>No players found.</AppText>
         ) : null}
       </View>
@@ -212,6 +208,10 @@ const styles = StyleSheet.create({
   },
   results: {
     gap: spacing.sm
+  },
+  searchError: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm
   },
   playerRow: {
     flexDirection: 'row',

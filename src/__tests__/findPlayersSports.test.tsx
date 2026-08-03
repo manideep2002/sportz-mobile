@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PropsWithChildren } from 'react';
 
 import { allSports } from '@/constants/sports';
 
@@ -20,10 +22,23 @@ jest.mock('@/services/profileService', () => ({
 import { FindPlayersScreen, playerSportFilters, playerSportQueryValue } from '@/screens/profile/FindPlayersScreen';
 
 describe('Find Players canonical sports', () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockListPlayers.mockResolvedValue([]);
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } }
+    });
   });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
 
   it('exposes every canonical sport and preserves its database query value', async () => {
     expect(playerSportFilters).toEqual(['All Sports', ...allSports]);
@@ -32,13 +47,13 @@ describe('Find Players canonical sports', () => {
     ]));
     expect(playerSportQueryValue('All Sports')).toBeUndefined();
 
-    await render(<FindPlayersScreen />);
-    await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', undefined, 0, 30));
+    await render(<FindPlayersScreen />, { wrapper });
+    await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', undefined, 0, 30, expect.any(AbortSignal)));
 
     for (const sport of allSports) {
       expect(playerSportQueryValue(sport)).toBe(sport);
       await fireEvent.press(screen.getByRole('button', { name: sport }));
-      await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', sport, 0, 30));
+      await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', sport, 0, 30, expect.any(AbortSignal)));
     }
   });
 });

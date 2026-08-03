@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
@@ -10,9 +10,9 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, In
 import { allSports } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
+import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
-import { profileService } from '@/services/profileService';
 import type { Sport, UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -24,63 +24,36 @@ const PAGE_SIZE = 30;
 export function FindPlayersScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
-  const [players, setPlayers] = useState<UserProfile[]>([]);
-  const [query, setQuery] = useState('');
   const [sport, setSport] = useState<'All Sports' | Sport>('All Sports');
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    void loadPlayers(0, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sport]);
-
-  const loadPlayers = async (
-    nextPage = 0,
-    replace = false,
-    nextQuery = query,
-    nextSport: 'All Sports' | Sport = sport,
-    showLoader = true
-  ) => {
-    if (showLoader) setLoading(true);
-    try {
-      const results = await profileService.listPlayers(
-        nextQuery,
-        playerSportQueryValue(nextSport),
-        nextPage,
-        PAGE_SIZE
-      );
-      setPlayers((old) => (replace ? results : [...old, ...results]));
-      setPage(nextPage);
-      setHasMore(results.length === PAGE_SIZE);
-    } catch (error) {
-      Alert.alert('Could not load players', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  };
+  const {
+    query,
+    setQuery,
+    results: players,
+    isLoading: loading,
+    isError,
+    retry,
+    hasMore,
+    loadMore
+  } = usePlayerSearch({
+    sport: playerSportQueryValue(sport),
+    pageSize: PAGE_SIZE,
+    minQueryLength: 0
+  });
 
   const refreshPlayers = async () => {
     setRefreshing(true);
     try {
-      await loadPlayers(0, true, query, sport, false);
+      await retry();
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleSearch = (value: string) => {
-    setQuery(value);
-    void loadPlayers(0, true, value);
-  };
-
   const resetFilters = () => {
     setQuery('');
     setSport('All Sports');
-    void loadPlayers(0, true, '', 'All Sports');
   };
 
   const openMessage = async (player: UserProfile) => {
@@ -110,7 +83,7 @@ export function FindPlayersScreen() {
         <AppText variant="h3">Find Players</AppText>
         <IconButton icon={SlidersHorizontal} accessibilityLabel="Reset player filters" onPress={resetFilters} />
       </View>
-      <Input icon={Search} value={query} onChangeText={handleSearch} placeholder="Search by name, sport..." />
+      <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search by name, sport..." />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -121,11 +94,7 @@ export function FindPlayersScreen() {
           <Chip
             key={item}
             selected={item === sport}
-            onPress={() => {
-              setSport(item);
-              setPlayers([]);
-              setHasMore(true);
-            }}
+            onPress={() => setSport(item)}
           >
             {item}
           </Chip>
@@ -196,11 +165,17 @@ export function FindPlayersScreen() {
         </View>
       ))}
       {loading ? <ActivityIndicator color={theme.accent} /> : null}
-      {!loading && players.length === 0 ? (
+      {isError ? (
+        <View style={styles.errorRow}>
+          <AppText variant="bodyMuted">Could not load players.</AppText>
+          <Button size="sm" onPress={() => void retry()}>Retry</Button>
+        </View>
+      ) : null}
+      {!loading && !isError && players.length === 0 ? (
         <AppText variant="bodyMuted" style={styles.empty}>No players match your search.</AppText>
       ) : null}
       {hasMore && players.length > 0 ? (
-        <Button variant="dark" onPress={() => void loadPlayers(page + 1)}>
+        <Button variant="dark" onPress={() => void loadMore()}>
           Load more
         </Button>
       ) : null}
@@ -289,5 +264,11 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     paddingVertical: spacing.lg
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm
   }
 });

@@ -34,6 +34,13 @@ jest.mock('@/hooks/useFeed', () => ({
 jest.mock('@/services/profileService', () => ({
   profileService: { listPlayers: jest.fn() }
 }));
+jest.mock('@/hooks/usePlayerSearch', () => ({
+  usePlayerSearch: () => ({
+    query: '', setQuery: jest.fn(), results: [],
+    isLoading: false, isFetching: false, isError: false, error: null,
+    retry: jest.fn(), hasMore: false, loadMore: jest.fn()
+  })
+}));
 jest.mock('@/services/storageService', () => ({
   storageService: {
     pickMedia: (...args: unknown[]) => mockPickMedia(...args),
