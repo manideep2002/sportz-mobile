@@ -1,5 +1,10 @@
 -- Update home feed RPCs to return author skill_level and is_verified for PRO badges on posts.
 
+-- The return type (OUT parameters) changes in this migration, which
+-- `create or replace` cannot do, so the previous definitions must be dropped.
+drop function if exists public.list_home_feed_v2(timestamptz, integer);
+drop function if exists public.list_home_feed(timestamptz, integer);
+
 create or replace function public.list_home_feed_v2(
   page_cursor timestamptz default null,
   page_limit integer default 20

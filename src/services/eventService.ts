@@ -207,6 +207,24 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
   communityId: row.community_id ?? null
 });
 
+/**
+ * Best-effort deletion of a cover that was uploaded but never successfully
+ * attached to an event. Idempotent (no-op when there is nothing to remove;
+ * removing a missing storage object is also a no-op) and observable: cleanup
+ * failures are reported to monitoring but never replace the triggering error.
+ */
+async function cleanupUnattachedCover(coverUrl: string | null): Promise<void> {
+  if (!coverUrl) return;
+  try {
+    await storageService.removeEventCover(coverUrl);
+  } catch (cleanupError) {
+    captureUnexpectedError(cleanupError, {
+      operation: 'event.coverCleanup',
+      extra: { coverUrl }
+    });
+  }
+}
+
 export const eventService = {
   async listEvents(): Promise<SportEvent[]> {
     return (await eventService.listEventsPage()).events;
@@ -300,7 +318,7 @@ export const eventService = {
     return mapEventRow(data as unknown as SportEventRow, attendees.length, attendees);
   },
 
-  async createEvent(input: CreateEventInput): Promise<SportEvent> {
+  async createEvent(input: CreateEventInput, signal?: AbortSignal): Promise<SportEvent> {
     assertSupabaseConfigured();
 
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -311,7 +329,7 @@ export const eventService = {
       ? await storageService.uploadMedia(input.coverImageUri, 'event-covers', authData.user.id)
       : null;
 
-    const { data: eventId, error } = await supabase.rpc('create_sport_event', {
+    let createRequest = supabase.rpc('create_sport_event', {
       target_title: input.title,
       target_event_type: input.eventType,
       target_sport: input.sport,
@@ -328,9 +346,16 @@ export const eventService = {
       target_visibility: input.visibility,
       target_community_id: input.communityId ?? null
     });
+    if (signal) createRequest = createRequest.abortSignal(signal);
 
-    if (error) throw error;
-    if (!eventId || typeof eventId !== 'string') throw new Error('Event was not created.');
+    const { data: eventId, error } = await createRequest;
+
+    if (error || !eventId || typeof eventId !== 'string') {
+      // The event row was never created, so the uploaded cover is unreferenced.
+      await cleanupUnattachedCover(coverUrl);
+      if (error) throw error;
+      throw new Error('Event was not created.');
+    }
 
     return eventService.getEvent(eventId);
   },
@@ -578,22 +603,14 @@ export const eventService = {
       if (error) throw error;
       if (!updatedEvent) throw new Error('You are not authorized to update this event.');
     } catch (error) {
-      if (uploadedCoverUrl) {
-        try {
-          await storageService.removeEventCover(uploadedCoverUrl);
-        } catch {
-          // The database update remains authoritative. A failed cleanup must not hide its error.
-        }
-      }
+      // The database update remains authoritative. A failed cleanup must not hide its error.
+      await cleanupUnattachedCover(uploadedCoverUrl);
       throw error;
     }
 
     if (updates.coverImageUri !== undefined && existing.cover_url && existing.cover_url !== uploadedCoverUrl) {
-      try {
-        await storageService.removeEventCover(existing.cover_url);
-      } catch {
-        // The replacement is persisted; stale storage can be cleaned up later without rolling it back.
-      }
+      // The replacement is persisted; stale storage can be cleaned up later without rolling it back.
+      await cleanupUnattachedCover(existing.cover_url);
     }
 
     return this.getEvent(eventId);
