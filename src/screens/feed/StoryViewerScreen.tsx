@@ -31,6 +31,7 @@ import { messageService } from '@/services/messageService';
 import { storyService } from '@/services/storyService';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
+import { encodeStoryReaction } from '@/utils/storyReaction';
 import { groupStoriesByUser } from '@/utils/storyUtils';
 import type { Story } from '@/types/domain';
 
@@ -330,7 +331,13 @@ export function StoryViewerScreen() {
         await storyService.recordReply(currentStoryId, body.trim());
       }
       const conversationId = await messageService.createDirectConversation(story.user.id);
-      await messageService.sendMessage(conversationId, body.trim());
+      // For reactions, encode story context so the recipient sees the emoji
+      // alongside a story thumbnail rather than a bare emoji message.
+      const messageBody =
+        kind === 'reaction'
+          ? encodeStoryReaction(body.trim(), currentStoryId, story.mediaUrl)
+          : body.trim();
+      await messageService.sendMessage(conversationId, messageBody);
       setReply('');
       Keyboard.dismiss();
     } catch (error) {

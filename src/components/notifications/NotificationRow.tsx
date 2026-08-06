@@ -34,6 +34,8 @@ const getNotificationIcon = (kind: SportzNotification['kind'], color: string) =>
       return <UserPlus size={20} color={color} />;
     case 'achievement':
       return <Trophy size={20} color={color} />;
+    case 'story_reaction':
+      return <Heart size={20} color={color} />;
     default:
       return <Bell size={20} color={color} />;
   }

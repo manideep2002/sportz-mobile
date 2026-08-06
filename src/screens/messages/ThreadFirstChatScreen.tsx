@@ -58,6 +58,7 @@ import type {
   ThreadChatParticipant
 } from '@/types/threadFirstChat';
 import { getChatPresenceLabel } from '@/utils/chatPresence';
+import { isStoryReactionMessage, parseStoryReaction } from '@/utils/storyReaction';
 
 interface ThreadFirstChatScreenProps {
   roomId: string;
@@ -217,6 +218,70 @@ export function MessageMedia({
   );
 }
 
+/**
+ * Renders a story reaction message as a story-tile thumbnail with the emoji
+ * centered on it, plus a short label below — matching the Instagram/WhatsApp
+ * pattern so the recipient immediately understands context.
+ *
+ *  ┌──────────────┐
+ *  │              │  ← story thumbnail (9:16 mini tile)
+ *  │      🔥      │  ← emoji overlaid in center
+ *  │              │
+ *  └──────────────┘
+ *   Reacted to your story
+ */
+function StoryReactionBubble({ body, mine }: { body: string | null; mine: boolean }) {
+  const { colors: theme } = useAppTheme();
+  const reaction = parseStoryReaction(body);
+
+  if (!reaction) {
+    // Fallback: render the raw body (shouldn't normally happen)
+    return (
+      <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>
+        {body}
+      </AppText>
+    );
+  }
+
+  return (
+    <View style={styles.storyReactionContainer}>
+      {/* 9:16 story tile */}
+      <View style={styles.storyReactionThumbnailWrap}>
+        {reaction.storyMediaUrl ? (
+          <ExpoImage
+            source={{ uri: reaction.storyMediaUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            accessibilityLabel="Story"
+          />
+        ) : (
+          /* Placeholder gradient-like dark tile when there's no media */
+          <View style={[StyleSheet.absoluteFill, styles.storyReactionPlaceholder]} />
+        )}
+
+        {/* Subtle dark vignette so the emoji is readable over any image */}
+        <View style={styles.storyReactionVignette} />
+
+        {/* Emoji badge — big, centered, with a frosted-glass pill behind it */}
+        <View style={styles.storyReactionEmojiBadge}>
+          <AppText style={styles.storyReactionEmojiText}>{reaction.emoji}</AppText>
+        </View>
+      </View>
+
+      {/* Label underneath the tile */}
+      <AppText
+        style={[
+          styles.storyReactionLabel,
+          { color: mine ? theme.onAccent : theme.textSubtle }
+        ]}
+      >
+        {mine ? 'You reacted to their story' : 'Reacted to your story'}
+      </AppText>
+    </View>
+  );
+}
+
 function MessageBubble({
   message,
   currentUserId,
@@ -262,12 +327,19 @@ function MessageBubble({
           style={[
             styles.bubble,
             mine ? styles.myBubble : styles.theirBubble,
-            { backgroundColor: mine ? theme.accent : theme.surface },
+            // Story reaction bubbles have no background — the thumbnail fills the space
+            message.messageType === 'text' && isStoryReactionMessage(message.body)
+              ? styles.storyReactionBubble
+              : { backgroundColor: mine ? theme.accent : theme.surface },
             message.mediaUrl ? styles.mediaBubble : null
           ]}
         >
           {message.messageType === 'text' ? (
-            <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
+            isStoryReactionMessage(message.body) ? (
+              <StoryReactionBubble body={message.body} mine={mine} />
+            ) : (
+              <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
+            )
           ) : (
             <MessageMedia
               message={message}
@@ -1421,5 +1493,54 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyFamily,
     fontSize: 14
+  },
+  // Story reaction bubble
+  storyReactionBubble: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    overflow: 'hidden',
+    // Remove the normal bubble background — the thumbnail IS the background
+    backgroundColor: 'transparent'
+  },
+  storyReactionContainer: {
+    alignItems: 'center',
+    gap: 6
+  },
+  storyReactionThumbnailWrap: {
+    width: 144,
+    height: 216,   // 9:16 ratio, same as the full-screen story viewer
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dark[800]
+  },
+  storyReactionPlaceholder: {
+    backgroundColor: colors.dark[700]
+  },
+  storyReactionVignette: {
+    ...StyleSheet.absoluteFillObject,
+    // Radial-style gradient achieved with a semi-transparent overlay.
+    // Darkens edges just enough for the emoji to pop without hiding the image.
+    backgroundColor: 'rgba(0,0,0,0.20)'
+  },
+  storyReactionEmojiBadge: {
+    // Frosted-glass pill centered on the tile
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 28,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  storyReactionEmojiText: {
+    fontSize: 36,
+    lineHeight: 44
+  },
+  storyReactionLabel: {
+    fontSize: 11,
+    fontFamily: typography.bodyFamily,
+    color: colors.text.tertiary,
+    textAlign: 'center'
   }
 });

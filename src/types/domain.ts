@@ -468,7 +468,8 @@ export type NotificationKind =
   | 'invite'
   | 'security'
   | 'achievement'
-  | 'stat_verified';
+  | 'stat_verified'
+  | 'story_reaction';
 
 export interface SportzNotification {
   id: ID;

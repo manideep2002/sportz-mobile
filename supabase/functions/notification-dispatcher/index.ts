@@ -13,7 +13,8 @@ type NotificationKind =
   | 'event'
   | 'message'
   | 'invite'
-  | 'achievement';
+  | 'achievement'
+  | 'story_reaction';
 
 type NotificationRecord = {
   id: string;
@@ -63,6 +64,7 @@ type NotificationPreferenceRow = {
   messages: boolean;
   events: boolean;
   invites: boolean;
+  story_reactions?: boolean;
 };
 
 type ExpoPushMessage = {
@@ -144,6 +146,7 @@ const preferenceKeyForKind = (
   if (kind === 'message') return 'messages';
   if (kind === 'event') return 'events';
   if (kind === 'invite') return 'invites';
+  if (kind === 'story_reaction') return 'story_reactions';
   return null;
 };
 
@@ -211,6 +214,7 @@ const actionForKind = (kind: NotificationKind) => {
   if (kind === 'event') return 'joined your event';
   if (kind === 'invite') return 'invited you';
   if (kind === 'message') return 'sent you a message';
+  if (kind === 'story_reaction') return 'reacted to your story';
   return 'sent you an update';
 };
 
@@ -383,7 +387,7 @@ Deno.serve(async (request) => {
         : Promise.resolve({ data: [] as ProfileRow[] }),
       supabase
         .from('notification_preferences')
-        .select('user_id, push_enabled, likes, comments, mentions, follows, messages, events, invites')
+        .select('user_id, push_enabled, likes, comments, mentions, follows, messages, events, invites, story_reactions')
         .eq('user_id', notification.user_id)
         .maybeSingle()
     ]);

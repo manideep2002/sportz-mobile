@@ -74,6 +74,14 @@ const navigateForNotification = (
       // Navigate to the current user's own profile tab, which shows stats/achievements.
       navigation.navigate('MainTabs', { screen: 'ProfileTab' });
       break;
+    case 'story_reaction':
+      // entity_id is the reactor's user_id; open their profile.
+      if (entityId) {
+        navigation.navigate('UserProfile', { userId: entityId });
+      } else if (actor?.id) {
+        navigation.navigate('UserProfile', { userId: actor.id });
+      }
+      break;
   }
   return true;
 };
