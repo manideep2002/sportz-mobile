@@ -20,6 +20,7 @@ import { useAuthBootstrap } from '@/hooks/useAuthBootstrap';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePresence } from '@/hooks/usePresence';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useRealtimeMessages } from '@/hooks/useMessages';
 import { useAuthStore } from '@/store/authStore';
 import { AppText } from '@/components/ui';
 import { colors } from '@/design/tokens';
@@ -32,6 +33,7 @@ void SplashScreen.preventAutoHideAsync();
 function AppContent() {
   usePushNotifications();
   usePresence();
+  useRealtimeMessages();
   const { isOffline } = useNetworkStatus();
   const theme = useAppTheme();
   const { t } = useAppTranslation();
