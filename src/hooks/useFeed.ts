@@ -23,6 +23,7 @@ export const feedKeys = {
   post: (id: string) => ['post', id] as const,
   editablePost: (id: string) => ['post', 'edit', id] as const,
   comments: (postId: string) => ['comments', postId] as const,
+  postLikes: (postId: string) => ['postLikes', postId] as const,
   userPosts: (userId: string) => ['feed', 'user', userId] as const,
   communityPosts: (communityId: string) => ['feed', 'community', communityId] as const,
   savedPosts: ['feed', 'saved'] as const
@@ -71,6 +72,13 @@ export const usePost = (postId: string) =>
   useQuery({
     queryKey: feedKeys.post(postId),
     queryFn: () => postService.getPost(postId),
+    enabled: Boolean(postId)
+  });
+
+export const usePostLikes = (postId: string) =>
+  useQuery({
+    queryKey: feedKeys.postLikes(postId),
+    queryFn: () => postService.listPostLikes(postId),
     enabled: Boolean(postId)
   });
 

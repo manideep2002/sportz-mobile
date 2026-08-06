@@ -193,6 +193,7 @@ export function FeedScreen() {
           onShare={() => void postActions.share(post)}
           sharePending={postActions.isPending(post.id, 'share')}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
+          onViewLikes={() => navigation.navigate('PostLikes', { postId: post.id })}
           isVideoActive={activeVideoPostId === post.id}
           onVideoActivate={() => setActiveVideoPostId(post.id)}
           onMediaPress={() => void openPostMedia(post)}

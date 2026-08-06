@@ -62,6 +62,7 @@ export type AppStackParamList = {
   SavedPosts: undefined;
   Followers: { userId: string; mode: 'followers' | 'following' };
   FollowRequests: undefined;
+  PostLikes: { postId: string };
   CourtDetail: { courtId: string };
   CourtBooking: { courtId: string };
   CourtBookings: { courtId?: string; admin?: boolean } | undefined;

@@ -1,4 +1,4 @@
-import {
+﻿import {
   NavigationContainer,
   type LinkingOptions,
   type NavigatorScreenParams
@@ -41,6 +41,7 @@ import { VerificationQueueScreen } from '@/screens/stats/VerificationQueueScreen
 import { VerificationDetailScreen } from '@/screens/stats/VerificationDetailScreen';
 import { CreatePostScreen } from '@/screens/feed/CreatePostScreen';
 import { PostDetailScreen } from '@/screens/feed/PostDetailScreen';
+import { PostLikesScreen } from '@/screens/feed/PostLikesScreen';
 import { CreateStoryScreen } from '@/screens/feed/CreateStoryScreen';
 import { StoryViewerScreen } from '@/screens/feed/StoryViewerScreen';
 import { GroupDetailScreen } from '@/screens/community/GroupDetailScreen';
@@ -192,6 +193,7 @@ function AppNavigator() {
       <App.Screen name="VerificationDetail" component={VerificationDetailScreen} />
       <App.Screen name="CreatePost" component={CreatePostScreen} />
       <App.Screen name="PostDetail" component={PostDetailScreen} />
+      <App.Screen name="PostLikes" component={PostLikesScreen} />
       <App.Screen name="GroupDetail" component={GroupDetailScreen} />
       <App.Screen name="PageDetail" component={PageDetailScreen} />
       <App.Screen name="CommunityAdmin" component={CommunityAdminScreen} />

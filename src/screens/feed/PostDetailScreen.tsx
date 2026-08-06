@@ -115,6 +115,7 @@ export function PostDetailScreen() {
           onShare={() => void postActions.share(post)}
           sharePending={postActions.isPending(post.id, 'share')}
           onSave={() => saveMutation.mutate({ postId: post.id, saved: post.savedByMe })}
+          onViewLikes={() => navigation.navigate('PostLikes', { postId: post.id })}
           onMediaPress={() => void openPostMedia(post)}
           onPrimaryAction={() =>
             post.kind === 'stats'

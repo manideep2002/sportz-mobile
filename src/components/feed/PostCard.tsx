@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+﻿import { memo, useEffect, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Bookmark, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
@@ -24,6 +24,7 @@ interface PostCardProps {
   onSave?: () => void;
   onMore?: () => void;
   onPrimaryAction?: () => void;
+  onViewLikes?: () => void;
   isVideoActive?: boolean;
   onVideoActivate?: () => void;
   /** Used only when the media URL is unsupported by the in-app player. */
@@ -40,6 +41,7 @@ function PostCardComponent({
   onSave,
   onMore,
   onPrimaryAction,
+  onViewLikes,
   isVideoActive,
   onVideoActivate,
   onMediaPress
@@ -63,6 +65,7 @@ function PostCardComponent({
     setUseRawMedia(false);
     setLocalVideoActive(false);
   }, [post.mediaUrl]);
+
   const runAction = (event: GestureResponderEvent, action?: () => void) => {
     event.stopPropagation();
     action?.();
@@ -271,9 +274,16 @@ function PostCardComponent({
             </Pressable>
           </View>
           <View style={styles.footer}>
-            <AppText variant="bodyMuted">
-              {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'athlete' : 'athletes'} liked this` : 'Be the first to like this'}
-            </AppText>
+            <Pressable
+              accessibilityRole={onViewLikes && post.likes > 0 ? 'button' : undefined}
+              accessibilityLabel={post.likes > 0 ? `View ${post.likes} likes` : undefined}
+              disabled={!onViewLikes || post.likes === 0}
+              onPress={(event) => runAction(event, onViewLikes)}
+            >
+              <AppText variant="bodyMuted">
+                {post.likes > 0 ? `${post.likes} ${post.likes === 1 ? 'athlete' : 'athletes'} liked this` : 'Be the first to like this'}
+              </AppText>
+            </Pressable>
           </View>
         </Card>
       </Pressable>

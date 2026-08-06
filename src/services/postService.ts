@@ -772,6 +772,22 @@ export const postService = {
     return comment;
   },
 
+  async listPostLikes(postId: string): Promise<UserProfile[]> {
+    assertSupabaseConfigured();
+
+    const { data, error } = await supabase
+      .from('post_likes')
+      .select('user_id, profiles:user_id(*)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+
+    return (data ?? [])
+      .map((row) => mapProfileRow((row as unknown as { profiles: EmbeddedProfile | null }).profiles ?? { id: (row as unknown as { user_id: string }).user_id }));
+  },
+
   async togglePostLike(postId: string, liked: boolean): Promise<void> {
     assertSupabaseConfigured();
 
