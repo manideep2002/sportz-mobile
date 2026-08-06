@@ -1,7 +1,7 @@
-import { useNavigation } from '@react-navigation/native';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useCallback, useMemo, useState } from 'react';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Plus, RefreshCw, Search } from 'lucide-react-native';
+import { Plus, Search } from 'lucide-react-native';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
@@ -26,8 +26,24 @@ export function MessagesScreen() {
   const responsive = useResponsiveLayout();
   const [query, setQuery] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const { data: conversations = [], isLoading, isError, isRefetching, refetch } = useConversations();
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const { data: conversations = [], isLoading, isError, refetch } = useConversations();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+    }, [refetch])
+  );
+
+  const handleRefresh = async () => {
+    setManualRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return conversations;
@@ -54,11 +70,6 @@ export function MessagesScreen() {
           {t('messages.title')}<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
         <View style={styles.headerActions}>
-          {isRefetching ? (
-            <ActivityIndicator color={theme.accent} />
-          ) : (
-            <IconButton icon={RefreshCw} accessibilityLabel={t('messages.refresh')} onPress={() => void refetch()} />
-          )}
           <IconButton icon={Plus} accessibilityLabel={t('messages.newMessage')} onPress={() => navigation.navigate('NewMessage')} />
         </View>
       </View>
@@ -105,7 +116,7 @@ export function MessagesScreen() {
             <ScrollView
               accessibilityLabel="Conversations"
               keyboardShouldPersistTaps="handled"
-              refreshControl={<AppRefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}
+              refreshControl={<AppRefreshControl refreshing={manualRefreshing} onRefresh={() => void handleRefresh()} />}
               contentContainerStyle={styles.listPane}
             >
               {conversationList}
@@ -141,8 +152,8 @@ export function MessagesScreen() {
       maxWidth="content"
       refreshControl={
         <AppRefreshControl
-          refreshing={isRefetching}
-          onRefresh={() => void refetch()}
+          refreshing={manualRefreshing}
+          onRefresh={() => void handleRefresh()}
         />
       }
     >

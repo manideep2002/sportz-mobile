@@ -109,6 +109,7 @@ jest.mock('@react-native-community/netinfo', () => ({
 }));
 jest.mock('@/hooks/useMessages', () => ({
   useConversation: () => ({ data: mockConversation }),
+  useMarkConversationRead: jest.fn(),
   messageKeys: {
     conversation: (id: string) => ['messages', 'conversation', id],
     conversations: ['messages', 'conversations'],

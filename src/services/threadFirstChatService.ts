@@ -410,8 +410,8 @@ export const threadFirstChatService = {
     for (const message of incomingRows ?? []) {
       const membership = membershipByRoom.get(message.room_id);
       if (!membership) continue;
-      const historyBoundary = newestHistoryBoundary(membership) ?? '1970-01-01T00:00:00.000Z';
-      if (message.created_at <= historyBoundary) continue;
+      const historyBoundary = newestHistoryBoundary(membership);
+      if (isAtOrBefore(message.created_at, historyBoundary)) continue;
       unreadByRoom.set(message.room_id, (unreadByRoom.get(message.room_id) ?? 0) + 1);
     }
 

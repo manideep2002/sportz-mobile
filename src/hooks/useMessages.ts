@@ -53,7 +53,13 @@ export const useConversations = () => {
     queryFn: () => messageService.listConversations(readConversationIds),
     staleTime: 30_000,
     refetchOnReconnect: true,
-    meta: { persist: false }
+    meta: { persist: false },
+    select: (conversations) =>
+      conversations.map((conversation) =>
+        readConversationIds.has(conversation.id)
+          ? { ...conversation, unreadCount: 0 }
+          : conversation
+      )
   });
 };
 
