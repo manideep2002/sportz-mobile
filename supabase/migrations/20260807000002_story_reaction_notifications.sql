@@ -112,7 +112,7 @@ declare
   actor_name      text;
 begin
   -- Look up who owns this story.
-  select user_id
+  select author_id                        -- stories.author_id, not user_id
   into story_author_id
   from public.stories
   where id = new.story_id;
