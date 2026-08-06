@@ -58,7 +58,7 @@ import type {
   ThreadChatParticipant
 } from '@/types/threadFirstChat';
 import { getChatPresenceLabel } from '@/utils/chatPresence';
-import { isStoryReactionMessage, parseStoryReaction } from '@/utils/storyReaction';
+import { isStoryReactionMessage, isStoryReplyMessage, parseStoryReaction, parseStoryReply } from '@/utils/storyReaction';
 
 interface ThreadFirstChatScreenProps {
   roomId: string;
@@ -282,6 +282,69 @@ function StoryReactionBubble({ body, mine }: { body: string | null; mine: boolea
   );
 }
 
+/**
+ * Renders a story text reply: same 9:16 thumbnail tile on top, with the
+ * reply text in a pill below it — matching the WhatsApp quoted-story pattern.
+ *
+ *  ┌──────────────┐
+ *  │              │  ← story thumbnail (9:16 mini tile)
+ *  │  dim overlay │
+ *  │              │
+ *  └──────────────┘
+ *  ┌──────────────────────────┐
+ *  │  "Nice shot! 🏀"         │  ← reply text pill
+ *  └──────────────────────────┘
+ */
+function StoryReplyBubble({ body, mine }: { body: string | null; mine: boolean }) {
+  const { colors: theme } = useAppTheme();
+  const reply = parseStoryReply(body);
+
+  if (!reply) {
+    return (
+      <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>
+        {body}
+      </AppText>
+    );
+  }
+
+  return (
+    <View style={styles.storyReplyContainer}>
+      {/* Story thumbnail tile — identical to reaction tile, bottom corners square
+          so the text pill connects flush */}
+      <View style={[styles.storyReactionThumbnailWrap, styles.storyReplyThumbnailWrap]}>
+        {reply.storyMediaUrl ? (
+          <ExpoImage
+            source={{ uri: reply.storyMediaUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            accessibilityLabel="Story"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, styles.storyReactionPlaceholder]} />
+        )}
+        <View style={styles.storyReactionVignette} />
+        {/* Small "story" label in the corner so context is clear */}
+        <View style={styles.storyReplyCornerLabel}>
+          <AppText style={styles.storyReplyCornerText}>Story</AppText>
+        </View>
+      </View>
+
+      {/* Reply text pill */}
+      <View
+        style={[
+          styles.storyReplyTextPill,
+          { backgroundColor: mine ? theme.accent : theme.surface }
+        ]}
+      >
+        <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>
+          {reply.replyText}
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
 // Helper: format date label for chat date separators
 const formatDateLabel = (dateStr: string): string => {
   const d = new Date(dateStr);
@@ -359,8 +422,8 @@ function MessageBubble({
           style={[
             styles.bubble,
             mine ? styles.myBubble : styles.theirBubble,
-            // Story reaction bubbles have no background — the thumbnail fills the space
-            message.messageType === 'text' && isStoryReactionMessage(message.body)
+            // Story reaction/reply bubbles have no background — the thumbnail fills the space
+            message.messageType === 'text' && (isStoryReactionMessage(message.body) || isStoryReplyMessage(message.body))
               ? styles.storyReactionBubble
               : { backgroundColor: mine ? theme.accent : theme.surface },
             message.mediaUrl ? styles.mediaBubble : null
@@ -369,6 +432,8 @@ function MessageBubble({
           {message.messageType === 'text' ? (
             isStoryReactionMessage(message.body) ? (
               <StoryReactionBubble body={message.body} mine={mine} />
+            ) : isStoryReplyMessage(message.body) ? (
+              <StoryReplyBubble body={message.body} mine={mine} />
             ) : (
               <AppText style={[styles.messageText, { color: mine ? theme.onAccent : theme.text }]}>{message.body}</AppText>
             )
@@ -1611,6 +1676,39 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyFamily,
     color: colors.text.tertiary,
     textAlign: 'center'
+  },
+  // Story reply bubble
+  storyReplyContainer: {
+    alignItems: 'stretch',
+    gap: 0   // tile and text pill touch — no gap, unified card feel
+  },
+  storyReplyTextPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomLeftRadius: radii.xl,
+    borderBottomRightRadius: radii.xl,
+    // top corners flush against the thumbnail bottom edge
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0
+  },
+  storyReplyCornerLabel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.50)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  storyReplyCornerText: {
+    fontSize: 10,
+    fontFamily: typography.bodyFamily,
+    color: colors.light[0]
+  },
+  // Override: square bottom corners so the thumbnail and text pill join cleanly
+  storyReplyThumbnailWrap: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0
   },
   dateSeparator: {
     flexDirection: 'row',

@@ -31,7 +31,7 @@ import { messageService } from '@/services/messageService';
 import { storyService } from '@/services/storyService';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
-import { encodeStoryReaction } from '@/utils/storyReaction';
+import { encodeStoryReaction, encodeStoryReply } from '@/utils/storyReaction';
 import { groupStoriesByUser } from '@/utils/storyUtils';
 import type { Story } from '@/types/domain';
 
@@ -336,7 +336,7 @@ export function StoryViewerScreen() {
       const messageBody =
         kind === 'reaction'
           ? encodeStoryReaction(body.trim(), currentStoryId, story.mediaUrl)
-          : body.trim();
+          : encodeStoryReply(body.trim(), currentStoryId, story.mediaUrl);
       await messageService.sendMessage(conversationId, messageBody);
       setReply('');
       Keyboard.dismiss();
