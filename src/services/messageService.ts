@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { assertSupabaseConfigured } from '@/lib/supabaseOnly';
 import { threadFirstChatService } from '@/services/threadFirstChatService';
 import type { Conversation, Message } from '@/types/domain';
@@ -115,5 +116,54 @@ export const messageService = {
     } catch (error) {
       throw appError(error, 'Could not delete your message.');
     }
+  },
+
+  subscribeToRealtimeMessages(
+    userId: string,
+    onMessageChange: (payload: { roomId?: string; body?: string; createdAt?: string; senderId?: string }) => void
+  ) {
+    assertSupabaseConfigured();
+    const channel = supabase
+      .channel(`user_messages_${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_messages'
+        },
+        (payload) => {
+          const newRow = payload.new as { room_id?: string; sender_id?: string; body?: string; created_at?: string } | null;
+          const oldRow = payload.old as { room_id?: string } | null;
+          onMessageChange({
+            roomId: newRow?.room_id || oldRow?.room_id,
+            body: newRow?.body,
+            createdAt: newRow?.created_at,
+            senderId: newRow?.sender_id
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_rooms'
+        },
+        (payload) => {
+          const newRow = payload.new as { id?: string } | null;
+          const oldRow = payload.old as { id?: string } | null;
+          onMessageChange({
+            roomId: newRow?.id || oldRow?.id
+          });
+        }
+      )
+      .subscribe();
+
+    return {
+      unsubscribe: () => {
+        void supabase.removeChannel(channel);
+      }
+    };
   }
 };

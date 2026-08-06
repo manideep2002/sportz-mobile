@@ -125,3 +125,42 @@ export const patchConversationPreviewInCacheForRealtime = (
   message: Pick<Message, 'body' | 'createdAt' | 'senderId'>,
   currentUserId: string
 ) => patchConversationPreviewInCache(queryClient, conversationId, message, currentUserId);
+
+export const useRealtimeMessages = () => {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((state) => state.user?.id);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let mounted = true;
+
+    const subscription = messageService.subscribeToRealtimeMessages(
+      userId,
+      ({ roomId, body, createdAt, senderId }) => {
+        if (!mounted) return;
+
+        if (roomId) {
+          void queryClient.invalidateQueries({ queryKey: messageKeys.messages(roomId) });
+        }
+
+        if (roomId && body && createdAt && senderId) {
+          patchConversationPreviewInCache(
+            queryClient,
+            roomId,
+            { body, createdAt, senderId },
+            userId
+          );
+        }
+
+        void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [userId, queryClient]);
+};
+
