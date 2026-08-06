@@ -282,12 +282,36 @@ function StoryReactionBubble({ body, mine }: { body: string | null; mine: boolea
   );
 }
 
+// Helper: format date label for chat date separators
+const formatDateLabel = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(d, now)) return 'Today';
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {})
+  });
+};
+
+type ChatListItem = ThreadChatMessage | { type: 'dateSeparator'; label: string; id: string };
+
 function MessageBubble({
   message,
   currentUserId,
   showSeen,
+  isNewestOwn,
+  showTime,
   activeVideoId,
   onActivateVideo,
+  onPress,
   onLongPress,
   onRetry,
   onRemove
@@ -295,8 +319,11 @@ function MessageBubble({
   message: ThreadChatMessage;
   currentUserId: string;
   showSeen: boolean;
+  isNewestOwn: boolean;
+  showTime: boolean;
   activeVideoId: string | null;
   onActivateVideo: (id: string | null) => void;
+  onPress?: () => void;
   onLongPress?: () => void;
   onRetry?: () => void;
   onRemove?: () => void;
@@ -312,16 +339,21 @@ function MessageBubble({
           ? 'Seen'
           : 'Sent';
   const statusLabel = `${message.editedAt ? 'Edited · ' : ''}${deliveryLabel}`;
+  const timeLabel = new Date(message.createdAt).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 
   return (
     <View style={[styles.messageRow, mine ? styles.myMessageRow : null]}>
       <Pressable
-        accessibilityRole={onLongPress ? 'button' : undefined}
-        accessibilityLabel={onLongPress ? 'Your message. Long press for actions.' : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={mine && onLongPress ? 'Your message. Long press for actions.' : 'Message'}
         delayLongPress={320}
-        disabled={!onLongPress}
+        onPress={onPress}
         onLongPress={onLongPress}
-        style={({ pressed }) => (pressed && onLongPress ? styles.bubblePressed : null)}
+        style={({ pressed }) => (pressed ? styles.bubblePressed : null)}
       >
         <View
           style={[
@@ -349,12 +381,21 @@ function MessageBubble({
           )}
         </View>
       </Pressable>
-      {mine ? (
+      {showTime ? (
+        <AppText style={[styles.messageTime, { color: theme.textSubtle }]}>{timeLabel}</AppText>
+      ) : null}
+      {mine && isNewestOwn ? (
         <View style={styles.messageMeta}>
           {message.deliveryStatus === 'sending' ? <Clock size={11} color={theme.textSubtle} /> : null}
           <AppText style={[styles.messageMetaText, { color: showSeen ? theme.success : theme.textSubtle }]}>{statusLabel}</AppText>
         </View>
-      ) : message.editedAt ? <AppText style={[styles.messageMetaText, { color: theme.textSubtle }]}>Edited</AppText> : null}
+      ) : mine && message.deliveryStatus === 'failed' ? (
+        <View style={styles.messageMeta}>
+          <AppText style={[styles.messageMetaText, { color: theme.danger }]}>Failed</AppText>
+        </View>
+      ) : !mine && message.editedAt ? (
+        <AppText style={[styles.messageMetaText, { color: theme.textSubtle }]}>Edited</AppText>
+      ) : null}
       {mine && message.deliveryStatus === 'failed' ? (
         <View style={styles.failedActions}>
           <Pressable accessibilityRole="button" accessibilityLabel="Retry message" onPress={onRetry}>
@@ -398,6 +439,7 @@ export function ThreadFirstChatScreen({
   const [onlinePeerUserIds, setOnlinePeerUserIds] = useState<Set<string>>(new Set());
   const [mediaLoading, setMediaLoading] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<ThreadChatMessage | null>(null);
+  const [tappedMessageId, setTappedMessageId] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(initialOpenSettings);
@@ -431,6 +473,19 @@ export function ThreadFirstChatScreen({
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [messages]
   );
+  const listItems = useMemo(() => {
+    const result = [];
+    let lastLabel = '';
+    for (const msg of chronologicalMessages) {
+      const label = formatDateLabel(msg.createdAt);
+      if (label !== lastLabel) {
+        result.push({ type: 'dateSeparator', label, id: 'sep:' + label });
+        lastLabel = label;
+      }
+      result.push(msg);
+    }
+    return result;
+  }, [chronologicalMessages]);
   const presenceLabel = getChatPresenceLabel({
     connected: realtimeConnected,
     synced: presenceSynced,
@@ -1105,12 +1160,22 @@ export function ThreadFirstChatScreen({
     }
   };
 
-  const renderItem = ({ item }: { item: ThreadChatMessage }) => {
+  const renderItem = ({ item }: { item: ChatListItem }) => {
+    // Date separator row
+    if ('type' in item && item.type === 'dateSeparator') {
+      return (
+        <View style={styles.dateSeparator}>
+          <View style={[styles.dateSeparatorLine, { backgroundColor: theme.border }]} />
+          <AppText style={[styles.dateSeparatorLabel, { color: theme.textSubtle }]}>{item.label}</AppText>
+          <View style={[styles.dateSeparatorLine, { backgroundColor: theme.border }]} />
+        </View>
+      );
+    }
+    // Regular message bubble
     const showSeen =
       item.id === newestOwnMessage?.id &&
       otherParticipants.length > 0 &&
       otherParticipants.every((participant) => isAtLeastReadThrough(item.createdAt, participant.lastReadAt));
-
     const canManage = item.senderId === currentUserId
       && item.deliveryStatus !== 'sending'
       && item.deliveryStatus !== 'failed';
@@ -1119,8 +1184,11 @@ export function ThreadFirstChatScreen({
         message={item}
         currentUserId={currentUserId}
         showSeen={showSeen}
+        isNewestOwn={item.id === newestOwnMessage?.id}
+        showTime={tappedMessageId === item.id}
         activeVideoId={activeVideoId}
         onActivateVideo={setActiveVideoId}
+        onPress={() => setTappedMessageId((current) => current === item.id ? null : item.id)}
         onLongPress={canManage ? () => setSelectedMessage(item) : undefined}
         onRetry={item.deliveryStatus === 'failed' ? () => retryFailedMessage(item) : undefined}
         onRemove={item.deliveryStatus === 'failed' ? () => removeFailedMessage(item) : undefined}
@@ -1166,7 +1234,8 @@ export function ThreadFirstChatScreen({
       ) : (
         <FlashList
           ref={listRef}
-          data={chronologicalMessages}
+          data={listItems}
+          getItemType={(item) => 'type' in item && item.type === 'dateSeparator' ? 'separator' : 'message'}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -1542,5 +1611,28 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyFamily,
     color: colors.text.tertiary,
     textAlign: 'center'
+  },
+  dateSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+    paddingHorizontal: spacing.xs
+  },
+  dateSeparatorLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth
+  },
+  dateSeparatorLabel: {
+    fontSize: 11,
+    fontFamily: typography.bodyFamily,
+    textAlign: 'center',
+    paddingHorizontal: 4
+  },
+  messageTime: {
+    fontSize: 10,
+    fontFamily: typography.bodyFamily,
+    paddingHorizontal: 3,
+    marginTop: 2
   }
 });
