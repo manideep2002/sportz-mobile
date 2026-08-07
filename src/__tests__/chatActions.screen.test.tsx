@@ -167,6 +167,9 @@ jest.mock('@/store/messagingStore', () => ({
 // eslint-disable-next-line import/first
 import { ChatScreen } from '@/screens/messages/ChatScreen';
 
+// eslint-disable-next-line import/first
+import { useUiStore } from '@/store/uiStore';
+
 describe('ChatScreen actions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -174,6 +177,7 @@ describe('ChatScreen actions', () => {
     Object.keys(mockBroadcastHandlers).forEach((key) => delete mockBroadcastHandlers[key]);
     mockSubscribeCallback = undefined;
     mockPresenceState = {};
+    useUiStore.getState().setOnlineUserIds([]);
     mockConversation.isGroup = true;
     mockChannel.on.mockImplementation((_type, filter: { event: string }, callback: (event: { payload: unknown }) => void) => {
       mockBroadcastHandlers[filter.event] = callback;
@@ -250,6 +254,33 @@ describe('ChatScreen actions', () => {
     mockConversation.isGroup = true;
     appStateSpy.mockRestore();
   }, 10_000);
+
+  it('falls back to app-wide presence for a peer online outside the room, excluding the current user', async () => {
+    mockConversation.isGroup = false;
+    await render(<ChatScreen />);
+
+    expect(await screen.findByText('Chat')).toBeTruthy();
+
+    // Room presence is empty; only the current user is online app-wide.
+    await act(async () => {
+      useUiStore.getState().setOnlineUserIds(['user-1']);
+      mockBroadcastHandlers.sync?.({ payload: {} });
+    });
+    expect(await screen.findByText('Offline')).toBeTruthy();
+
+    // A peer online somewhere else in the app (not in this room) is active.
+    await act(async () => {
+      useUiStore.getState().setOnlineUserIds(['user-2']);
+    });
+    expect(await screen.findByText('Active now')).toBeTruthy();
+
+    // The current user alone app-wide must never mark the chat active.
+    await act(async () => {
+      useUiStore.getState().setOnlineUserIds(['user-1']);
+    });
+    await waitFor(() => expect(screen.queryByText('Active now')).toBeNull());
+    mockConversation.isGroup = true;
+  });
 
   it('sends composer text and persists the optimistic message', async () => {
     await render(<ChatScreen />);

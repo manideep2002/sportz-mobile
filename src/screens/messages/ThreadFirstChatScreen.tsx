@@ -48,6 +48,7 @@ import {
 } from '@/services/threadFirstChatService';
 import { useAuthStore } from '@/store/authStore';
 import { useMessagingStore } from '@/store/messagingStore';
+import { useUiStore } from '@/store/uiStore';
 import type { ChatParticipantRole, Conversation, UserProfile } from '@/types/domain';
 import type {
   ChatMessageBroadcastPayload,
@@ -462,6 +463,7 @@ export function ThreadFirstChatScreen({
   const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
+  const appOnlineUserIds = useUiStore((state) => state.onlineUserIds);
   const setConversationMutedLocally = useMessagingStore((state) => state.setConversationMutedLocally);
   const [messages, setMessages] = useState<ThreadChatMessage[]>([]);
   const [participants, setParticipants] = useState<ThreadChatParticipant[]>([]);
@@ -516,6 +518,15 @@ export function ThreadFirstChatScreen({
     () => participants.filter((participant) => participant.userId !== currentUserId),
     [participants, currentUserId]
   );
+
+  const effectiveOnlineUserIds = useMemo(() => {
+    const participantIds = new Set(participants.map((participant) => participant.userId));
+    const result = new Set(onlinePeerUserIds);
+    for (const userId of appOnlineUserIds) {
+      if (userId !== currentUserId && participantIds.has(userId)) result.add(userId);
+    }
+    return result;
+  }, [appOnlineUserIds, currentUserId, onlinePeerUserIds, participants]);
   const newestOwnMessage = useMemo(
     () => messages.filter((message) => message.senderId === currentUserId).sort(newestFirst)[0],
     [messages, currentUserId]
@@ -547,7 +558,7 @@ export function ThreadFirstChatScreen({
     synced: presenceSynced,
     isGroup: Boolean(conversation?.isGroup),
     typingCount: typingUserIds.size,
-    onlinePeerCount: onlinePeerUserIds.size
+    onlinePeerCount: effectiveOnlineUserIds.size
   });
   const participantRoles = useMemo<Record<string, ChatParticipantRole>>(
     () => conversation?.participantRoles ?? Object.fromEntries(
