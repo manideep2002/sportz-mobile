@@ -3,14 +3,24 @@ import { FlashList } from '@shopify/flash-list';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronLeft, Heart } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { PostOptionsSheet } from '@/components/feed/PostOptionsSheet';
 import { CommentInput } from '@/components/social/CommentInput';
 import { ReportSheet } from '@/components/moderation/ReportSheet';
 
-import { AppRefreshControl, AppText, Avatar, Button, IconButton, Screen, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Button, IconButton, VerifiedName } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
@@ -27,6 +37,7 @@ type Route = RouteProp<AppStackParamList, 'PostDetail'>;
 export function PostDetailScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const route = useRoute<Route>();
   const {
     data: post,
@@ -73,23 +84,10 @@ export function PostDetailScreen() {
     }
     navigation.navigate('UserProfile', { userId: post.author.id });
   };
-  return (
-    <Screen
-      scroll={false}
-      keyboard
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <AppRefreshControl
-          refreshing={postRefetching || commentsRefetching}
-          onRefresh={() => void Promise.all([refetchPost(), refetchComments()])}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
-        <AppText variant="h3">Post</AppText>
-        <View style={{ width: 40 }} />
-      </View>
+
+  /** Post card + comments header rendered as the scrollable list header */
+  const ListHeader = (
+    <View>
       {postLoading ? <ActivityIndicator color={theme.accent} style={styles.loader} /> : null}
       {postIsError ? (
         <View style={styles.state}>
@@ -142,88 +140,136 @@ export function PostDetailScreen() {
           <AppText variant="bodyMuted">No comments yet. Start the conversation.</AppText>
         </View>
       ) : null}
+    </View>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+    >
+      {/* Fixed navigation header */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top || spacing.lg, backgroundColor: theme.background }
+        ]}
+      >
+        <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
+        <AppText variant="h3">Post</AppText>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Scrollable post + comments */}
       <FlashList
         data={comments}
-        style={styles.commentsList}
         keyExtractor={(comment) => comment.id}
+        estimatedItemSize={80}
+        ListHeaderComponent={ListHeader}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={postRefetching || commentsRefetching}
+            onRefresh={() => void Promise.all([refetchPost(), refetchComments()])}
+          />
+        }
         onEndReached={() => {
           if (hasNextComments && !fetchingNextComments) void fetchNextComments();
         }}
         onEndReachedThreshold={0.3}
-        ListFooterComponent={fetchingNextComments ? <ActivityIndicator color={theme.accent} /> : null}
+        ListFooterComponent={
+          fetchingNextComments
+            ? <ActivityIndicator color={theme.accent} style={styles.loader} />
+            : <View style={{ height: spacing.lg }} />
+        }
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item: comment }) => (
           <Pressable
-          key={comment.id}
-          accessibilityRole="button"
-          accessibilityLabel={`Comment by ${comment.author.displayName}`}
-          style={[
-            styles.commentRow,
-            comment.parentCommentId ? styles.commentReplyRow : null,
-            highlightedCommentId === comment.id
-              ? [styles.commentHighlighted, { borderLeftColor: theme.accent }]
-              : null
-          ]}
-          onPress={() => {
-            setReplyingTo(comment);
-            commentInputRef.current?.focus();
-          }}
-          onLongPress={() => {
-            if (comment.author.id === profile?.id) {
-              Alert.alert('Delete comment', 'Remove your comment?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
-              ], { cancelable: true });
-            } else {
-              Alert.alert('Comment options', '', [
-                {
-                  text: 'Report comment',
-                  onPress: () => setReportTarget({ type: 'comment', id: comment.id })
-                },
-                { text: 'Cancel', style: 'cancel' }
-              ], { cancelable: true });
-            }
-          }}
+            key={comment.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Comment by ${comment.author.displayName}`}
+            style={[
+              styles.commentRow,
+              comment.parentCommentId ? styles.commentReplyRow : null,
+              highlightedCommentId === comment.id
+                ? [styles.commentHighlighted, { borderLeftColor: theme.accent }]
+                : null
+            ]}
+            onPress={() => {
+              setReplyingTo(comment);
+              commentInputRef.current?.focus();
+            }}
+            onLongPress={() => {
+              if (comment.author.id === profile?.id) {
+                Alert.alert('Delete comment', 'Remove your comment?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => deleteCommentMutation.mutate(comment.id) }
+                ], { cancelable: true });
+              } else {
+                Alert.alert('Comment options', '', [
+                  {
+                    text: 'Report comment',
+                    onPress: () => setReportTarget({ type: 'comment', id: comment.id })
+                  },
+                  { text: 'Cancel', style: 'cancel' }
+                ], { cancelable: true });
+              }
+            }}
           >
-          <Avatar
-            initials={comment.author.initials}
-            uri={comment.author.avatarUrl}
-            size={36}
-            tone="green"
-            accessibilityLabel={`View ${comment.author.displayName}'s profile`}
-            onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
-          />
-          <View style={[styles.commentBody, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <VerifiedName
-              profile={comment.author}
-              style={styles.commentAuthor}
-              numberOfLines={1}
+            <Avatar
+              initials={comment.author.initials}
+              uri={comment.author.avatarUrl}
+              size={36}
+              tone="green"
+              accessibilityLabel={`View ${comment.author.displayName}'s profile`}
               onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
             />
-            <AppText variant="bodyMuted">{comment.body}</AppText>
-            <Pressable
-              style={styles.commentLike}
-              onPress={() => likeCommentMutation.mutate({ commentId: comment.id, liked: Boolean(comment.likedByMe) })}
-            >
-              <Heart
-                size={14}
-                color={comment.likedByMe ? theme.accent : theme.textSubtle}
-                fill={comment.likedByMe ? theme.accent : 'transparent'}
+            <View style={[styles.commentBody, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <VerifiedName
+                profile={comment.author}
+                style={styles.commentAuthor}
+                numberOfLines={1}
+                onPress={() => navigation.navigate('UserProfile', { userId: comment.author.id })}
               />
-              <AppText variant="small">{comment.likes}</AppText>
-            </Pressable>
-          </View>
+              <AppText variant="bodyMuted">{comment.body}</AppText>
+              <Pressable
+                style={styles.commentLike}
+                onPress={() => likeCommentMutation.mutate({ commentId: comment.id, liked: Boolean(comment.likedByMe) })}
+              >
+                <Heart
+                  size={14}
+                  color={comment.likedByMe ? theme.accent : theme.textSubtle}
+                  fill={comment.likedByMe ? theme.accent : 'transparent'}
+                />
+                <AppText variant="small">{comment.likes}</AppText>
+              </Pressable>
+            </View>
           </Pressable>
         )}
       />
-      <CommentInput
-        postId={route.params.postId}
-        profile={profile}
-        replyingTo={replyingTo}
-        inputRef={commentInputRef}
-        disabled={!post}
-        onCancelReply={() => setReplyingTo(null)}
-        onSubmitted={() => setReplyingTo(null)}
-      />
+
+      {/* Comment input bar pinned at bottom, above keyboard */}
+      <View
+        style={[
+          styles.commentInputContainer,
+          {
+            borderTopColor: theme.border,
+            backgroundColor: theme.background,
+            paddingBottom: insets.bottom || spacing.md,
+          }
+        ]}
+      >
+        <CommentInput
+          postId={route.params.postId}
+          profile={profile}
+          replyingTo={replyingTo}
+          inputRef={commentInputRef}
+          disabled={!post}
+          onCancelReply={() => setReplyingTo(null)}
+          onSubmitted={() => setReplyingTo(null)}
+        />
+      </View>
+
       <PostOptionsSheet
         open={optionsSheetOpen}
         post={post}
@@ -262,53 +308,49 @@ export function PostDetailScreen() {
         entityId={reportTarget?.id ?? ''}
         onClose={() => setReportTarget(null)}
       />
-    </Screen>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 0
+  root: {
+    flex: 1,
   },
   header: {
     paddingHorizontal: spacing.screen,
-    marginBottom: 12,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
   },
   commentsHeader: {
     paddingHorizontal: spacing.screen,
-    marginBottom: 12
-  },
-  commentsList: {
-    flex: 1,
-    minHeight: 120
+    marginBottom: 12,
   },
   loader: {
-    paddingVertical: spacing.xl
+    paddingVertical: spacing.xl,
   },
   state: {
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.screen,
-    paddingVertical: spacing.lg
+    paddingVertical: spacing.lg,
   },
   stateText: {
-    textAlign: 'center'
+    textAlign: 'center',
   },
   commentRow: {
     flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.screen,
-    marginBottom: 14
+    marginBottom: 14,
   },
   commentReplyRow: {
-    paddingLeft: spacing.screen + 32
+    paddingLeft: spacing.screen + 32,
   },
   commentHighlighted: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.orange[400]
+    borderLeftColor: colors.orange[400],
   },
   commentBody: {
     flex: 1,
@@ -316,18 +358,23 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.dark[700],
-    padding: 12
+    padding: 12,
   },
   commentAuthor: {
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 13,
-    marginBottom: 2
+    marginBottom: 2,
   },
   commentLike: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 8
+    marginTop: 8,
+  },
+  commentInputContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
   },
 });
+
