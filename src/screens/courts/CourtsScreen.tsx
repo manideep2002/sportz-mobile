@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronLeft, SlidersHorizontal } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CourtCard } from '@/components/courts/CourtCard';
@@ -87,18 +87,7 @@ export function CourtsScreen() {
         <AppText variant="h2">
           Courts<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
-        <View style={styles.headerActions}>
-          <IconButton
-            icon={CalendarDays}
-            accessibilityLabel="My Bookings"
-            onPress={() => navigation.navigate('CourtBookings')}
-          />
-          <IconButton
-            icon={SlidersHorizontal}
-            accessibilityLabel="Court filters"
-            onPress={() => setFilterSheetOpen(true)}
-          />
-        </View>
+        <View style={styles.headerActions} />
       </View>
       <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         {filters.map((item) => (
