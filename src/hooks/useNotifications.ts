@@ -68,6 +68,8 @@ export const useRealtimeNotifications = (onNewNotification: (notification: Sport
     const setupSubscription = async () => {
       const sub = await notificationService.subscribeToNotifications((notification, event) => {
         if (!mounted) return;
+        // Story reactions are delivered directly as DMs — skip them here.
+        if (notification.kind === 'story_reaction') return;
         queryClient.setQueryData<SportzNotification[]>(notificationKeys.all, (old = []) =>
           [notification, ...old.filter((item) => item.id !== notification.id)].sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()

@@ -66,7 +66,7 @@ export interface NotificationPage {
 const categoryKinds: Record<Exclude<NotificationCategory, 'All'>, SportzNotification['kind'][]> = {
   Mentions: ['mention', 'comment'],
   Events: ['event', 'invite'],
-  Social: ['like', 'follow', 'follow_request', 'achievement', 'stat_verified', 'story_reaction']
+  Social: ['like', 'follow', 'follow_request', 'achievement', 'stat_verified']
 };
 
 export const notificationService = {
@@ -105,7 +105,9 @@ export const notificationService = {
       .eq('user_id', authData.user.id)
       .order('last_event_at', { ascending: false })
       .order('created_at', { ascending: false })
-      .order('id', { ascending: false });
+      .order('id', { ascending: false })
+      // Story reactions are delivered as DMs; never show them in the notifications list.
+      .neq('kind', 'story_reaction');
     if (category !== 'All') request = request.in('kind', categoryKinds[category]);
     if (cursor) {
       request = request.or(
@@ -136,7 +138,8 @@ export const notificationService = {
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', authData.user.id)
-      .eq('is_read', false);
+      .eq('is_read', false)
+      .neq('kind', 'story_reaction');
 
     if (error) throw error;
     return count ?? 0;

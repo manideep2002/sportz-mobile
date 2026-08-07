@@ -112,7 +112,9 @@ export function NotificationsScreen() {
   const respondInvite = useRespondCommunityInvite();
   const respondEventInvitation = useRespondEventInvitation();
 
-  const filteredNotifications = notifications;
+  // Story reactions are delivered directly as DMs — exclude them from the notifications list.
+  const filteredNotifications = notifications.filter((n) => n.kind !== 'story_reaction');
+
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
