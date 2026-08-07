@@ -154,6 +154,7 @@ export const useOverpassVenues = (
     enabled: coordinates !== null,
     staleTime: 15 * 60 * 1000, // 15 minutes – mirrors are raced in parallel so no need for frequent refetches
     gcTime: 30 * 60 * 1000,    // keep cache alive for 30 minutes
-    retry: false               // mirror-race handles fault-tolerance; don't re-blast the API on failure
+    retry: 1,                  // one retry after the staggered mirror sweep, for transient blips
+    retryDelay: 2_000          // wait 2 s before the retry so a momentary blip can recover
   });
 
