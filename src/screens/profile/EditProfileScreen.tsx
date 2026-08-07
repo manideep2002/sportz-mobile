@@ -28,10 +28,28 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
 const sports: Sport[] = allSports;
 const levels: SkillLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Pro'];
+const pendingSheetDismissals = new Set<() => void>();
+
+const handleSheetDismissed = () => {
+  for (const finish of [...pendingSheetDismissals]) finish();
+  pendingSheetDismissals.clear();
+};
+
 const waitForSheetDismissal = () =>
   new Promise<void>((resolve) => {
-    requestAnimationFrame(() => {
-      setTimeout(resolve, Platform.OS === 'ios' ? 350 : 250);
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      pendingSheetDismissals.delete(finish);
+      resolve();
+    };
+
+    const timer = setTimeout(finish, Platform.OS === 'ios' ? 600 : 300);
+    pendingSheetDismissals.add(() => {
+      clearTimeout(timer);
+      finish();
     });
   });
 
@@ -262,7 +280,7 @@ export function EditProfileScreen() {
           ))}
         </ScrollView>
       </ScrollView>
-      <BottomSheet open={profilePhotoSheetOpen} title="Profile Photo" onClose={() => setProfilePhotoSheetOpen(false)}>
+      <BottomSheet open={profilePhotoSheetOpen} title="Profile Photo" onClose={() => setProfilePhotoSheetOpen(false)} onDismiss={handleSheetDismissed}>
         <View style={styles.photoSheet}>
           <Button
             variant="dark"
@@ -280,7 +298,7 @@ export function EditProfileScreen() {
           ) : null}
         </View>
       </BottomSheet>
-      <BottomSheet open={coverSheetOpen} title="Profile Cover" onClose={() => setCoverSheetOpen(false)}>
+      <BottomSheet open={coverSheetOpen} title="Profile Cover" onClose={() => setCoverSheetOpen(false)} onDismiss={handleSheetDismissed}>
         <View style={styles.photoSheet}>
           <Button variant="dark" full disabled={saving || pickingMedia} loading={pickingMedia} onPress={() => void chooseNewCover()}>
             Choose New Cover

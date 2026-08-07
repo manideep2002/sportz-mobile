@@ -12,9 +12,10 @@ interface BottomSheetProps {
   open: boolean;
   title: string;
   onClose: () => void;
+  onDismiss?: () => void;
 }
 
-export function BottomSheet({ open, title, onClose, children }: PropsWithChildren<BottomSheetProps>) {
+export function BottomSheet({ open, title, onClose, onDismiss, children }: PropsWithChildren<BottomSheetProps>) {
   const theme = useAppTheme();
   const reducedMotion = useReducedMotion();
   const titleRef = useRef<View>(null);
@@ -30,7 +31,7 @@ export function BottomSheet({ open, title, onClose, children }: PropsWithChildre
   }, [open, title]);
 
   return (
-    <Modal transparent visible={open} animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible={open} animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose} onDismiss={onDismiss} statusBarTranslucent>
       <Pressable accessible={false} style={[styles.scrim, { backgroundColor: theme.colors.scrim }]} onPress={onClose}>
         <Pressable
           accessible={false}
