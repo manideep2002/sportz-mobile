@@ -571,6 +571,28 @@ export function StoryViewerScreen() {
         </KeyboardAvoidingView>
       ) : null}
 
+      {/* Caption overlay */}
+      {story?.body ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.captionOverlay,
+            {
+              bottom:
+                story.user.id !== undefined &&
+                currentUserId !== undefined &&
+                story.user.id !== currentUserId
+                  ? (insets.bottom > 0 ? insets.bottom + 8 : 28) + 110
+                  : (insets.bottom > 0 ? insets.bottom + 16 : 28)
+            }
+          ]}
+        >
+          <View style={styles.captionPill}>
+            <AppText style={styles.captionText}>{story.body}</AppText>
+          </View>
+        </View>
+      ) : null}
+
       <StoryReactionOverlay ref={overlayRef} />
     </View>
   );
@@ -697,5 +719,27 @@ const styles = StyleSheet.create({
   sendReplyText: {
     color: colors.light[0],
     fontWeight: '700'
+  },
+  captionOverlay: {
+    position: 'absolute',
+    left: spacing.screen,
+    right: spacing.screen,
+    alignItems: 'center'
+  },
+  captionPill: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '100%'
+  },
+  captionText: {
+    color: colors.light[0],
+    fontSize: 15,
+    fontFamily: typography.body,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4
   }
 });
