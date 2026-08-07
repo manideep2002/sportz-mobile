@@ -84,21 +84,25 @@ function buildQuery(
 
   const sportFilter = osmSportTag ? `[sport=${osmSportTag}]` : '';
 
-  // Query both node and way elements so we capture both small courts (nodes)
-  // and larger pitches mapped as areas (ways).
+  // Filter for named venues directly in Overpass QL so the server only processes
+  // named pitches rather than serializing hundreds of unnamed residential polygons.
+  // Using 'qt' (quadtile sorting) is significantly faster than standard ID sorting.
   const body = [
-    `node[leisure=pitch]${sportFilter}${bbox};`,
-    `way[leisure=pitch]${sportFilter}${bbox};`,
-    // Also include sport-centre amenities when searching for any sport.
+    `node[leisure=pitch][name]${sportFilter}${bbox};`,
+    `way[leisure=pitch][name]${sportFilter}${bbox};`,
+    `node[leisure=pitch]["name:en"]${sportFilter}${bbox};`,
+    `way[leisure=pitch]["name:en"]${sportFilter}${bbox};`,
     ...(osmSportTag === null
       ? [
-          `node[leisure=sports_centre]${bbox};`,
-          `way[leisure=sports_centre]${bbox};`,
+          `node[leisure=sports_centre][name]${bbox};`,
+          `way[leisure=sports_centre][name]${bbox};`,
+          `node[leisure=sports_centre]["name:en"]${bbox};`,
+          `way[leisure=sports_centre]["name:en"]${bbox};`,
         ]
       : []),
   ].join('\n  ');
 
-  return `[out:json][timeout:25];\n(\n  ${body}\n);\nout center;`;
+  return `[out:json][timeout:20];\n(\n  ${body}\n);\nout center qt 40;`;
 }
 
 // ── Response parsing ───────────────────────────────────────────────────────
@@ -160,42 +164,65 @@ function parseElement(
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
- * Public Overpass API mirrors, tried in order.
- * Kumi Systems and mail.ru are community-maintained mirrors that are often
- * faster and more available than the primary overpass-api.de server.
+ * Public Overpass API mirrors, tried in order of global reliability.
  */
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ] as const;
 
 const DEFAULT_RADIUS_KM = 5;
 const MAX_RESULTS = 40;
-/** Per-mirror request timeout in milliseconds. */
-const REQUEST_TIMEOUT_MS = 6_000;
+/** Per-mirror request timeout in milliseconds (15s allows cold-start DNS/TLS on mobile). */
+const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
- * Attempts a single Overpass mirror with a hard timeout.
- * Uses a GET request (more reliable than POST in some React Native network
- * stacks) with the Overpass QL query encoded in the URL.
+ * Attempts a single Overpass mirror with a timeout and parent abort signal.
+ * Uses POST with proper User-Agent and Accept headers to prevent 406/504 rejections.
  */
 async function tryMirror(
   endpoint: string,
   query: string,
-): Promise<Response> {
+  parentSignal?: AbortSignal,
+): Promise<OverpassResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+  // If the parent caller aborts (e.g. another mirror won), abort this request immediately.
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      clearTimeout(timer);
+      throw new Error('Aborted by parent');
+    }
+    parentSignal.addEventListener('abort', onParentAbort);
+  }
+
   try {
-    const url = `${endpoint}?data=${encodeURIComponent(query)}`;
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'User-Agent': 'SportzApp/1.0 (Mobile App; contact@sportz.app)',
+        'Accept': 'application/json',
+      },
+      body: `data=${encodeURIComponent(query)}`,
       signal: controller.signal,
     });
-    return response;
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} from ${endpoint}`);
+    }
+
+    const json = (await response.json()) as OverpassResponse;
+    return json;
   } finally {
     clearTimeout(timer);
+    if (parentSignal) {
+      parentSignal.removeEventListener('abort', onParentAbort);
+    }
   }
 }
 
@@ -203,19 +230,18 @@ async function tryMirror(
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Stagger offset applied between mirror starts (ms). */
-const MIRROR_STAGGER_MS = 400;
+const MIRROR_STAGGER_MS = 1_500;
 
 export const overpassService = {
   /**
    * Fetches sports courts / pitches near the given coordinates.
-   * Races all Overpass mirrors in parallel with a staggered start so that a
-   * brief network blip does not simultaneously abort every mirror attempt.
-   * The first mirror that responds successfully wins.
+   * Races multiple Overpass mirrors with a gentle staggered start so that
+   * the fastest available mirror wins while giving the primary mirror time to respond.
    *
    * @param origin    - User's current location.
    * @param sport     - App sport filter ('All' means any sport).
    * @param radiusKm  - Search radius in km (default 5).
-   * @returns         Sorted list of venues (nearest first), capped at MAX_RESULTS.
+   * @returns         Sorted list of named venues (nearest first), capped at MAX_RESULTS.
    */
   async fetchNearbyVenues(
     origin: CourtCoordinates,
@@ -225,26 +251,18 @@ export const overpassService = {
     const osmTag = sportToOsmTag(sport);
     const query = buildQuery(origin, radiusKm * 1000, osmTag);
 
-    /**
-     * Staggered parallel race:
-     *  - Mirror 0 fires immediately.
-     *  - Mirror 1 fires after MIRROR_STAGGER_MS (400 ms).
-     *  - Mirror 2 fires after 2 × MIRROR_STAGGER_MS (800 ms).
-     *
-     * Best-case latency is unchanged (the fastest mirror still wins as soon as
-     * it replies).  The stagger ensures that a transient sub-second network
-     * failure doesn't wipe out every attempt in the same error window.
-     */
+    const masterController = new AbortController();
+
     const mirrorAttempts = OVERPASS_MIRRORS.map(async (mirror, i) => {
-      if (i > 0) await sleep(i * MIRROR_STAGGER_MS);
-
-      const response = await tryMirror(mirror, query);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} from ${mirror}`);
+      if (i > 0) {
+        await sleep(i * MIRROR_STAGGER_MS);
       }
 
-      const json = (await response.json()) as OverpassResponse;
+      if (masterController.signal.aborted) {
+        throw new Error('Aborted');
+      }
+
+      const json = await tryMirror(mirror, query, masterController.signal);
 
       return (json.elements ?? [])
         .map((el) => parseElement(el, origin))
@@ -254,8 +272,12 @@ export const overpassService = {
     });
 
     try {
-      return await Promise.any(mirrorAttempts);
+      const result = await Promise.any(mirrorAttempts);
+      // Abort other pending mirror requests to free up device networking.
+      masterController.abort();
+      return result;
     } catch {
+      masterController.abort();
       throw new Error('All Overpass mirrors failed.');
     }
   },
