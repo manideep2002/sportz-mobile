@@ -1,4 +1,4 @@
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { FlashList, type FlashListRef, type ListRenderItem } from '@shopify/flash-list';
 import NetInfo from '@react-native-community/netinfo';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
@@ -366,6 +366,9 @@ const formatDateLabel = (dateStr: string): string => {
 
 type ChatListItem = ThreadChatMessage | { type: 'dateSeparator'; label: string; id: string };
 
+const isDateSeparator = (item: ChatListItem): item is { type: 'dateSeparator'; label: string; id: string } =>
+  'type' in item && item.type === 'dateSeparator';
+
 function MessageBubble({
   message,
   currentUserId,
@@ -377,7 +380,9 @@ function MessageBubble({
   onPress,
   onLongPress,
   onRetry,
-  onRemove
+  onRemove,
+  senderName,
+  isGroup
 }: {
   message: ThreadChatMessage;
   currentUserId: string;
@@ -390,6 +395,8 @@ function MessageBubble({
   onLongPress?: () => void;
   onRetry?: () => void;
   onRemove?: () => void;
+  senderName?: string;
+  isGroup?: boolean;
 }) {
   const { colors: theme } = useAppTheme();
   const mine = message.senderId === currentUserId;
@@ -410,6 +417,9 @@ function MessageBubble({
 
   return (
     <View style={[styles.messageRow, mine ? styles.myMessageRow : null]}>
+      {isGroup && senderName ? (
+        <AppText style={[styles.groupSenderName, { color: theme.textSubtle }]}>{senderName}</AppText>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={mine && onLongPress ? 'Your message. Long press for actions.' : 'Message'}
@@ -513,7 +523,7 @@ export function ThreadFirstChatScreen({
   const [muted, setMuted] = useState(Boolean(conversation?.muted));
   /** The message ID of the currently active (playing) video, or null. */
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
-  const listRef = useRef<FlashListRef<ThreadChatMessage>>(null);
+  const listRef = useRef<FlashListRef<ChatListItem> | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastReadSentAtRef = useRef<string | null>(null);
@@ -525,6 +535,16 @@ export function ThreadFirstChatScreen({
   const deliveryInFlightIdsRef = useRef(new Set<string>());
   const hasSubscribedRef = useRef(false);
   const participantsRef = useRef<ThreadChatParticipant[]>([]);
+
+  const senderNamesById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (conversation?.participants) {
+      for (const participant of conversation.participants) {
+        map.set(participant.id, participant.displayName);
+      }
+    }
+    return map;
+  }, [conversation?.participants]);
 
   const otherParticipants = useMemo(
     () => participants.filter((participant) => participant.userId !== currentUserId),
@@ -538,13 +558,18 @@ export function ThreadFirstChatScreen({
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [messages]
   );
-  const listItems = useMemo(() => {
-    const result = [];
+  const listItems: ChatListItem[] = useMemo(() => {
+    const result: ChatListItem[] = [];
     let lastLabel = '';
     for (const msg of chronologicalMessages) {
       const label = formatDateLabel(msg.createdAt);
       if (label !== lastLabel) {
-        result.push({ type: 'dateSeparator', label, id: 'sep:' + label });
+        const separator: { type: 'dateSeparator'; label: string; id: string } = {
+          type: 'dateSeparator',
+          label,
+          id: `sep:${label}`
+        };
+        result.push(separator);
         lastLabel = label;
       }
       result.push(msg);
@@ -838,10 +863,13 @@ export function ThreadFirstChatScreen({
   }, [hasMore, messages, roomId]);
 
   const markVisibleMessagesRead = useCallback(
-    (viewableItems: ViewToken<ThreadChatMessage>[]) => {
+    (viewableItems: ViewToken<ChatListItem>[]) => {
       const newestVisibleIncoming = viewableItems
         .map((item) => item.item)
-        .filter((message): message is ThreadChatMessage => Boolean(message && message.senderId !== currentUserId))
+        .filter(
+          (message): message is ThreadChatMessage =>
+            Boolean(message && typeof message === 'object' && 'senderId' in message && message.senderId !== currentUserId)
+        )
         .sort(newestFirst)[0];
 
       if (!newestVisibleIncoming) return;
@@ -1225,9 +1253,9 @@ export function ThreadFirstChatScreen({
     }
   };
 
-  const renderItem = ({ item }: { item: ChatListItem }) => {
+  const renderItem: ListRenderItem<ChatListItem> = ({ item }) => {
     // Date separator row
-    if ('type' in item && item.type === 'dateSeparator') {
+    if (isDateSeparator(item)) {
       return (
         <View style={styles.dateSeparator}>
           <View style={[styles.dateSeparatorLine, { backgroundColor: theme.border }]} />
@@ -1237,26 +1265,29 @@ export function ThreadFirstChatScreen({
       );
     }
     // Regular message bubble
+    const message = item as ThreadChatMessage;
     const showSeen =
-      item.id === newestOwnMessage?.id &&
+      message.id === newestOwnMessage?.id &&
       otherParticipants.length > 0 &&
-      otherParticipants.every((participant) => isAtLeastReadThrough(item.createdAt, participant.lastReadAt));
-    const canManage = item.senderId === currentUserId
-      && item.deliveryStatus !== 'sending'
-      && item.deliveryStatus !== 'failed';
+      otherParticipants.every((participant) => isAtLeastReadThrough(message.createdAt, participant.lastReadAt));
+    const canManage = message.senderId === currentUserId
+      && message.deliveryStatus !== 'sending'
+      && message.deliveryStatus !== 'failed';
     return (
       <MessageBubble
-        message={item}
+        message={message}
         currentUserId={currentUserId}
+        senderName={conversation?.isGroup ? (message.senderId === currentUserId ? 'You' : senderNamesById.get(message.senderId)) : undefined}
+        isGroup={Boolean(conversation?.isGroup)}
         showSeen={showSeen}
-        isNewestOwn={item.id === newestOwnMessage?.id}
-        showTime={tappedMessageId === item.id}
+        isNewestOwn={message.id === newestOwnMessage?.id}
+        showTime={tappedMessageId === message.id}
         activeVideoId={activeVideoId}
         onActivateVideo={setActiveVideoId}
-        onPress={() => setTappedMessageId((current) => current === item.id ? null : item.id)}
-        onLongPress={canManage ? () => setSelectedMessage(item) : undefined}
-        onRetry={item.deliveryStatus === 'failed' ? () => retryFailedMessage(item) : undefined}
-        onRemove={item.deliveryStatus === 'failed' ? () => removeFailedMessage(item) : undefined}
+        onPress={() => setTappedMessageId((current) => current === message.id ? null : message.id)}
+        onLongPress={canManage ? () => setSelectedMessage(message) : undefined}
+        onRetry={message.deliveryStatus === 'failed' ? () => retryFailedMessage(message) : undefined}
+        onRemove={message.deliveryStatus === 'failed' ? () => removeFailedMessage(message) : undefined}
       />
     );
   };
@@ -1297,7 +1328,7 @@ export function ThreadFirstChatScreen({
           <Button accessibilityLabel="Retry chat" onPress={() => void loadInitial()}>Retry</Button>
         </View>
       ) : (
-        <FlashList
+        <FlashList<ChatListItem>
           ref={listRef}
           data={listItems}
           getItemType={(item) => 'type' in item && item.type === 'dateSeparator' ? 'separator' : 'message'}
@@ -1571,6 +1602,13 @@ const styles = StyleSheet.create({
   failedActionText: {
     fontFamily: typography.bodyBold,
     fontSize: 12
+  },
+  groupSenderName: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 2,
+    marginHorizontal: 4,
+    fontFamily: typography.bodyBold
   },
   seenText: {
     color: colors.semantic.success

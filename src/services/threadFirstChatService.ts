@@ -217,8 +217,22 @@ const fetchProfilesById = async (userIds: string[]) => {
   return profiles;
 };
 
+const deriveGroupTitle = (room: ChatRoomRow, participants: UserProfile[], currentUserId: string) => {
+  const explicitTitle = room.title?.trim();
+  if (explicitTitle) return explicitTitle;
+
+  const otherParticipants = participants.filter((participant) => participant.id !== currentUserId);
+  if (!otherParticipants.length) return 'Group chat';
+
+  const names = otherParticipants.map((participant) => participant.displayName);
+  const visibleNames = names.slice(0, 3);
+  return visibleNames.length === names.length
+    ? visibleNames.join(', ')
+    : `${visibleNames.join(', ')}, +${names.length - visibleNames.length} more`;
+};
+
 const conversationTitle = (room: ChatRoomRow, participants: UserProfile[], currentUserId: string) => {
-  if (room.room_kind === 'group') return room.title ?? 'Group chat';
+  if (room.room_kind === 'group') return deriveGroupTitle(room, participants, currentUserId);
   return participants.find((participant) => participant.id !== currentUserId)?.displayName ?? room.title ?? 'Chat';
 };
 
@@ -580,7 +594,7 @@ export const threadFirstChatService = {
     return data as string;
   },
 
-  async createGroupRoom(title: string, memberIds: string[]): Promise<string> {
+  async createGroupRoom(title: string | null, memberIds: string[]): Promise<string> {
     const { data, error } = await supabase.rpc('create_group_chat_room', {
       group_title: title,
       member_ids: memberIds
