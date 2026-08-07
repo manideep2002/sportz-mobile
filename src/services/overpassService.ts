@@ -173,7 +173,7 @@ const OVERPASS_MIRRORS = [
 const DEFAULT_RADIUS_KM = 5;
 const MAX_RESULTS = 40;
 /** Per-mirror request timeout in milliseconds. */
-const REQUEST_TIMEOUT_MS = 20_000;
+const REQUEST_TIMEOUT_MS = 6_000;
 
 /**
  * Attempts a single Overpass mirror with a hard timeout.
@@ -217,32 +217,32 @@ export const overpassService = {
     const osmTag = sportToOsmTag(sport);
     const query = buildQuery(origin, radiusKm * 1000, osmTag);
 
-    let lastError: unknown;
+    /**
+     * Race all mirrors in parallel — the fastest successful response wins.
+     * Each mirror attempt rejects on timeout, HTTP error, or network failure,
+     * so Promise.any() naturally falls back to other mirrors with zero extra
+     * latency penalty.
+     */
+    const mirrorAttempts = OVERPASS_MIRRORS.map(async (mirror) => {
+      const response = await tryMirror(mirror, query);
 
-    for (const mirror of OVERPASS_MIRRORS) {
-      try {
-        const response = await tryMirror(mirror, query);
-
-        if (!response.ok) {
-          // 429 = rate-limited on this mirror → try the next one.
-          lastError = new Error(`HTTP ${response.status} from ${mirror}`);
-          continue;
-        }
-
-        const json = (await response.json()) as OverpassResponse;
-
-        return (json.elements ?? [])
-          .map((el) => parseElement(el, origin))
-          .filter((v): v is OverpassVenue => v !== null)
-          .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
-          .slice(0, MAX_RESULTS);
-      } catch (err) {
-        // Network error or timeout on this mirror → try the next one.
-        lastError = err;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} from ${mirror}`);
       }
-    }
 
-    // All mirrors exhausted.
-    throw lastError ?? new Error('All Overpass mirrors failed.');
+      const json = (await response.json()) as OverpassResponse;
+
+      return (json.elements ?? [])
+        .map((el) => parseElement(el, origin))
+        .filter((v): v is OverpassVenue => v !== null)
+        .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+        .slice(0, MAX_RESULTS);
+    });
+
+    try {
+      return await Promise.any(mirrorAttempts);
+    } catch {
+      throw new Error('All Overpass mirrors failed.');
+    }
   },
 };

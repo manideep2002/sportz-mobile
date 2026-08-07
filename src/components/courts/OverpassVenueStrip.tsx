@@ -13,7 +13,7 @@ import { Globe, MapPin, Navigation, Wifi } from 'lucide-react-native';
 
 import { AppText, Button } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
-import { colors, radii, spacing, typography } from '@/design/tokens';
+import { radii, spacing, typography } from '@/design/tokens';
 import { useOverpassVenues } from '@/hooks/useCourts';
 import type { CourtCoordinates } from '@/services/courtService';
 import type { OverpassVenue } from '@/services/overpassService';
@@ -82,21 +82,21 @@ export function OverpassVenueStrip({
     return (
       <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.headerRow}>
-          <View style={[styles.headerIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <Globe size={14} color={colors.semantic.info} />
+          <View style={[styles.headerIcon, { backgroundColor: theme.accentSoft }]}>
+            <Globe size={14} color={theme.accent} />
           </View>
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: colors.overlays.infoSoft }]}>
-            <AppText style={[styles.osmBadgeText, { color: colors.semantic.info }]}>
+          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
               OpenStreetMap
             </AppText>
           </View>
         </View>
         <View style={styles.emptyBody}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <Navigation size={18} color={colors.semantic.info} />
+          <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
+            <Navigation size={18} color={theme.accent} />
           </View>
           <AppText style={[styles.emptyText, { color: theme.textSubtle }]}>
             Enable location permission to discover nearby public pitches.
@@ -112,20 +112,20 @@ export function OverpassVenueStrip({
     return (
       <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.headerRow}>
-          <View style={[styles.headerIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <Globe size={14} color={colors.semantic.info} />
+          <View style={[styles.headerIcon, { backgroundColor: theme.accentSoft }]}>
+            <Globe size={14} color={theme.accent} />
           </View>
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: colors.overlays.infoSoft }]}>
-            <AppText style={[styles.osmBadgeText, { color: colors.semantic.info }]}>
+          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
               OpenStreetMap
             </AppText>
           </View>
         </View>
         <View style={styles.loadingRow}>
-          <ActivityIndicator color={colors.semantic.info} size="small" />
+          <ActivityIndicator color={theme.accent} size="small" />
           <AppText style={[styles.loadingText, { color: theme.textSubtle }]}>
             Searching OpenStreetMap…
           </AppText>
@@ -140,16 +140,16 @@ export function OverpassVenueStrip({
     return (
       <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.headerRow}>
-          <View style={[styles.headerIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <Globe size={14} color={colors.semantic.info} />
+          <View style={[styles.headerIcon, { backgroundColor: theme.accentSoft }]}>
+            <Globe size={14} color={theme.accent} />
           </View>
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
         </View>
         <View style={styles.emptyBody}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.overlays.dangerSoft }]}>
-            <Wifi size={18} color={colors.semantic.danger} />
+          <View style={[styles.emptyIcon, { backgroundColor: theme.dangerSoft }]}>
+            <Wifi size={18} color={theme.danger} />
           </View>
           <View style={styles.emptyTextCol}>
             <AppText style={[styles.emptyText, { color: theme.textSubtle }]}>
@@ -170,21 +170,21 @@ export function OverpassVenueStrip({
     return (
       <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.headerRow}>
-          <View style={[styles.headerIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <Globe size={14} color={colors.semantic.info} />
+          <View style={[styles.headerIcon, { backgroundColor: theme.accentSoft }]}>
+            <Globe size={14} color={theme.accent} />
           </View>
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: colors.overlays.infoSoft }]}>
-            <AppText style={[styles.osmBadgeText, { color: colors.semantic.info }]}>
+          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
               OpenStreetMap
             </AppText>
           </View>
         </View>
         <View style={styles.emptyBody}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-            <MapPin size={18} color={colors.semantic.info} />
+          <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
+            <MapPin size={18} color={theme.accent} />
           </View>
           <AppText style={[styles.emptyText, { color: theme.textSubtle }]}>
             No public pitches found within {radiusKm} km.
@@ -204,14 +204,14 @@ export function OverpassVenueStrip({
     >
       {/* Header */}
       <View style={styles.headerRow}>
-        <View style={[styles.headerIcon, { backgroundColor: colors.overlays.infoSoft }]}>
-          <Globe size={14} color={colors.semantic.info} />
+        <View style={[styles.headerIcon, { backgroundColor: theme.accentSoft }]}>
+          <Globe size={14} color={theme.accent} />
         </View>
         <AppText style={[styles.headerTitle, { color: theme.text }]}>
           {venues.length} public venue{venues.length !== 1 ? 's' : ''} nearby
         </AppText>
-        <View style={[styles.osmBadge, { backgroundColor: colors.overlays.infoSoft }]}>
-          <AppText style={[styles.osmBadgeText, { color: colors.semantic.info }]}>
+        <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+          <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
             OpenStreetMap
           </AppText>
         </View>
@@ -266,15 +266,15 @@ function VenueCard({ venue, theme }: VenueCardProps) {
       onPress={() => void openVenueInMaps(venue)}
     >
       {/* Pin dot */}
-      <View style={[styles.pinDot, { backgroundColor: colors.semantic.info }]} />
+      <View style={[styles.pinDot, { backgroundColor: theme.accent }]} />
 
       <AppText style={[styles.cardName, { color: theme.text }]} numberOfLines={2}>
         {venue.name}
       </AppText>
 
       {venue.sport ? (
-        <View style={[styles.sportTag, { backgroundColor: colors.overlays.infoSoft }]}>
-          <AppText style={[styles.sportTagText, { color: colors.semantic.info }]}>
+        <View style={[styles.sportTag, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
+          <AppText style={[styles.sportTagText, { color: theme.accent }]}>
             {sportLabel(venue.sport)}
           </AppText>
         </View>
@@ -297,8 +297,8 @@ function VenueCard({ venue, theme }: VenueCardProps) {
       )}
 
       <View style={[styles.directionsRow, { borderTopColor: theme.border }]}>
-        <Navigation size={10} color={colors.semantic.info} />
-        <AppText style={[styles.directionsLabel, { color: colors.semantic.info }]}>
+        <Navigation size={10} color={theme.accent} />
+        <AppText style={[styles.directionsLabel, { color: theme.accent }]}>
           Directions
         </AppText>
       </View>
@@ -339,6 +339,7 @@ const styles = StyleSheet.create({
   },
   osmBadge: {
     borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
   },
@@ -419,6 +420,7 @@ const styles = StyleSheet.create({
   sportTag: {
     alignSelf: 'flex-start',
     borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
     marginTop: 2,
@@ -433,12 +435,10 @@ const styles = StyleSheet.create({
   },
   address: {
     fontSize: 10,
-    color: colors.text.tertiary,
   },
   coords: {
     fontSize: 10,
     fontFamily: typography.bodyFamily,
-    color: colors.text.tertiary,
   },
   directionsRow: {
     flexDirection: 'row',
