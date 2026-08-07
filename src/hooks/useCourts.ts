@@ -152,6 +152,8 @@ export const useOverpassVenues = (
     queryKey: ['overpass-venues', coordinates, sport, radiusKm] as const,
     queryFn: () => overpassService.fetchNearbyVenues(coordinates!, sport, radiusKm),
     enabled: coordinates !== null,
-    staleTime: 10 * 60 * 1000, // 10 minutes – respect public API rate limits
-    retry: 1                   // one extra attempt after the mirror sweep
+    staleTime: 15 * 60 * 1000, // 15 minutes – mirrors are raced in parallel so no need for frequent refetches
+    gcTime: 30 * 60 * 1000,    // keep cache alive for 30 minutes
+    retry: false               // mirror-race handles fault-tolerance; don't re-blast the API on failure
   });
+
