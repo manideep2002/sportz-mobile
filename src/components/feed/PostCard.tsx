@@ -1,4 +1,4 @@
-﻿import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Bookmark, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
@@ -173,19 +173,22 @@ function PostCardComponent({
             canPlayVideoInApp && videoActive ? (
               <Pressable
                 accessible={false}
-                style={[styles.media, styles.mediaVideoContainer]}
+                style={styles.media}
                 onPress={(event) => event.stopPropagation()}
               >
-                <VideoPlayer
-                  uri={post.mediaUrl}
-                  autoPlay
-                  paused={!videoActive}
-                  muted
-                  showMuteToggle
-                  contentFit="cover"
-                  style={styles.feedVideo}
-                  testID={`feed-video-${post.id}`}
-                />
+                <View style={styles.mediaVideoContainer}>
+                  <VideoPlayer
+                    uri={post.mediaUrl}
+                    autoPlay
+                    paused={!videoActive}
+                    muted
+                    showMuteToggle
+                    showProgress
+                    contentFit="cover"
+                    style={styles.feedVideo}
+                    testID={`feed-video-${post.id}`}
+                  />
+                </View>
               </Pressable>
             ) : (
               <Pressable
@@ -211,14 +214,24 @@ function PostCardComponent({
                     />
                   ) : (
                     <View style={[styles.videoFallback, { backgroundColor: theme.surfaceMuted }]}>
+                      <View style={styles.videoFallbackIconWrap}>
+                        <Play size={26} color={colors.light[0]} fill={colors.light[0]} />
+                      </View>
                       <AppText style={styles.videoLabel}>
-                        {canPlayVideoInApp ? 'Video' : 'Unsupported video'}
+                        {canPlayVideoInApp ? 'Video' : 'Unsupported'}
                       </AppText>
                     </View>
                   )}
-                  <View style={[styles.playButtonOverlay, { backgroundColor: theme.accent }]}>
+                  {/* Gradient scrim over the poster */}
+                  <View style={styles.posterScrim} pointerEvents="none" />
+                  {/* VIDEO chip top-left */}
+                  <View style={styles.videoBadge} pointerEvents="none">
+                    <AppText style={styles.videoBadgeText}>VIDEO</AppText>
+                  </View>
+                  {/* Play / external button */}
+                  <View style={[styles.playButtonOverlay, { backgroundColor: canPlayVideoInApp ? colors.orange[500] : theme.accent }]}>
                     {canPlayVideoInApp ? (
-                      <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
+                      <Play size={22} color={colors.light[0]} fill={colors.light[0]} />
                     ) : (
                       <ExternalLink size={21} color={theme.onAccent} />
                     )}
@@ -388,48 +401,81 @@ const styles = StyleSheet.create({
   },
   mediaVideoContainer: {
     width: '100%',
-    height: 200,
+    height: 220,
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative'
   },
   feedVideo: {
     width: '100%',
-    height: '100%',
-    borderRadius: 10
+    height: '100%'
   },
   videoPoster: {
     width: '100%',
     height: '100%'
   },
+  posterScrim: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+    backgroundColor: 'rgba(0,0,0,0.45)'
+  },
+  videoBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)'
+  },
+  videoBadgeText: {
+    color: colors.light[0],
+    fontSize: 10,
+    fontFamily: typography.bodyBold,
+    letterSpacing: 0.8
+  },
   videoFallback: {
     flex: 1,
     backgroundColor: colors.dark[700],
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10
+  },
+  videoFallbackIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center'
   },
   videoLabel: {
     color: colors.text.secondary,
     fontFamily: typography.bodyBold,
-    fontSize: 13,
-    textTransform: 'uppercase'
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1
   },
   playButtonOverlay: {
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: [{ translateX: -22 }, { translateY: -22 }],
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.orange[500],
+    transform: [{ translateX: -26 }, { translateY: -26 }],
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6
   },
   teaser: {
     flexDirection: 'row',
