@@ -24,6 +24,8 @@ export const usePresence = () => {
 
     channel
       .on('presence', { event: 'sync' }, syncPresence)
+      .on('presence', { event: 'join' }, syncPresence)
+      .on('presence', { event: 'leave' }, syncPresence)
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           if (AppState.currentState === 'active') {
