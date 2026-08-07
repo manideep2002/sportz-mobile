@@ -6,6 +6,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CourtCard } from '@/components/courts/CourtCard';
 import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
+import { OverpassVenueStrip } from '@/components/courts/OverpassVenueStrip';
 
 import { AppRefreshControl, AppText, BottomSheet, Button, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 
@@ -120,6 +121,11 @@ export function CourtsScreen() {
           onSelect={setSelectedCourtId}
           locationStatus={location.data?.status}
           isLoading={isLoading}
+        />
+        <OverpassVenueStrip
+          coordinates={coordinates}
+          sport={filter}
+          radiusKm={maxDistance ? Number(maxDistance) : 5}
         />
       </View>
 
