@@ -79,8 +79,7 @@ export function NewMessageScreen() {
         return;
       }
 
-      const fallbackTitle = selected.map((player) => player.displayName).slice(0, 3).join(', ');
-      const conversationId = await messageService.createGroupConversation(groupTitle.trim() || fallbackTitle, selected.map((player) => player.id));
+      const conversationId = await messageService.createGroupConversation(groupTitle.trim() || null, selected.map((player) => player.id));
       navigation.replace('Chat', { conversationId });
     } catch (error) {
       Alert.alert(isAddMode ? 'Add members failed' : 'Group chat failed', error instanceof Error ? error.message : 'Please try again.');

@@ -75,7 +75,7 @@ export const messageService = {
     }
   },
 
-  async createGroupConversation(title: string, memberIds: string[]): Promise<string> {
+  async createGroupConversation(title: string | null, memberIds: string[]): Promise<string> {
     assertSupabaseConfigured();
 
     try {
