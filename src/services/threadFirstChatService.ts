@@ -715,26 +715,18 @@ export const threadFirstChatService = {
     }
   },
 
-  getBubbleImageUrl(mediaPath: string | null, fallbackUrl: string | null) {
-    if (!mediaPath) return fallbackUrl;
+  getPublicMediaUrl(mediaPath: string | null) {
+    if (!mediaPath) return null;
 
-    return supabase.storage.from(CHAT_MEDIA_BUCKET).getPublicUrl(mediaPath, {
-      transform: {
-        width: 360,
-        height: 360
-      }
-    }).data.publicUrl;
+    return supabase.storage.from(CHAT_MEDIA_BUCKET).getPublicUrl(mediaPath).data.publicUrl;
+  },
+
+  getBubbleImageUrl(mediaPath: string | null, fallbackUrl: string | null) {
+    return fallbackUrl ?? threadFirstChatService.getPublicMediaUrl(mediaPath);
   },
 
   getFullImageUrl(mediaPath: string | null, fallbackUrl: string | null) {
-    if (!mediaPath) return fallbackUrl;
-
-    return supabase.storage.from(CHAT_MEDIA_BUCKET).getPublicUrl(mediaPath, {
-      transform: {
-        width: 1440,
-        height: 1440
-      }
-    }).data.publicUrl;
+    return fallbackUrl ?? threadFirstChatService.getPublicMediaUrl(mediaPath);
   },
 
   async getSignedMediaUrl(mediaPath: string, expiresIn = 3600): Promise<string> {

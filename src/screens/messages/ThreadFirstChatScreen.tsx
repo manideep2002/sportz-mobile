@@ -86,44 +86,13 @@ export function MessageMedia({
   onActivateVideo: (id: string | null) => void;
 }) {
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [signedVideoUrl, setSignedVideoUrl] = useState<string | null>(null);
-  const [signedUrlLoading, setSignedUrlLoading] = useState(false);
-  const bubbleUrl = threadFirstChatService.getBubbleImageUrl(message.mediaPath, message.mediaUrl);
-  const fullUrl = threadFirstChatService.getFullImageUrl(message.mediaPath, message.mediaUrl);
-
-  useEffect(() => {
-    let mounted = true;
-    if (message.messageType !== 'video') return () => {
-      mounted = false;
-    };
-    if (!message.mediaPath) {
-      setSignedVideoUrl(message.mediaUrl);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    setSignedVideoUrl(null);
-    setSignedUrlLoading(true);
-    threadFirstChatService
-      .getSignedVideoUrl(message.mediaPath)
-      .then((url) => {
-        if (mounted) setSignedVideoUrl(url);
-      })
-      .catch(() => {
-        if (mounted) setSignedVideoUrl(message.mediaUrl);
-      })
-      .finally(() => {
-        if (mounted) setSignedUrlLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [message.messageType, message.mediaPath, message.mediaUrl]);
+  // The bucket is public, so the message's stored mediaUrl (a normal public
+  // storage URL) works everywhere. Fall back to rebuilding one from mediaPath
+  // for legacy rows that only saved the path.
+  const rawUrl = message.mediaUrl ?? threadFirstChatService.getPublicMediaUrl(message.mediaPath);
 
   if (message.messageType === 'video') {
-    const videoUri = signedVideoUrl ?? message.mediaUrl;
+    const videoUri = rawUrl;
     const closeViewer = () => setViewerOpen(false);
     return (
       <>
@@ -136,20 +105,16 @@ export function MessageMedia({
             setViewerOpen(true);
           }}
         >
-          {signedUrlLoading ? (
-            <ActivityIndicator color={colors.light[0]} />
-          ) : (
-            <VideoPlayer
-              uri={videoUri}
-              style={styles.videoBubble}
-              autoPlay={isActiveVideo && !viewerOpen}
-              paused={!isActiveVideo || viewerOpen}
-              loop={false}
-              interactive={false}
-              onEnd={() => onActivateVideo(null)}
-              testID={`chat-video-${message.id}`}
-            />
-          )}
+          <VideoPlayer
+            uri={videoUri}
+            style={styles.videoBubble}
+            autoPlay={isActiveVideo && !viewerOpen}
+            paused={!isActiveVideo || viewerOpen}
+            loop={false}
+            interactive={false}
+            onEnd={() => onActivateVideo(null)}
+            testID={`chat-video-${message.id}`}
+          />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isActiveVideo ? 'Pause inline video' : 'Play inline video'}
@@ -197,7 +162,7 @@ export function MessageMedia({
       <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open photo" onPress={() => setViewerOpen(true)}>
         <ExpoImage
           testID={`chat-image-${message.id}`}
-          source={{ uri: bubbleUrl ?? undefined }}
+          source={{ uri: rawUrl ?? undefined }}
           style={styles.media}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -207,7 +172,7 @@ export function MessageMedia({
       <Modal visible={viewerOpen} transparent animationType="fade" onRequestClose={() => setViewerOpen(false)}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close photo viewer" accessibilityViewIsModal style={styles.viewer} onPress={() => setViewerOpen(false)}>
           <ExpoImage
-            source={{ uri: fullUrl ?? undefined }}
+            source={{ uri: rawUrl ?? undefined }}
             style={styles.viewerImage}
             contentFit="contain"
             cachePolicy="memory-disk"
@@ -513,6 +478,7 @@ export function ThreadFirstChatScreen({
   const [presenceSynced, setPresenceSynced] = useState(false);
   const [onlinePeerUserIds, setOnlinePeerUserIds] = useState<Set<string>>(new Set());
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<ThreadChatMessage | null>(null);
   const [tappedMessageId, setTappedMessageId] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<ThreadChatMessage | null>(null);
@@ -1216,7 +1182,8 @@ export function ThreadFirstChatScreen({
 
       const asset = result.assets[0];
 
-      // Validate size (200 MB) and video duration (10 min) before uploading
+      // Validate size (200 MB) and video duration (10 min) before showing the
+      // confirmation preview.
       try {
         storageService.validateMediaAsset(asset, { maxSizeMb: 200, maxDurationSecs: 600 });
       } catch (validationError) {
@@ -1224,6 +1191,25 @@ export function ThreadFirstChatScreen({
         return;
       }
 
+      setPendingMedia(asset);
+    } catch (error) {
+      Alert.alert('Attachment failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const cancelPendingMedia = () => {
+    if (mediaLoading) return;
+    setPendingMedia(null);
+  };
+
+  const confirmSendPendingMedia = async () => {
+    if (!pendingMedia || !currentUserId || mediaLoading) return;
+
+    const asset = pendingMedia;
+    setMediaLoading(true);
+    try {
       const messageId = threadFirstChatService.createMessageId();
       const media = await threadFirstChatService.uploadChatMedia(asset, roomId, currentUserId, messageId);
       const messageType = asset.type === 'video' ? 'video' : 'image';
@@ -1243,6 +1229,7 @@ export function ThreadFirstChatScreen({
         deliveryStatus: 'sending'
       };
 
+      setPendingMedia(null);
       pendingScrollToBottomRef.current = true;
       setMessages((current) => mergeThreadMessages(current, message));
       void persistAfterBroadcast(message);
@@ -1410,6 +1397,50 @@ export function ThreadFirstChatScreen({
           <Button full variant="danger" icon={Trash2} onPress={confirmDeleteSelectedMessage}>Delete message</Button>
         </View>
       </BottomSheet>
+
+      <Modal
+        visible={Boolean(pendingMedia)}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelPendingMedia}
+        statusBarTranslucent
+      >
+        <View style={styles.mediaReviewScrim}>
+          <View style={[styles.mediaReviewCard, { backgroundColor: theme.surface }]}>
+            <View style={styles.mediaReviewHeader}>
+              <AppText style={styles.mediaReviewTitle}>Review media</AppText>
+              <IconButton icon={X} accessibilityLabel="Cancel media preview" onPress={cancelPendingMedia} />
+            </View>
+            <View style={[styles.mediaReviewBody, { backgroundColor: theme.background }]}>
+              {pendingMedia?.type === 'video' ? (
+                <VideoPlayer
+                  uri={pendingMedia.uri}
+                  style={styles.mediaReviewVideo}
+                  autoPlay
+                  loop={false}
+                  controls
+                  contentFit="contain"
+                  testID="media-review-video"
+                />
+              ) : (
+                <ExpoImage
+                  testID="media-review-image"
+                  source={{ uri: pendingMedia?.uri ?? undefined }}
+                  style={styles.mediaReviewImage}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              )}
+            </View>
+            <View style={styles.mediaReviewActions}>
+              <Button variant="ghost" full onPress={cancelPendingMedia} disabled={mediaLoading}>Cancel</Button>
+              <Button variant="primary" full icon={Send} loading={mediaLoading} onPress={() => void confirmSendPendingMedia()}>
+                Send
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ConversationSettingsSheet
         open={settingsOpen}
@@ -1581,6 +1612,51 @@ const styles = StyleSheet.create({
     top: 48,
     right: spacing.md,
     zIndex: 2
+  },
+  mediaReviewScrim: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg
+  },
+  mediaReviewCard: {
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: radii.xl,
+    overflow: 'hidden'
+  },
+  mediaReviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  mediaReviewTitle: {
+    fontFamily: typography.bodyBold,
+    fontSize: 15
+  },
+  mediaReviewBody: {
+    width: '100%',
+    height: 360,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mediaReviewImage: {
+    width: '100%',
+    height: '100%'
+  },
+  mediaReviewVideo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 0
+  },
+  mediaReviewActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md
   },
   messageMeta: {
     marginTop: 3,

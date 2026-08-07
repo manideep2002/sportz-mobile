@@ -14,6 +14,9 @@ const mockInsertMessage = jest.fn();
 const mockListMessages = jest.fn();
 const mockListParticipants = jest.fn();
 const mockNetInfoFetch = jest.fn();
+const mockRequestMediaPermissions = jest.fn();
+const mockLaunchImageLibrary = jest.fn();
+const mockUploadChatMedia = jest.fn();
 const mockBroadcastHandlers: Record<string, (event: { payload: unknown }) => void> = {};
 let mockSubscribeCallback: ((status: string) => void) | undefined;
 let mockPresenceState: Record<string, Record<string, unknown>[]> = {};
@@ -100,8 +103,8 @@ jest.mock('@tanstack/react-query', () => ({
 }));
 jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('expo-image-picker', () => ({
-  requestMediaLibraryPermissionsAsync: jest.fn(),
-  launchImageLibraryAsync: jest.fn()
+  requestMediaLibraryPermissionsAsync: (...args: unknown[]) => mockRequestMediaPermissions(...args),
+  launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibrary(...args)
 }));
 jest.mock('@react-native-community/netinfo', () => ({
   __esModule: true,
@@ -149,7 +152,7 @@ jest.mock('@/services/threadFirstChatService', () => ({
     clearDirectRoomHistory: (...args: unknown[]) => mockClearHistory(...args),
     getBubbleImageUrl: jest.fn(),
     getFullImageUrl: jest.fn(),
-    uploadChatMedia: jest.fn()
+    uploadChatMedia: (...args: unknown[]) => mockUploadChatMedia(...args)
   }
 }));
 jest.mock('@/store/authStore', () => ({
@@ -192,6 +195,14 @@ describe('ChatScreen actions', () => {
       { roomId: 'room-1', userId: 'user-2', lastReadAt: null, clearedAt: null, isActive: true, role: 'member' }
     ]);
     mockNetInfoFetch.mockResolvedValue({ isConnected: true });
+    mockRequestMediaPermissions.mockResolvedValue({ granted: true });
+    mockUploadChatMedia.mockResolvedValue({
+      mediaUrl: 'https://cdn.example.com/img.jpg',
+      mediaPath: 'room-1/user-1/message-1.jpg',
+      mediaWidth: 640,
+      mediaHeight: 480,
+      mediaMimeType: 'image/jpeg'
+    });
     mockSetPinned.mockResolvedValue(undefined);
     mockSetMuted.mockResolvedValue(undefined);
     mockClearHistory.mockResolvedValue({
@@ -426,6 +437,48 @@ describe('ChatScreen actions', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Retry older messages' }));
     expect(await screen.findByText('Recovered older message')).toBeTruthy();
     expect(screen.getAllByText('Recovered older message')).toHaveLength(1);
+  });
+
+  it('shows a media review and only sends after confirmation', async () => {
+    mockLaunchImageLibrary.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///photo.jpg', type: 'image', width: 640, height: 480, mimeType: 'image/jpeg' }]
+    });
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Attach photo or video' }));
+    expect(await screen.findByText('Review media')).toBeTruthy();
+    expect(mockUploadChatMedia).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(mockUploadChatMedia).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mockInsertMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageType: 'image',
+          mediaUrl: 'https://cdn.example.com/img.jpg'
+        })
+      )
+    );
+  });
+
+  it('discards the selected media when the preview is cancelled', async () => {
+    mockLaunchImageLibrary.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///photo.jpg', type: 'image', width: 640, height: 480, mimeType: 'image/jpeg' }]
+    });
+    await render(<ChatScreen />);
+    await screen.findByText('Send the first message.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Attach photo or video' }));
+    await screen.findByText('Review media');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByText('Review media')).toBeNull());
+    expect(mockUploadChatMedia).not.toHaveBeenCalled();
+    expect(mockInsertMessage).not.toHaveBeenCalled();
+    expect(mockLaunchImageLibrary).toHaveBeenCalledTimes(1);
   });
 });
 
