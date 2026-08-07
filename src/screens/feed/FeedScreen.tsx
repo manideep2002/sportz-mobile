@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { Bell, MapPin, Search, Users } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, type ViewToken } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useAppTranslation } from '@/i18n';
 
 import { LiveMatchBanner } from '@/components/feed/LiveMatchBanner';
@@ -17,12 +17,13 @@ import { AppRefreshControl, AppText, Button, Chip, IconButton, SectionHeader } f
 
 import { sportsFilters } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
-import { colors, spacing } from '@/design/tokens';
+import { colors, spacing, typography } from '@/design/tokens';
 import { useInfiniteFeed, useOptimisticPostSave } from '@/hooks/useFeed';
 import { usePostActions } from '@/hooks/usePostActions';
 import { useStories } from '@/hooks/useStories';
 import type { AppStackParamList } from '@/navigation/routes';
 import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 import { eventService } from '@/services/eventService';
 import { blockService, toBlockedIdSet } from '@/services/blockService';
 import { feedDedupeService } from '@/services/feedDedupeService';
@@ -38,6 +39,9 @@ export function FeedScreen() {
   const { colors: theme } = useAppTheme();
   const responsive = useResponsiveLayout();
   const profile = useAuthStore((state) => state.profile);
+  const notificationUnreadCount = useUiStore((state) => state.notificationUnreadCount);
+  const notificationBadge =
+    notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
   const [selectedSport, setSelectedSport] = useState<(typeof sportsFilters)[number]>('All');
   const [activeOptionsPost, setActiveOptionsPost] = useState<Post | null>(null);
   const [reportTarget, setReportTarget] = useState<Post | null>(null);
@@ -126,7 +130,14 @@ export function FeedScreen() {
           </AppText>
         </View>
         <View style={styles.topActions}>
-          <IconButton icon={Bell} accessibilityLabel={t('feed.notifications')} onPress={() => navigation.navigate('Notifications')} />
+          <View style={styles.notificationButton}>
+            <IconButton icon={Bell} accessibilityLabel={t('feed.notifications')} onPress={() => navigation.navigate('Notifications')} />
+            {notificationBadge !== undefined ? (
+              <Text numberOfLines={1} style={styles.badge}>
+                {notificationBadge}
+              </Text>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -277,6 +288,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center'
+  },
+  notificationButton: {
+    position: 'relative'
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: colors.semantic.danger,
+    color: colors.light[0],
+    fontFamily: typography.bodyBold,
+    fontSize: 9,
+    lineHeight: 16,
+    textAlign: 'center',
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    overflow: 'hidden'
   },
   search: {
     marginHorizontal: spacing.screen,

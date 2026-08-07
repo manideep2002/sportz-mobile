@@ -40,11 +40,8 @@ export function MainTabs() {
   const profile = useAuthStore((state) => state.profile);
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
   const createSheetOpen = useUiStore((state) => state.createSheetOpen);
-  const notificationUnreadCount = useUiStore((state) => state.notificationUnreadCount);
   const { data: conversations = [] } = useConversations();
   const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
-  const notificationBadge =
-    notificationUnreadCount > 99 ? '99+' : notificationUnreadCount > 0 ? notificationUnreadCount : undefined;
   const profileLabel = profile?.displayName.trim().split(/\s+/)[0] || t('tabs.profile');
 
   return (
@@ -105,9 +102,7 @@ export function MainTabs() {
                 initials={profile?.initials ?? '??'}
                 avatarUrl={profile?.avatarUrl}
               />
-            ),
-            tabBarBadge: notificationBadge,
-            tabBarBadgeStyle: styles.badge
+            )
           }}
         />
       </Tab.Navigator>
