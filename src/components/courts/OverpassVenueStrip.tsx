@@ -1,10 +1,8 @@
 /**
- * OverpassVenueStrip — nearby public sports venues from OpenStreetMap.
+ * OverpassVenueStrip — nearby public sports venues.
  *
  * Renders a horizontally-scrollable card strip of venues discovered via the
- * Overpass API.  Visually consistent with CourtMapPreview but clearly labelled
- * as third-party OSM data so users don't confuse them with the app's bookable
- * courts.
+ * Overpass API.
  *
  * Tapping "Directions" opens the venue in the platform Maps app.
  */
@@ -88,11 +86,6 @@ export function OverpassVenueStrip({
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
-            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
-              OpenStreetMap
-            </AppText>
-          </View>
         </View>
         <View style={styles.emptyBody}>
           <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
@@ -118,16 +111,11 @@ export function OverpassVenueStrip({
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
-            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
-              OpenStreetMap
-            </AppText>
-          </View>
         </View>
         <View style={styles.loadingRow}>
           <ActivityIndicator color={theme.accent} size="small" />
           <AppText style={[styles.loadingText, { color: theme.textSubtle }]}>
-            Searching OpenStreetMap…
+            Searching nearby venues…
           </AppText>
         </View>
       </View>
@@ -152,9 +140,9 @@ export function OverpassVenueStrip({
             <Wifi size={18} color={theme.danger} />
           </View>
           <View style={styles.emptyTextCol}>
-            <AppText style={[styles.emptyText, { color: theme.textSubtle }]}>
-              OpenStreetMap unavailable — check your internet connection.
-            </AppText>
+<AppText style={[styles.emptyText, { color: theme.textSubtle }]}>
+            Nearby venues unavailable — check your internet connection.
+          </AppText>
             <Button size="sm" onPress={() => void refetch()}>
               Try again
             </Button>
@@ -176,11 +164,6 @@ export function OverpassVenueStrip({
           <AppText style={[styles.headerTitle, { color: theme.text }]}>
             Nearby public venues
           </AppText>
-          <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
-            <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
-              OpenStreetMap
-            </AppText>
-          </View>
         </View>
         <View style={styles.emptyBody}>
           <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
@@ -200,7 +183,7 @@ export function OverpassVenueStrip({
     <View
       style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
       accessibilityRole="radiogroup"
-      accessibilityLabel="Nearby public venues from OpenStreetMap"
+      accessibilityLabel="Nearby public venues"
     >
       {/* Header */}
       <View style={styles.headerRow}>
@@ -210,11 +193,6 @@ export function OverpassVenueStrip({
         <AppText style={[styles.headerTitle, { color: theme.text }]}>
           {venues.length} public venue{venues.length !== 1 ? 's' : ''} nearby
         </AppText>
-        <View style={[styles.osmBadge, { backgroundColor: theme.accentSoft, borderColor: theme.accentBorder }]}>
-          <AppText style={[styles.osmBadgeText, { color: theme.accent }]}>
-            OpenStreetMap
-          </AppText>
-        </View>
       </View>
 
       {/* Venue cards */}
@@ -232,13 +210,6 @@ export function OverpassVenueStrip({
           />
         ))}
       </ScrollView>
-
-      {/* Footer attribution */}
-      <View style={[styles.attribution, { borderTopColor: theme.border }]}>
-        <AppText style={[styles.attributionText, { color: theme.textSubtle }]}>
-          © OpenStreetMap contributors · Data may be incomplete
-        </AppText>
-      </View>
     </View>
   );
 }
@@ -290,11 +261,7 @@ function VenueCard({ venue, theme }: VenueCardProps) {
         <AppText style={[styles.address, { color: theme.textSubtle }]} numberOfLines={1}>
           {venue.address}
         </AppText>
-      ) : (
-        <AppText style={[styles.coords, { color: theme.textSubtle }]}>
-          {venue.latitude.toFixed(3)}, {venue.longitude.toFixed(3)}
-        </AppText>
-      )}
+      ) : null}
 
       <View style={[styles.directionsRow, { borderTopColor: theme.border }]}>
         <Navigation size={10} color={theme.accent} />
@@ -336,17 +303,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: typography.bodyBold,
     fontSize: 12,
-  },
-  osmBadge: {
-    borderRadius: radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-  },
-  osmBadgeText: {
-    fontSize: 9,
-    fontFamily: typography.bodyBold,
-    letterSpacing: 0.3,
   },
 
   // Loading
@@ -436,10 +392,6 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 10,
   },
-  coords: {
-    fontSize: 10,
-    fontFamily: typography.bodyFamily,
-  },
   directionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -451,16 +403,5 @@ const styles = StyleSheet.create({
   directionsLabel: {
     fontSize: 10,
     fontFamily: typography.bodyBold,
-  },
-
-  // Attribution
-  attribution: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  attributionText: {
-    fontSize: 9,
-    textAlign: 'center',
   },
 });

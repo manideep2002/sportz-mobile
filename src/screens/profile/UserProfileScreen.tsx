@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuthStore } from '@/store/authStore';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,6 +32,8 @@ export function UserProfileScreen() {
   const { colors: theme } = useAppTheme();
   const queryClient = useQueryClient();
   const { userId } = route.params;
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const isOwnProfile = Boolean(currentUserId && currentUserId === userId);
 
   const { data: profile, isLoading, isError, isRefetching, refetch } = useProfile(userId);
   const { data: isFollowing = false, isLoading: isFollowingLoading, isError: isFollowingError, refetch: refetchFollowing } = useIsFollowing(userId);
@@ -253,7 +256,9 @@ export function UserProfileScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <View style={{ flex: 1 }} />
-        <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
+        {!isOwnProfile && (
+          <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
+        )}
       </View>
       <ProfileCover
         uri={profile.coverUrl}
@@ -306,7 +311,7 @@ export function UserProfileScreen() {
 
         <AppText variant="bodyMuted">{profile.bio}</AppText>
 
-        {isBlocked ? (
+        {!isOwnProfile && isBlocked ? (
           <View style={[styles.blockedNotice, { backgroundColor: theme.dangerSoft, borderColor: theme.danger }]}>
             <Ban size={16} color={theme.danger} />
             <AppText variant="bodyMuted" style={styles.blockedNoticeText}>
@@ -325,50 +330,52 @@ export function UserProfileScreen() {
           <StatCard value={`${profile.stats.winRate}%`} label="Win %" tone="green" />
         </View>
 
-        <View style={styles.actions}>
-          {isBlocked ? (
-            <Button
-              style={styles.actionButton}
-              icon={UserX}
-              variant="danger"
-              disabled={relationshipUnknown || blockActionLoading}
-              loading={blockActionLoading}
-              onPress={handleBlockToggle}
-            >
-              Unblock
-            </Button>
-          ) : (
-            <Button
-              style={styles.actionButton}
-              icon={isFollowing ? UserCheck : UserPlus}
-              variant={isFollowing || followRequestStatus === 'pending' ? 'ghost' : 'primary'}
-              disabled={relationshipUnknown || toggleFollow.isPending || blockActionLoading}
-              loading={toggleFollow.isPending}
-              onPress={handleFollow}
-            >
-              {isFollowing ? 'Unfollow' : followRequestStatus === 'pending' ? 'Requested' : 'Follow'}
-            </Button>
-          )}
-          <Button
-            style={styles.actionButton}
-            variant="ghost"
-            loading={messageLoading}
-            disabled={relationshipUnknown || isBlocked || messageLoading}
-            onPress={() => void openChat()}
-          >
-            Message
-          </Button>
-          {profile.isHireable && !isBlocked ? (
+        {!isOwnProfile && (
+          <View style={styles.actions}>
+            {isBlocked ? (
+              <Button
+                style={styles.actionButton}
+                icon={UserX}
+                variant="danger"
+                disabled={relationshipUnknown || blockActionLoading}
+                loading={blockActionLoading}
+                onPress={handleBlockToggle}
+              >
+                Unblock
+              </Button>
+            ) : (
+              <Button
+                style={styles.actionButton}
+                icon={isFollowing ? UserCheck : UserPlus}
+                variant={isFollowing || followRequestStatus === 'pending' ? 'ghost' : 'primary'}
+                disabled={relationshipUnknown || toggleFollow.isPending || blockActionLoading}
+                loading={toggleFollow.isPending}
+                onPress={handleFollow}
+              >
+                {isFollowing ? 'Unfollow' : followRequestStatus === 'pending' ? 'Requested' : 'Follow'}
+              </Button>
+            )}
             <Button
               style={styles.actionButton}
               variant="ghost"
-              onPress={() => navigation.navigate('CreateOffer', { recipientId: profile.id })}
+              loading={messageLoading}
+              disabled={relationshipUnknown || isBlocked || messageLoading}
+              onPress={() => void openChat()}
             >
-              Offer
+              Message
             </Button>
-          ) : null}
-          <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
-        </View>
+            {profile.isHireable && !isBlocked ? (
+              <Button
+                style={styles.actionButton}
+                variant="ghost"
+                onPress={() => navigation.navigate('CreateOffer', { recipientId: profile.id })}
+              >
+                Offer
+              </Button>
+            ) : null}
+            <IconButton icon={MoreHorizontal} onPress={openMore} accessibilityLabel="More options" />
+          </View>
+        )}
 
         <SegmentedControl value={tab} options={['Posts', 'Stats', 'Highlights']} onChange={setTab} />
         {tab === 'Posts' ? <ProfileGrid userId={profile.id} /> : null}

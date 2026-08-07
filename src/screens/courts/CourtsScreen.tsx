@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronLeft, SlidersHorizontal } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CourtCard } from '@/components/courts/CourtCard';
-import { CourtMapPreview } from '@/components/courts/CourtMapPreview';
 import { OverpassVenueStrip } from '@/components/courts/OverpassVenueStrip';
 
-import { AppRefreshControl, AppText, BottomSheet, Button, Chip, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+import { AppRefreshControl, AppText, BottomSheet, Button, Chip, IconButton, Input, Screen } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing } from '@/design/tokens';
@@ -27,7 +26,6 @@ export function CourtsScreen() {
   const { colors: theme } = useAppTheme();
   const profileCity = useAuthStore((state) => state.profile?.city ?? '');
   const [filter, setFilter] = useState<'All' | Sport>('All');
-  const [selectedCourtId, setSelectedCourtId] = useState<string | undefined>(undefined);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [city, setCity] = useState(profileCity);
   const [appliedCity, setAppliedCity] = useState('');
@@ -89,18 +87,7 @@ export function CourtsScreen() {
         <AppText variant="h2">
           Courts<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
-        <View style={styles.headerActions}>
-          <IconButton
-            icon={CalendarDays}
-            accessibilityLabel="My Bookings"
-            onPress={() => navigation.navigate('CourtBookings')}
-          />
-          <IconButton
-            icon={SlidersHorizontal}
-            accessibilityLabel="Court filters"
-            onPress={() => setFilterSheetOpen(true)}
-          />
-        </View>
+        <View style={styles.headerActions} />
       </View>
       <ScrollView horizontal style={styles.filterScroller} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         {filters.map((item) => (
@@ -113,15 +100,8 @@ export function CourtsScreen() {
         <AppText variant="small">{locationMessage}</AppText>
       </View>
 
-      {/* Multi-court discovery strip */}
+      {/* OpenStreetMap venues strip */}
       <View style={styles.section}>
-        <CourtMapPreview
-          courts={courts}
-          selectedId={selectedCourtId}
-          onSelect={setSelectedCourtId}
-          locationStatus={location.data?.status}
-          isLoading={isLoading}
-        />
         <OverpassVenueStrip
           coordinates={coordinates}
           sport={filter}
@@ -131,7 +111,6 @@ export function CourtsScreen() {
 
       {/* Court list */}
       <View style={styles.section}>
-        <SectionHeader title="Court discovery" action={`${courts.filter((court) => court.openNow).length} open now`} />
         {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
         {isError ? (
           <View style={styles.empty}>
@@ -139,17 +118,11 @@ export function CourtsScreen() {
             <Button size="sm" onPress={() => void refetch()}>Retry</Button>
           </View>
         ) : null}
-        {!isLoading && !isError && courts.length === 0 ? (
-          <AppText variant="bodyMuted" style={styles.emptyText}>No courts match these filters.</AppText>
-        ) : null}
         {courts.map((court) => (
           <CourtCard
             key={court.id}
             court={court}
-            onPress={() => {
-              setSelectedCourtId(court.id);
-              navigation.navigate('CourtDetail', { courtId: court.id });
-            }}
+            onPress={() => navigation.navigate('CourtDetail', { courtId: court.id })}
             onBook={() => navigation.navigate('CourtBooking', { courtId: court.id })}
           />
         ))}
@@ -246,10 +219,6 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.lg
-  },
-  emptyText: {
-    textAlign: 'center',
     paddingVertical: spacing.lg
   },
   hire: {
