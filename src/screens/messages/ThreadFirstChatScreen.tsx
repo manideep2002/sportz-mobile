@@ -1280,11 +1280,12 @@ export function ThreadFirstChatScreen({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
-    >
+    <>
+      <KeyboardAvoidingView
+        style={[styles.root, { backgroundColor: theme.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
+      >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         {onBack ? <IconButton icon={ChevronLeft} accessibilityLabel="Back" onPress={onBack} /> : null}
         <View style={styles.headerCopy}>
@@ -1398,50 +1399,6 @@ export function ThreadFirstChatScreen({
         </View>
       </BottomSheet>
 
-      <Modal
-        visible={Boolean(pendingMedia)}
-        transparent
-        animationType="fade"
-        onRequestClose={cancelPendingMedia}
-        statusBarTranslucent
-      >
-        <View style={styles.mediaReviewScrim}>
-          <View style={[styles.mediaReviewCard, { backgroundColor: theme.surface }]}>
-            <View style={styles.mediaReviewHeader}>
-              <AppText style={styles.mediaReviewTitle}>Review media</AppText>
-              <IconButton icon={X} accessibilityLabel="Cancel media preview" onPress={cancelPendingMedia} />
-            </View>
-            <View style={[styles.mediaReviewBody, { backgroundColor: theme.background }]}>
-              {pendingMedia?.type === 'video' ? (
-                <VideoPlayer
-                  uri={pendingMedia.uri}
-                  style={styles.mediaReviewVideo}
-                  autoPlay
-                  loop={false}
-                  controls
-                  contentFit="contain"
-                  testID="media-review-video"
-                />
-              ) : (
-                <ExpoImage
-                  testID="media-review-image"
-                  source={{ uri: pendingMedia?.uri ?? undefined }}
-                  style={styles.mediaReviewImage}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
-              )}
-            </View>
-            <View style={styles.mediaReviewActions}>
-              <Button variant="ghost" full onPress={cancelPendingMedia} disabled={mediaLoading}>Cancel</Button>
-              <Button variant="primary" full icon={Send} loading={mediaLoading} onPress={() => void confirmSendPendingMedia()}>
-                Send
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <ConversationSettingsSheet
         open={settingsOpen}
         title={title}
@@ -1465,7 +1422,48 @@ export function ThreadFirstChatScreen({
         onRemoveMember={confirmRemoveMember}
         onLeave={confirmLeaveConversation}
       />
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+
+      <Modal
+        visible={Boolean(pendingMedia)}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={cancelPendingMedia}
+        statusBarTranslucent
+      >
+        <View style={[styles.mediaReviewRoot, { backgroundColor: theme.background }]}>
+          <View style={styles.mediaReviewHeader}>
+            <AppText style={[styles.mediaReviewTitle, { color: theme.text }]}>Review media</AppText>
+            <IconButton icon={X} accessibilityLabel="Cancel media preview" onPress={cancelPendingMedia} />
+          </View>
+          <View style={styles.mediaReviewBody}>
+            {pendingMedia?.type === 'video' ? (
+              <VideoPlayer
+                uri={pendingMedia.uri}
+                style={StyleSheet.absoluteFill}
+                autoPlay
+                loop={false}
+                controls
+                contentFit="contain"
+                testID="media-review-video"
+              />
+            ) : (
+              <ExpoImage
+                testID="media-review-image"
+                source={{ uri: pendingMedia?.uri ?? undefined }}
+                style={StyleSheet.absoluteFill}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            )}
+          </View>
+          <View style={styles.mediaReviewActions}>
+            <Button variant="ghost" style={styles.mediaReviewActionButton} onPress={cancelPendingMedia} disabled={mediaLoading}>Cancel</Button>
+            <Button variant="primary" icon={Send} style={styles.mediaReviewActionButton} loading={mediaLoading} onPress={() => void confirmSendPendingMedia()}>Send</Button>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1613,35 +1611,30 @@ const styles = StyleSheet.create({
     right: spacing.md,
     zIndex: 2
   },
-  mediaReviewScrim: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg
-  },
-  mediaReviewCard: {
-    width: '100%',
-    maxWidth: 480,
-    borderRadius: radii.xl,
-    overflow: 'hidden'
+  mediaReviewRoot: {
+    flex: 1
   },
   mediaReviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingTop: 56,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    paddingBottom: spacing.sm
   },
   mediaReviewTitle: {
     fontFamily: typography.bodyBold,
     fontSize: 15
   },
   mediaReviewBody: {
-    width: '100%',
-    height: 360,
+    flex: 1,
+    marginHorizontal: spacing.screen,
+    marginBottom: spacing.md,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    backgroundColor: colors.dark[950]
   },
   mediaReviewImage: {
     width: '100%',
@@ -1656,7 +1649,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24
+  },
+  mediaReviewActionButton: {
+    flex: 1
   },
   messageMeta: {
     marginTop: 3,
