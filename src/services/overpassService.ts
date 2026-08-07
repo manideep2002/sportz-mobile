@@ -199,10 +199,18 @@ async function tryMirror(
   }
 }
 
+/** Resolves after `ms` milliseconds — used to stagger mirror starts. */
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Stagger offset applied between mirror starts (ms). */
+const MIRROR_STAGGER_MS = 400;
+
 export const overpassService = {
   /**
    * Fetches sports courts / pitches near the given coordinates.
-   * Tries each Overpass mirror in order and returns the first successful result.
+   * Races all Overpass mirrors in parallel with a staggered start so that a
+   * brief network blip does not simultaneously abort every mirror attempt.
+   * The first mirror that responds successfully wins.
    *
    * @param origin    - User's current location.
    * @param sport     - App sport filter ('All' means any sport).
@@ -218,12 +226,18 @@ export const overpassService = {
     const query = buildQuery(origin, radiusKm * 1000, osmTag);
 
     /**
-     * Race all mirrors in parallel — the fastest successful response wins.
-     * Each mirror attempt rejects on timeout, HTTP error, or network failure,
-     * so Promise.any() naturally falls back to other mirrors with zero extra
-     * latency penalty.
+     * Staggered parallel race:
+     *  - Mirror 0 fires immediately.
+     *  - Mirror 1 fires after MIRROR_STAGGER_MS (400 ms).
+     *  - Mirror 2 fires after 2 × MIRROR_STAGGER_MS (800 ms).
+     *
+     * Best-case latency is unchanged (the fastest mirror still wins as soon as
+     * it replies).  The stagger ensures that a transient sub-second network
+     * failure doesn't wipe out every attempt in the same error window.
      */
-    const mirrorAttempts = OVERPASS_MIRRORS.map(async (mirror) => {
+    const mirrorAttempts = OVERPASS_MIRRORS.map(async (mirror, i) => {
+      if (i > 0) await sleep(i * MIRROR_STAGGER_MS);
+
       const response = await tryMirror(mirror, query);
 
       if (!response.ok) {
