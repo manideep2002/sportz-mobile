@@ -6,7 +6,9 @@ import {
   type CourtCoordinates,
   type CourtFilters
 } from '@/services/courtService';
+import { overpassService } from '@/services/overpassService';
 import { useAuthStore } from '@/store/authStore';
+import type { Sport } from '@/types/domain';
 
 const courtKeys = {
   all: ['courts'] as const,
@@ -133,3 +135,23 @@ export const useUpdateCourtBookingStatus = (courtId?: string) => {
     }
   });
 };
+
+/**
+ * Fetches nearby sports venues from the OpenStreetMap Overpass API.
+ *
+ * Only runs when coordinates are available (i.e. location permission granted
+ * or a city was resolved to coordinates).  Results are cached for 10 minutes
+ * to avoid hammering the free Overpass endpoint.
+ */
+export const useOverpassVenues = (
+  coordinates: CourtCoordinates | null,
+  sport: Sport | 'All' = 'All',
+  radiusKm = 5
+) =>
+  useQuery({
+    queryKey: ['overpass-venues', coordinates, sport, radiusKm] as const,
+    queryFn: () => overpassService.fetchNearbyVenues(coordinates!, sport, radiusKm),
+    enabled: coordinates !== null,
+    staleTime: 10 * 60 * 1000, // 10 minutes – respect public API rate limits
+    retry: 1                   // one extra attempt after the mirror sweep
+  });
