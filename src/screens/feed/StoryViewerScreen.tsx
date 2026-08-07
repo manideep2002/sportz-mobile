@@ -587,7 +587,9 @@ export function StoryViewerScreen() {
             }
           ]}
         >
-          <AppText style={styles.captionText}>{story.body}</AppText>
+          <View style={styles.captionPill}>
+            <AppText style={styles.captionText}>{story.body}</AppText>
+          </View>
         </View>
       ) : null}
 
@@ -724,6 +726,13 @@ const styles = StyleSheet.create({
     right: spacing.screen,
     alignItems: 'center'
   },
+  captionPill: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '100%'
+  },
   captionText: {
     color: colors.light[0],
     fontSize: 15,
@@ -731,11 +740,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    overflow: 'hidden'
+    textShadowRadius: 4
   }
 });
