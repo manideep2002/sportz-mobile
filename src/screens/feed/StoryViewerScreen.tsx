@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   captionText: {
     color: colors.light[0],
     fontSize: 15,
-    fontFamily: typography.body,
+    fontFamily: typography.bodyFamily,
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.75)',
     textShadowOffset: { width: 0, height: 1 },

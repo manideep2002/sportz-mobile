@@ -165,7 +165,6 @@ export function PostDetailScreen() {
       <FlashList
         data={comments}
         keyExtractor={(comment) => comment.id}
-        estimatedItemSize={80}
         ListHeaderComponent={ListHeader}
         refreshControl={
           <AppRefreshControl
