@@ -46,6 +46,8 @@ export function EventChatScreen() {
   const [olderError, setOlderError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<EventMessageCursor | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const flatListRef = useRef<FlatList<EventMessage>>(null);
   const olderLoadingRef = useRef(false);
 
   const loadLatest = useCallback(async (mode: 'initial' | 'refresh' | 'reconnect') => {
@@ -80,9 +82,24 @@ export function EventChatScreen() {
     void loadLatest('initial');
   }, [eventId, loadLatest]);
 
-  useEffect(() => {
-    if (!currentUserId) return;
-    void eventService.markEventChatRead(eventId).catch(() => undefined);
+  // Mark event chat as read only when the user is at the bottom (viewing newest messages)
+  const markReadIfNeeded = useCallback(() => {
+    if (isAtBottom && currentUserId) {
+      void eventService.markEventChatRead(eventId).catch(() => undefined);
+    }
+  }, [isAtBottom, currentUserId, eventId]);
+
+  // Track scroll position to determine if user is viewing newest messages
+  const handleScroll = useCallback(({ nativeEvent }: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const paddingToBottom = 20;
+    const isBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    setIsAtBottom(isBottom);
+    
+    // Mark as read when user scrolls to bottom
+    if (isBottom && currentUserId) {
+      void eventService.markEventChatRead(eventId).catch(() => undefined);
+    }
   }, [currentUserId, eventId]);
 
   useEffect(() => {
@@ -90,8 +107,9 @@ export function EventChatScreen() {
       eventId,
       (message) => {
         setMessages((current) => mergeEventMessages(current, message));
+        // Only mark as read if the user is currently viewing the newest messages
         if (message.sender.id !== currentUserId) {
-          void eventService.markEventChatRead(eventId).catch(() => undefined);
+          markReadIfNeeded();
         }
       },
       (connected, reconnected) => {
@@ -100,7 +118,7 @@ export function EventChatScreen() {
       }
     );
     return () => subscription.unsubscribe();
-  }, [currentUserId, eventId, loadLatest]);
+  }, [currentUserId, eventId, loadLatest, markReadIfNeeded]);
 
   const loadOlder = useCallback(async () => {
     if (!nextCursor || olderLoadingRef.current) return;
@@ -222,6 +240,7 @@ export function EventChatScreen() {
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={messages}
           inverted
           keyExtractor={(item) => item.id}
@@ -230,6 +249,8 @@ export function EventChatScreen() {
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onEndReached={() => void loadOlder()}
           onEndReachedThreshold={0.25}
+          onScroll={handleScroll}
+          scrollEventThrottle={400}
           refreshControl={
             <AppRefreshControl
               refreshing={refreshing}

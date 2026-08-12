@@ -11,7 +11,7 @@ import { EventMessageThreadRow } from '@/components/messages/EventMessageThreadR
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
 import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 
-import { AdaptiveSplitView, AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader, SegmentedControl } from '@/components/ui';
+import { AdaptiveSplitView, AppRefreshControl, AppText, Button, IconButton, Input, Screen, SectionHeader, SegmentedControl } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
@@ -48,6 +48,7 @@ export function MessagesScreen() {
     data: eventThreads = [],
     isLoading: eventThreadsLoading,
     isError: eventThreadsError,
+    isRefetching: eventThreadsRefetching,
     refetch: refetchEventThreads
   } = useEventMessageThreads(activeTab === 'Event messages');
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
@@ -261,16 +262,36 @@ export function MessagesScreen() {
       <Input icon={Search} value={query} onChangeText={setQuery} placeholder={t('messages.search')} />
       {activeTab === 'Event messages' ? (
         <>
-          {eventThreadsLoading ? <ActivityIndicator color={theme.accent} /> : null}
-          {eventThreadsError ? <AppText variant="bodyMuted">Could not load event messages.</AppText> : null}
-          <View style={styles.section}>
-            {filteredEventThreads.map((thread) => (
-              <EventMessageThreadRow key={thread.eventId} thread={thread} onPress={() => openEventChat(thread.eventId)} />
-            ))}
-            {!eventThreadsLoading && !eventThreadsError && filteredEventThreads.length === 0 ? (
-              <AppText variant="bodyMuted" style={styles.empty}>No event messages yet.</AppText>
-            ) : null}
-          </View>
+          {eventThreadsLoading && eventThreads.length === 0 ? (
+            <ActivityIndicator color={theme.accent} style={styles.loader} />
+          ) : eventThreadsError && eventThreads.length === 0 ? (
+            <View style={styles.state}>
+              <AppText variant="bodyMuted" style={styles.stateText}>Could not load event messages.</AppText>
+              <Button size="sm" onPress={() => void refetchEventThreads()}>Retry</Button>
+            </View>
+          ) : (
+            <View style={styles.section}>
+              {filteredEventThreads.map((thread) => (
+                <EventMessageThreadRow 
+                  key={thread.eventId} 
+                  thread={thread} 
+                  onPress={() => openEventChat(thread.eventId)} 
+                />
+              ))}
+              {!eventThreadsLoading && !eventThreadsError && filteredEventThreads.length === 0 ? (
+                <AppText variant="bodyMuted" style={styles.empty}>No event messages yet.</AppText>
+              ) : null}
+              {eventThreadsRefetching ? (
+                <ActivityIndicator color={theme.accent} style={styles.refetchLoader} />
+              ) : null}
+              {eventThreadsError && eventThreads.length > 0 ? (
+                <View style={styles.partialError}>
+                  <AppText variant="small">Could not refresh event messages</AppText>
+                  <Button size="sm" onPress={() => void refetchEventThreads()}>Retry</Button>
+                </View>
+              ) : null}
+            </View>
+          )}
         </>
       ) : (
         <>
@@ -458,5 +479,25 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     marginTop: spacing.xl
+  },
+  loader: {
+    marginTop: spacing.xl
+  },
+  state: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screen,
+    paddingVertical: spacing.xl
+  },
+  stateText: {
+    textAlign: 'center'
+  },
+  refetchLoader: {
+    marginVertical: spacing.md
+  },
+  partialError: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md
   }
 });

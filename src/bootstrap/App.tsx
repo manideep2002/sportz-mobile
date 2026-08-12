@@ -21,6 +21,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePresence } from '@/hooks/usePresence';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeMessages } from '@/hooks/useMessages';
+import { useRealtimeEventMessages } from '@/hooks/useRealtimeEventMessages';
 import { useAuthStore } from '@/store/authStore';
 import { AppText } from '@/components/ui';
 import { colors } from '@/design/tokens';
@@ -34,6 +35,7 @@ function AppContent() {
   usePushNotifications();
   usePresence();
   useRealtimeMessages();
+  useRealtimeEventMessages();
   const { isOffline } = useNetworkStatus();
   const theme = useAppTheme();
   const { t } = useAppTranslation();

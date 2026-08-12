@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, typography } from '@/design/tokens';
 import { useConversations } from '@/hooks/useMessages';
+import { useEventMessageThreads } from '@/hooks/useEventMessageThreads';
 import { EventsScreen } from '@/screens/events/EventsScreen';
 import { FeedScreen } from '@/screens/feed/FeedScreen';
 import { MessagesScreen } from '@/screens/messages/MessagesScreen';
@@ -41,7 +42,10 @@ export function MainTabs() {
   const openCreateSheet = useUiStore((state) => state.openCreateSheet);
   const createSheetOpen = useUiStore((state) => state.createSheetOpen);
   const { data: conversations = [] } = useConversations();
-  const unreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
+  const { data: eventThreads = [] } = useEventMessageThreads();
+  const playerUnreadTotal = conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
+  const eventUnreadTotal = eventThreads.reduce((total, thread) => total + thread.unreadCount, 0);
+  const unreadTotal = playerUnreadTotal + eventUnreadTotal;
   const profileLabel = profile?.displayName.trim().split(/\s+/)[0] || t('tabs.profile');
 
   return (

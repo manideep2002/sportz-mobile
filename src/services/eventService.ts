@@ -807,7 +807,11 @@ export const eventService = {
     };
   },
 
-  subscribeToEventMessageThreads(callback: () => void) {
+  subscribeToEventMessageThreads(
+    callback: () => void,
+    onConnectionChange?: (connected: boolean, reconnected: boolean) => void
+  ) {
+    let hasConnected = false;
     const channel = supabase
       .channel('event-message-threads')
       .on(
@@ -815,7 +819,14 @@ export const eventService = {
         { event: 'INSERT', schema: 'public', table: 'event_messages' },
         callback
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          onConnectionChange?.(true, hasConnected);
+          hasConnected = true;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          onConnectionChange?.(false, false);
+        }
+      });
 
     return {
       unsubscribe: () => {
