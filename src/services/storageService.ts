@@ -403,7 +403,9 @@ export const storageService = {
     const maxSizeBytes = (options.maxSizeMb ?? 200) * 1024 * 1024;
     const maxDurationMs = (options.maxDurationSecs ?? 300) * 1000;
     const allowedTypes = options.allowedMimeTypes ?? [
-      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+      // HEIC/HEIF are normalised to image/jpeg by resolveAssetExtAndMime before
+      // reaching Supabase, so they are intentionally omitted here.
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif',
       'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'
     ];
 
