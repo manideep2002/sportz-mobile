@@ -458,6 +458,16 @@ export interface EventMessage {
   deliveryStatus?: 'sending' | 'sent' | 'failed';
 }
 
+export interface EventMessageThread {
+  eventId: ID;
+  title: string;
+  sport: string;
+  coverUrl?: string | null;
+  lastMessage?: string | null;
+  lastMessageAt?: string | null;
+  unreadCount: number;
+}
+
 export type NotificationKind =
   | 'like'
   | 'comment'
@@ -486,7 +496,7 @@ export interface SportzNotification {
   lastEventAt?: string;
   ctaLabel?: string;
   entityId?: ID;
-  entityType?: 'post' | 'event' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer' | 'security_event' | 'athlete_match';
+  entityType?: 'post' | 'event' | 'event_chat' | 'conversation' | 'profile' | 'group' | 'page' | 'court_booking' | 'team_offer' | 'security_event' | 'athlete_match';
   data?: Record<string, unknown>;
 }
 

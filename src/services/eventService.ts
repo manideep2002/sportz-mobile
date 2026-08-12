@@ -5,7 +5,7 @@ import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
 import { captureUnexpectedError } from '@/lib/monitoring';
 import type { EventCreateVisibility } from '@/constants/events';
-import type { EventInvitation, EventInvitationStatus, EventMessage, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
+import type { EventInvitation, EventInvitationStatus, EventMessage, EventMessageThread, EventParticipationStatus, EventType, EventVisibility, SportEvent } from '@/types/domain';
 import { createUuid } from '@/utils/uuid';
 
 export interface CreateEventInput {
@@ -123,6 +123,16 @@ export interface EventMessageCursor {
 export interface EventMessagePage {
   messages: EventMessage[];
   nextCursor: EventMessageCursor | null;
+}
+
+interface EventMessageThreadRow {
+  event_id: string;
+  title: string;
+  sport: string;
+  cover_url: string | null;
+  last_message: string | null;
+  last_message_at: string | null;
+  unread_count: number;
 }
 
 export interface EventListCursor {
@@ -720,6 +730,27 @@ export const eventService = {
     };
   },
 
+  async listEventMessageThreads(): Promise<EventMessageThread[]> {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.rpc('list_my_event_message_threads');
+    if (error) throw error;
+    return ((data ?? []) as EventMessageThreadRow[]).map((row) => ({
+      eventId: row.event_id,
+      title: row.title,
+      sport: row.sport,
+      coverUrl: row.cover_url,
+      lastMessage: row.last_message,
+      lastMessageAt: row.last_message_at,
+      unreadCount: Number(row.unread_count) || 0
+    }));
+  },
+
+  async markEventChatRead(eventId: string): Promise<void> {
+    assertSupabaseConfigured();
+    const { error } = await supabase.rpc('mark_event_chat_read', { target_event_id: eventId });
+    if (error) throw error;
+  },
+
   async sendEventMessage(
     eventId: string,
     body: string,
@@ -776,6 +807,23 @@ export const eventService = {
           onConnectionChange?.(false, false);
         }
       });
+
+    return {
+      unsubscribe: () => {
+        void supabase.removeChannel(channel);
+      }
+    };
+  },
+
+  subscribeToEventMessageThreads(callback: () => void) {
+    const channel = supabase
+      .channel('event-message-threads')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'event_messages' },
+        callback
+      )
+      .subscribe();
 
     return {
       unsubscribe: () => {

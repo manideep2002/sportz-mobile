@@ -7,14 +7,16 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-na
 import { useAppTranslation } from '@/i18n';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
+import { EventMessageThreadRow } from '@/components/messages/EventMessageThreadRow';
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
 import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 
-import { AdaptiveSplitView, AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
+import { AdaptiveSplitView, AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader, SegmentedControl } from '@/components/ui';
 
 import { useAppTheme } from '@/design/ThemeProvider';
 import { spacing } from '@/design/tokens';
 import { messageKeys, useConversations } from '@/hooks/useMessages';
+import { useEventMessageThreads } from '@/hooks/useEventMessageThreads';
 import type { AppStackParamList } from '@/navigation/routes';
 import { messageService } from '@/services/messageService';
 import { threadFirstChatService } from '@/services/threadFirstChatService';
@@ -26,6 +28,7 @@ import type { ChatParticipantRole, Conversation, UserProfile } from '@/types/dom
 import { getOtherParticipant } from '@/utils/conversation';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
+type MessagesTab = 'Player messages' | 'Event messages';
 
 export function MessagesScreen() {
   const navigation = useNavigation<Navigation>();
@@ -33,6 +36,7 @@ export function MessagesScreen() {
   const { t } = useAppTranslation();
   const { colors: theme } = useAppTheme();
   const responsive = useResponsiveLayout();
+  const [activeTab, setActiveTab] = useState<MessagesTab>('Player messages');
   const [query, setQuery] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [settingsConversationId, setSettingsConversationId] = useState<string | null>(null);
@@ -40,19 +44,26 @@ export function MessagesScreen() {
   const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'clear' | 'remove' | 'leave' | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const { data: conversations = [], isLoading, isError, refetch } = useConversations();
+  const {
+    data: eventThreads = [],
+    isLoading: eventThreadsLoading,
+    isError: eventThreadsError,
+    refetch: refetchEventThreads
+  } = useEventMessageThreads(activeTab === 'Event messages');
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const setConversationMutedLocally = useMessagingStore((state) => state.setConversationMutedLocally);
 
   useFocusEffect(
     useCallback(() => {
       void refetch();
-    }, [refetch])
+      if (activeTab === 'Event messages') void refetchEventThreads();
+    }, [activeTab, refetch, refetchEventThreads])
   );
 
   const handleRefresh = async () => {
     setManualRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), activeTab === 'Event messages' ? refetchEventThreads() : Promise.resolve()]);
     } finally {
       setManualRefreshing(false);
     }
@@ -65,6 +76,14 @@ export function MessagesScreen() {
       conversation.lastMessage.toLowerCase().includes(normalized)
     );
   }, [conversations, query]);
+  const filteredEventThreads = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return eventThreads;
+    return eventThreads.filter((thread) =>
+      thread.title.toLowerCase().includes(normalized) ||
+      Boolean(thread.lastMessage?.toLowerCase().includes(normalized))
+    );
+  }, [eventThreads, query]);
   const pinned = filteredConversations.filter((conversation) => conversation.pinned);
   const rest = filteredConversations.filter((conversation) => !conversation.pinned);
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedConversationId);
@@ -94,6 +113,7 @@ export function MessagesScreen() {
       navigation.navigate('Chat', { conversationId });
     }
   };
+  const openEventChat = (eventId: string) => navigation.navigate('EventChat', { eventId });
 
   const togglePinned = async () => {
     if (!settingsConversation) return;
@@ -226,14 +246,37 @@ export function MessagesScreen() {
         <AppText variant="h2">
           {t('messages.title')}<AppText variant="h2" color={theme.accent}>.</AppText>
         </AppText>
-        <View style={styles.headerActions}>
-          <IconButton icon={Plus} accessibilityLabel={t('messages.newMessage')} onPress={() => navigation.navigate('NewMessage')} />
-        </View>
+        {activeTab === 'Player messages' ? (
+          <View style={styles.headerActions}>
+            <IconButton icon={Plus} accessibilityLabel={t('messages.newMessage')} onPress={() => navigation.navigate('NewMessage')} />
+          </View>
+        ) : null}
       </View>
+      <SegmentedControl
+        value={activeTab}
+        options={['Player messages', 'Event messages']}
+        onChange={setActiveTab}
+        accessibilityLabel="Message type"
+      />
       <Input icon={Search} value={query} onChangeText={setQuery} placeholder={t('messages.search')} />
-      {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
-      {isError ? <AppText variant="bodyMuted">{t('messages.loadError')}</AppText> : null}
-      {pinned.length ? (
+      {activeTab === 'Event messages' ? (
+        <>
+          {eventThreadsLoading ? <ActivityIndicator color={theme.accent} /> : null}
+          {eventThreadsError ? <AppText variant="bodyMuted">Could not load event messages.</AppText> : null}
+          <View style={styles.section}>
+            {filteredEventThreads.map((thread) => (
+              <EventMessageThreadRow key={thread.eventId} thread={thread} onPress={() => openEventChat(thread.eventId)} />
+            ))}
+            {!eventThreadsLoading && !eventThreadsError && filteredEventThreads.length === 0 ? (
+              <AppText variant="bodyMuted" style={styles.empty}>No event messages yet.</AppText>
+            ) : null}
+          </View>
+        </>
+      ) : (
+        <>
+          {isLoading ? <ActivityIndicator color={theme.accent} /> : null}
+          {isError ? <AppText variant="bodyMuted">{t('messages.loadError')}</AppText> : null}
+          {pinned.length ? (
         <View style={styles.section}>
           <SectionHeader title={t('messages.pinned')} />
           {pinned.map((conversation) => (
@@ -246,8 +289,8 @@ export function MessagesScreen() {
             />
           ))}
         </View>
-      ) : null}
-      <View style={styles.section}>
+          ) : null}
+          <View style={styles.section}>
         <AppText variant="caption" style={styles.allLabel}>{t('messages.all')}</AppText>
         {rest.map((conversation) => (
           <ConversationRow
@@ -261,7 +304,9 @@ export function MessagesScreen() {
         {!isLoading && !isError && rest.length === 0 && pinned.length === 0 ? (
           <AppText variant="bodyMuted" style={styles.empty}>{t('messages.empty')}</AppText>
         ) : null}
-      </View>
+          </View>
+        </>
+      )}
     </View>
   );
 

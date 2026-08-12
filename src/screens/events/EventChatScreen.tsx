@@ -81,10 +81,18 @@ export function EventChatScreen() {
   }, [eventId, loadLatest]);
 
   useEffect(() => {
+    if (!currentUserId) return;
+    void eventService.markEventChatRead(eventId).catch(() => undefined);
+  }, [currentUserId, eventId]);
+
+  useEffect(() => {
     const subscription = eventService.subscribeToEventMessages(
       eventId,
       (message) => {
         setMessages((current) => mergeEventMessages(current, message));
+        if (message.sender.id !== currentUserId) {
+          void eventService.markEventChatRead(eventId).catch(() => undefined);
+        }
       },
       (connected, reconnected) => {
         setRealtimeConnected(connected);
@@ -92,7 +100,7 @@ export function EventChatScreen() {
       }
     );
     return () => subscription.unsubscribe();
-  }, [eventId, loadLatest]);
+  }, [currentUserId, eventId, loadLatest]);
 
   const loadOlder = useCallback(async () => {
     if (!nextCursor || olderLoadingRef.current) return;
