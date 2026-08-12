@@ -67,7 +67,7 @@ export function EventsScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport | 'All'>('All');
   const [participationActionEventId, setParticipationActionEventId] = useState<string | null>(null);
   const [rsvpActionEventId, setRsvpActionEventId] = useState<string | null>(null);
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+
   const participationLocksRef = useRef(new Set<string>());
 
   const participationIsKnown = (eventId: string) =>
@@ -319,11 +319,9 @@ export function EventsScreen() {
         <View style={styles.section}>
           <SectionHeader
             title={t('events.upcoming')}
-            action={showAllUpcoming ? t('events.showLess') : t('events.viewAll')}
-            onAction={() => setShowAllUpcoming(!showAllUpcoming)}
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroller}>
-            {(showAllUpcoming ? upcomingEvents : upcomingEvents.slice(0, 5)).map((event) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.horizontalScroller}>
+            {upcomingEvents.map((event) => (
               <Pressable
                 key={event.id}
                 onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
