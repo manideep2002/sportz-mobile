@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Bell, Check, MessageSquare, UserPlus, Trophy, Heart, Reply, Calendar, X } from 'lucide-react-native';
+import { Bell, Check, Calendar, Heart, MessageSquare, Reply, Shield, Trophy, UserPlus, X } from 'lucide-react-native';
 
 import { AppText, Avatar, Button } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -34,6 +34,8 @@ const getNotificationIcon = (kind: SportzNotification['kind'], color: string) =>
       return <UserPlus size={20} color={color} />;
     case 'achievement':
       return <Trophy size={20} color={color} />;
+    case 'role_change':
+      return <Shield size={20} color={color} />;
     case 'story_reaction':
       return <Heart size={20} color={color} />;
     default:

@@ -74,6 +74,14 @@ const navigateForNotification = (
       // Navigate to the current user's own profile tab, which shows stats/achievements.
       navigation.navigate('MainTabs', { screen: 'ProfileTab' });
       break;
+    case 'role_change':
+      // Navigate to the community the user was promoted/demoted in.
+      if (entityId && entityType === 'page') {
+        navigation.navigate('PageDetail', { communityId: entityId });
+      } else if (entityId) {
+        navigation.navigate('GroupDetail', { communityId: entityId });
+      }
+      break;
     case 'story_reaction':
       // entity_id is the reactor's user_id; open their profile.
       if (entityId) {

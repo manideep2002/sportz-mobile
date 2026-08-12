@@ -66,7 +66,7 @@ export interface NotificationPage {
 const categoryKinds: Record<Exclude<NotificationCategory, 'All'>, SportzNotification['kind'][]> = {
   Mentions: ['mention', 'comment'],
   Events: ['event', 'invite'],
-  Social: ['like', 'follow', 'follow_request', 'achievement', 'stat_verified']
+  Social: ['like', 'follow', 'follow_request', 'achievement', 'stat_verified', 'role_change']
 };
 
 export const notificationService = {

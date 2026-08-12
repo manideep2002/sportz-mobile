@@ -469,7 +469,8 @@ export type NotificationKind =
   | 'security'
   | 'achievement'
   | 'stat_verified'
-  | 'story_reaction';
+  | 'story_reaction'
+  | 'role_change';
 
 export interface SportzNotification {
   id: ID;
