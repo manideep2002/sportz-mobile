@@ -341,6 +341,7 @@ export interface SportEvent {
   organizer: UserProfile;
   attendees: UserProfile[];
   communityId?: ID | null;
+  sourceGroup?: { id: ID; name: string; type: 'group' | 'page' } | null;
 }
 
 export type EventInvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
