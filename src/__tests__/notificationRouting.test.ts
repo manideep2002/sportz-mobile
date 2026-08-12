@@ -127,6 +127,14 @@ describe('navigateFromNotificationData', () => {
     });
   });
 
+  it('routes an event-chat notification to EventChat', () => {
+    navigate({ entityType: 'event_chat', entityId: 'evt-5', screen: '/event-chat/[id]' });
+    expect(mockNavigate).toHaveBeenCalledWith('App', {
+      screen: 'EventChat',
+      params: { eventId: 'evt-5' }
+    });
+  });
+
   // ── Court booking ────────────────────────────────────────────────────────────
 
   it('routes to CourtBookingDetail via bookingId', () => {

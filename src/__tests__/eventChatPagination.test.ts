@@ -6,6 +6,7 @@ import {
 import type { EventMessage, UserProfile } from '@/types/domain';
 
 const mockFrom = jest.fn();
+const mockRpc = jest.fn();
 const mockAssertConfigured = jest.fn();
 const mockRemoveChannel = jest.fn();
 let mockRealtimeStatus: ((status: string) => void) | undefined;
@@ -22,6 +23,7 @@ mockRealtimeChannel.subscribe.mockImplementation((callback: (status: string) => 
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => mockFrom(...args),
+    rpc: (...args: unknown[]) => mockRpc(...args),
     channel: jest.fn(() => mockRealtimeChannel),
     removeChannel: (...args: unknown[]) => mockRemoveChannel(...args)
   }
@@ -186,5 +188,36 @@ describe('event chat pagination and reconciliation', () => {
     ]);
     subscription.unsubscribe();
     expect(mockRemoveChannel).toHaveBeenCalledWith(mockRealtimeChannel);
+  });
+
+  it('lists event chat threads and marks a thread as read', async () => {
+    mockRpc
+      .mockResolvedValueOnce({
+        data: [{
+          event_id: 'event-1',
+          title: 'Sunday Football',
+          sport: 'Football',
+          cover_url: null,
+          last_message: 'See you there',
+          last_message_at: '2026-07-30T12:00:00.000Z',
+          unread_count: 2
+        }],
+        error: null
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(eventService.listEventMessageThreads()).resolves.toEqual([{
+      eventId: 'event-1',
+      title: 'Sunday Football',
+      sport: 'Football',
+      coverUrl: null,
+      lastMessage: 'See you there',
+      lastMessageAt: '2026-07-30T12:00:00.000Z',
+      unreadCount: 2
+    }]);
+    await expect(eventService.markEventChatRead('event-1')).resolves.toBeUndefined();
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, 'list_my_event_message_threads');
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'mark_event_chat_read', { target_event_id: 'event-1' });
   });
 });

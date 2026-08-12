@@ -141,7 +141,11 @@ export function navigateFromNotificationData(
   const eventId =
     stringValue(data.eventId) ??
     stringValue(data.event_id) ??
-    (entityType === 'event' ? entityId : undefined);
+    (entityType === 'event' || entityType === 'event_chat' ? entityId : undefined);
+  if (entityType === 'event_chat' || screen === '/event-chat/[id]') {
+    navigationRef.navigate('App', { screen: 'EventChat', params: { eventId: eventId ?? entityId ?? '' } });
+    return true;
+  }
   if (eventId || (screen === '/event/[id]' && entityId)) {
     navigationRef.navigate('App', { screen: 'EventDetail', params: { eventId: eventId ?? entityId ?? '' } });
     return true;
