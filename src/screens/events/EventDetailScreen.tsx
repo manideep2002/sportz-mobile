@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CalendarDays, ChevronLeft, Clock, Flag, MapPin, Share2, MessageCircle } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, Clock, Flag, MapPin, Share2, MessageCircle, Users } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Alert, Image, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 
 import { AppRefreshControl, AppText, Avatar, Badge, Button, Card, IconButton, ProgressBar, Screen, VerifiedName } from '@/components/ui';
@@ -601,6 +601,26 @@ export function EventDetailScreen() {
           </Button>
         </View>
 
+        {event.sourceGroup && (
+          <TouchableOpacity
+            style={styles.groupLink}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('GroupDetail', { communityId: event.sourceGroup!.id })}
+            accessibilityLabel={`View group ${event.sourceGroup.name}`}
+          >
+            <View style={styles.groupLinkLeft}>
+              <Users size={16} color={colors.text.secondary} />
+              <View>
+                <AppText variant="small" style={{ color: colors.text.tertiary }}>From group</AppText>
+                <AppText variant="bodyBold" style={styles.groupLinkName} numberOfLines={1}>
+                  {event.sourceGroup.name}
+                </AppText>
+              </View>
+            </View>
+            <AppText variant="small" style={styles.groupLinkAction}>View Group</AppText>
+          </TouchableOpacity>
+        )}
+
         <RsvpControl
           event={event}
           participationStatus={participationStatus}
@@ -760,5 +780,29 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.bodyBold,
     fontSize: 14
+  },
+  groupLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.dark[800],
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm
+  },
+  groupLinkLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1
+  },
+  groupLinkName: {
+    color: colors.text.primary,
+    fontSize: 14
+  },
+  groupLinkAction: {
+    color: colors.orange[500],
+    fontFamily: typography.bodyBold
   }
 });

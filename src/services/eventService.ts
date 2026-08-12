@@ -66,6 +66,11 @@ interface SportEventRow {
     is_verified?: boolean | null;
     is_hireable?: boolean | null;
   } | null;
+  communities?: {
+    id: string;
+    name: string;
+    type: 'group' | 'page';
+  } | null;
 }
 
 /** Shape of an attendee row with joined profile. */
@@ -214,7 +219,10 @@ const mapEventRow = (row: SportEventRow, playerCount = 0, attendees: SportEvent[
   entryFeeLabel: entryFeeLabel(row.currency, row.entry_fee_cents),
   organizer: mapProfileRow(row.profiles ?? { id: row.organizer_id, display_name: 'Organizer' }),
   attendees,
-  communityId: row.community_id ?? null
+  communityId: row.community_id ?? null,
+  sourceGroup: row.communities
+    ? { id: row.communities.id, name: row.communities.name, type: row.communities.type }
+    : null
 });
 
 /**
@@ -309,7 +317,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('sport_events')
-      .select('*, profiles:organizer_id(*)')
+      .select('*, profiles:organizer_id(*), communities:community_id(id, name, type)')
       .eq('id', eventId)
       .single();
     if (error) throw error;
