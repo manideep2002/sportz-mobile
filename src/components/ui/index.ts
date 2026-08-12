@@ -20,3 +20,4 @@ export * from './SportIcon';
 export * from './SkillLevelBadge';
 export * from './VerifiedName';
 export * from './VideoPlayer';
+export * from './RemoveMemberSheet';

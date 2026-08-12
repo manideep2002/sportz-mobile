@@ -33,6 +33,7 @@ import {
 } from 'react-native';
 
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
+import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 import { AppText, BottomSheet, Button, IconButton, VideoPlayer } from '@/components/ui';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, radii, spacing, typography } from '@/design/tokens';
@@ -487,6 +488,7 @@ export function ThreadFirstChatScreen({
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(initialOpenSettings);
   const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'clear' | 'remove' | 'leave' | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<UserProfile | null>(null);
   const [pinned, setPinned] = useState(Boolean(conversation?.pinned));
   const [muted, setMuted] = useState(Boolean(conversation?.muted));
   /** The message ID of the currently active (playing) video, or null. */
@@ -1048,26 +1050,7 @@ export function ThreadFirstChatScreen({
   };
 
   const confirmRemoveMember = (member: UserProfile) => {
-    Alert.alert('Remove member?', `${member.displayName} will no longer be able to access this conversation.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setSettingsBusy('remove');
-            try {
-              await messageService.removeGroupMember(roomId, member.id);
-              await Promise.all([loadInitial(), invalidateConversationData()]);
-            } catch (error) {
-              Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
-            } finally {
-              setSettingsBusy(null);
-            }
-          })();
-        }
-      }
-    ]);
+    setMemberToRemove(member);
   };
 
   const confirmLeaveConversation = () => {
@@ -1432,6 +1415,27 @@ export function ThreadFirstChatScreen({
         }}
         onRemoveMember={confirmRemoveMember}
         onLeave={confirmLeaveConversation}
+      />
+      <RemoveMemberSheet
+        open={Boolean(memberToRemove)}
+        member={memberToRemove}
+        contextName={title}
+        loading={settingsBusy === 'remove'}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={async () => {
+          if (!memberToRemove) return;
+          const target = memberToRemove;
+          setSettingsBusy('remove');
+          try {
+            await messageService.removeGroupMember(roomId, target.id);
+            await Promise.all([loadInitial(), invalidateConversationData()]);
+            setMemberToRemove(null);
+          } catch (error) {
+            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+          } finally {
+            setSettingsBusy(null);
+          }
+        }}
       />
       </KeyboardAvoidingView>
 

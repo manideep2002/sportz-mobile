@@ -15,6 +15,9 @@ const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 const mockUseRoute = jest.fn();
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 })
+}));
 jest.mock('@react-native-community/netinfo', () => ({
   fetch: (...a: unknown[]) => mockNetFetch(...a)
 }));
@@ -310,58 +313,39 @@ describe('GroupDetailScreen — report entry-point', () => {
     setupGroupHooks();
   });
 
-  it('shows "Report group" in the options Alert', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert');
+  it('shows "Report group" in the options sheet', async () => {
     await render(<GroupDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Group options' }));
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.any(String), expect.any(String),
-      expect.arrayContaining([expect.objectContaining({ text: 'Report group' })]),
-      expect.any(Object)
-    );
-    alertSpy.mockRestore();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Report group' })).toBeTruthy());
   });
 
   it('does NOT include "Report group" when current user is the owner', async () => {
     setupGroupHooks({ isOwner: true });
-    const alertSpy = jest.spyOn(Alert, 'alert');
     await render(<GroupDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Group options' }));
-    const buttons = (alertSpy.mock.calls[0][2] ?? []) as { text: string }[];
-    expect(buttons.map((b) => b.text)).not.toContain('Report group');
-    alertSpy.mockRestore();
+    expect(screen.queryByRole('button', { name: 'Report group' })).toBeNull();
   });
 
   it('opens ReportSheet when "Report group" is selected', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      const btn = (buttons as { text: string; onPress?: () => void }[]).find(
-        (b) => b.text === 'Report group'
-      );
-      btn?.onPress?.();
-    });
     await render(<GroupDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Group options' }));
+    const reportBtn = await waitFor(() => screen.getByRole('button', { name: 'Report group' }));
+    fireEvent.press(reportBtn);
     await waitFor(() =>
       expect(screen.getByText('Why are you reporting this group?')).toBeTruthy()
     );
-    alertSpy.mockRestore();
   });
 
   it('submits a group report', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      const btn = (buttons as { text: string; onPress?: () => void }[]).find(
-        (b) => b.text === 'Report group'
-      );
-      btn?.onPress?.();
-    });
     await render(<GroupDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Group options' }));
+    const reportBtn = await waitFor(() => screen.getByRole('button', { name: 'Report group' }));
+    fireEvent.press(reportBtn);
     await waitFor(() => screen.getByRole('button', { name: 'Report for Harassment' }));
     fireEvent.press(screen.getByRole('button', { name: 'Report for Harassment' }));
     await waitFor(() =>
       expect(mockReportEntity).toHaveBeenCalledWith('group', 'comm-1', 'Harassment')
     );
-    alertSpy.mockRestore();
   });
 });
 
@@ -396,58 +380,39 @@ describe('PageDetailScreen — report entry-point', () => {
     setupPageHooks();
   });
 
-  it('shows "Report page" in the options Alert', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert');
+  it('shows "Report page" in the options sheet', async () => {
     await render(<PageDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Page options' }));
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.any(String), expect.any(String),
-      expect.arrayContaining([expect.objectContaining({ text: 'Report page' })]),
-      expect.any(Object)
-    );
-    alertSpy.mockRestore();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Report page' })).toBeTruthy());
   });
 
   it('does NOT include "Report page" when current user is the owner', async () => {
     setupPageHooks({ isOwner: true });
-    const alertSpy = jest.spyOn(Alert, 'alert');
     await render(<PageDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Page options' }));
-    const buttons = (alertSpy.mock.calls[0][2] ?? []) as { text: string }[];
-    expect(buttons.map((b) => b.text)).not.toContain('Report page');
-    alertSpy.mockRestore();
+    expect(screen.queryByRole('button', { name: 'Report page' })).toBeNull();
   });
 
   it('opens ReportSheet when "Report page" is selected', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      const btn = (buttons as { text: string; onPress?: () => void }[]).find(
-        (b) => b.text === 'Report page'
-      );
-      btn?.onPress?.();
-    });
     await render(<PageDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Page options' }));
+    const reportBtn = await waitFor(() => screen.getByRole('button', { name: 'Report page' }));
+    fireEvent.press(reportBtn);
     await waitFor(() =>
       expect(screen.getByText('Why are you reporting this page?')).toBeTruthy()
     );
-    alertSpy.mockRestore();
   });
 
   it('submits a page report', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      const btn = (buttons as { text: string; onPress?: () => void }[]).find(
-        (b) => b.text === 'Report page'
-      );
-      btn?.onPress?.();
-    });
     await render(<PageDetailScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Page options' }));
+    const reportBtn = await waitFor(() => screen.getByRole('button', { name: 'Report page' }));
+    fireEvent.press(reportBtn);
     await waitFor(() => screen.getByRole('button', { name: 'Report for Other' }));
     fireEvent.press(screen.getByRole('button', { name: 'Report for Other' }));
     await waitFor(() =>
       expect(mockReportEntity).toHaveBeenCalledWith('page', 'comm-1', 'Other')
     );
-    alertSpy.mockRestore();
   });
 });
 

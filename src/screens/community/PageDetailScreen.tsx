@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
+import { CommunitySettingsSheet } from '@/components/community/GroupSettingsSheet';
 import { AppRefreshControl, AppText, Badge, Button, IconButton, Screen } from '@/components/ui';
 import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -40,6 +41,7 @@ export function PageDetailScreen() {
   const followPage = useJoinCommunity(route.params.communityId);
   const unfollowPage = useLeaveCommunity(route.params.communityId);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -98,32 +100,7 @@ export function PageDetailScreen() {
         <IconButton
           icon={MoreHorizontal}
           accessibilityLabel="Page options"
-          onPress={() =>
-            Alert.alert(
-              community.name,
-              'Choose an action',
-              [
-                {
-                  text: 'Share page',
-                  onPress: () =>
-                    void shareCanonicalEntity('page', community.id, {
-                      title: community.name,
-                      message: `Follow ${community.name} on SPORTZ.`
-                    })
-                },
-                ...(!community.isOwner
-                  ? [
-                      {
-                        text: 'Report page',
-                        onPress: () => setReportSheetOpen(true)
-                      }
-                    ]
-                  : []),
-                { text: 'Cancel', style: 'cancel' as const }
-              ],
-              { cancelable: true }
-            )
-          }
+          onPress={() => setSettingsOpen(true)}
         />
       </View>
       {community.coverUrl ? (
@@ -212,6 +189,28 @@ export function PageDetailScreen() {
         isFetchingNextPage={isFetchingNextPage}
         isFetchNextPageError={isFetchNextPageError}
         onLoadMore={() => void fetchNextPage()}
+      />
+      <CommunitySettingsSheet
+        open={settingsOpen}
+        community={community}
+        onClose={() => setSettingsOpen(false)}
+        onShare={() =>
+          void shareCanonicalEntity('page', community.id, {
+            title: community.name,
+            message: `Follow ${community.name} on SPORTZ.`
+          })
+        }
+        onCreatePost={() => navigation.navigate('CreatePost', { communityId: community.id })}
+        onManage={() => navigation.navigate('CommunityAdmin', { communityId: community.id })}
+        onReport={() => setReportSheetOpen(true)}
+        onLeave={() => {
+          unfollowPage.mutate(undefined, {
+            onError: (err) => {
+              Alert.alert('Unfollow failed', err instanceof Error ? err.message : 'Please try again.');
+            }
+          });
+        }}
+        leaveLoading={unfollowPage.isPending}
       />
       <ReportSheet
         open={reportSheetOpen}
