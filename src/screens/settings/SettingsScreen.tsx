@@ -31,6 +31,7 @@ export function SettingsScreen() {
   const themeMode = useUiStore((state) => state.themeMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const accountItems: SettingsItemConfig[] = [
     { label: t('settings.profile'), detail: t('settings.profileDetail'), icon: UserRound, route: 'EditProfile' },
     { label: 'Account security', detail: 'Password, MFA, sessions, identity, and account recovery', icon: KeyRound, route: 'AccountSecurity' },
@@ -47,10 +48,14 @@ export function SettingsScreen() {
   ];
 
   const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
       await signOut();
     } catch (error) {
       Alert.alert(t('settings.signOutFailed'), error instanceof Error ? error.message : t('common.retry'));
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -106,7 +111,7 @@ export function SettingsScreen() {
         </Pressable>
         {appearanceOpen ? (
           <View
-            accessibilityLabel="Appearance options"
+            accessible={false}
             style={[styles.appearanceOptions, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}
           >
             {(['dark', 'light'] as const).map((mode) => (
@@ -122,7 +127,15 @@ export function SettingsScreen() {
       <SettingsItem label={t('settings.help')} icon={HelpCircle} onPress={() => navigation.navigate('Help')} />
       <SettingsItem label="Terms of Service" detail="Versioned terms for using SPORTZ" icon={HelpCircle} onPress={() => navigation.navigate('TermsOfService')} />
       <SettingsItem label="Privacy Policy" detail="How SPORTZ handles personal information" icon={Lock} onPress={() => navigation.navigate('PrivacyPolicy')} />
-      <Pressable style={[styles.item, { borderBottomColor: theme.border }]} onPress={handleSignOut}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('settings.signOut')}
+        accessibilityHint={t('settings.signOutHint')}
+        accessibilityState={{ disabled: signingOut, busy: signingOut }}
+        disabled={signingOut}
+        style={[styles.item, signingOut ? styles.disabledItem : null, { borderBottomColor: theme.border }]}
+        onPress={() => void handleSignOut()}
+      >
         <View style={[styles.itemIcon, styles.dangerIcon, { backgroundColor: theme.dangerSoft }]}><LogOut size={18} color={theme.danger} /></View>
         <View style={{ flex: 1 }}>
           <AppText style={[styles.itemLabel, { color: theme.danger }]}>{t('settings.signOut')}</AppText>
@@ -204,10 +217,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    minHeight: 52,
     paddingHorizontal: spacing.screen,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.dark[700]
+  },
+  disabledItem: {
+    opacity: 0.5
   },
   itemIcon: {
     width: 36,

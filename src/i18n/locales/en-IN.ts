@@ -118,6 +118,7 @@ export const enIN = {
     help: 'Help & Support',
     deleteAccount: 'Delete Account',
     signOut: 'Sign Out',
+    signOutHint: 'Logs you out of SPORTZ on this device',
     themeToggle: 'Toggle Theme',
     moderation: 'Moderation Queue',
     moderationDetail: 'Review reports and actions',

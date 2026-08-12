@@ -24,6 +24,7 @@ export function PrivacyScreen() {
   const setProfile = useAuthStore((state) => state.setProfile);
   const [blocked, setBlocked] = useState<UserProfile[]>([]);
   const [privateAccount, setPrivateAccount] = useState(Boolean(profile?.isPrivate));
+  const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadBlocked = async () => {
@@ -48,15 +49,18 @@ export function PrivacyScreen() {
   }, []);
 
   const togglePrivate = async () => {
-    if (!profile) return;
+    if (!profile || saving) return;
     const next = !privateAccount;
     setPrivateAccount(next);
+    setSaving(true);
     try {
       await profileService.updateProfile(profile.id, { isPrivate: next });
       setProfile({ ...profile, isPrivate: next });
     } catch (error) {
       setPrivateAccount(!next);
       Alert.alert('Update failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -75,7 +79,15 @@ export function PrivacyScreen() {
         <AppText variant="h3">Privacy</AppText>
         <View style={{ width: 40 }} />
       </View>
-      <Pressable style={[styles.item, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={togglePrivate}>
+<Pressable
+        accessibilityRole="switch"
+        accessibilityLabel="Private account"
+        accessibilityHint="Only followers can see public posts."
+        accessibilityState={{ checked: privateAccount, disabled: saving, busy: saving }}
+        disabled={saving}
+        style={[styles.item, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={togglePrivate}
+      >
         <View style={[styles.itemIcon, { backgroundColor: theme.accentSoft }]}><Lock size={18} color={theme.accent} /></View>
         <View style={{ flex: 1 }}>
           <AppText style={styles.itemLabel}>Private account</AppText>
@@ -127,6 +139,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    minHeight: 52,
     borderRadius: 14,
     backgroundColor: colors.dark[800],
     borderWidth: StyleSheet.hairlineWidth,

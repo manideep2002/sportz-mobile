@@ -61,12 +61,28 @@ const mimeFromExt = (ext: string): string => {
   return map[ext] ?? 'image/jpeg';
 };
 
+/**
+ * Resolve the file extension and MIME type for an image-picker asset.
+ *
+ * HEIC/HEIF images (common on iOS) are normalised to JPEG because Supabase
+ * Storage does not accept `image/heic` or `image/heif` (HTTP 415).  When
+ * `expo-image-picker` transcodes the image (quality < 1) the pixel data is
+ * already JPEG-compatible; remapping the metadata here keeps the upload
+ * content-type consistent.
+ */
 export function resolveAssetExtAndMime(asset: Pick<ImagePicker.ImagePickerAsset, 'mimeType' | 'uri'>): {
   ext: string;
   mime: string;
 } {
   if (asset.mimeType) {
-    const mime = asset.mimeType;
+    const rawMime = asset.mimeType;
+
+    // Supabase Storage does not support HEIC/HEIF – normalise to JPEG.
+    if (rawMime === 'image/heic' || rawMime === 'image/heif') {
+      return { ext: 'jpg', mime: 'image/jpeg' };
+    }
+
+    const mime = rawMime;
     const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
     return { ext, mime };
   }
