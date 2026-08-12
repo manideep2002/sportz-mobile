@@ -27,11 +27,12 @@ import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, S
 import { ReportSheet } from '@/components/moderation/ReportSheet';
 import { useAppTheme } from '@/design/ThemeProvider';
 import { colors, spacing, typography } from '@/design/tokens';
+import { useQueryClient } from '@tanstack/react-query';
 import {
+  communityKeys,
   useCommunity,
   useCommunityJoinRequests,
   useCommunityMembers,
-  useInviteCommunityMember,
   useJoinCommunity,
   useLeaveCommunity,
   useRemoveCommunityMember,
@@ -44,6 +45,7 @@ import { useCommunityEvents } from '@/hooks/useEvents';
 import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
 import { shareCanonicalEntity } from '@/services/canonicalLinkService';
+import { communityService } from '@/services/communityService';
 import { useAuthStore } from '@/store/authStore';
 import type { CommunityJoinRequest, CommunityMember, CommunityMemberRole, UserProfile } from '@/types/domain';
 import { getCommunityMemberManagementCapabilities } from '@/utils/communityCapabilities';
@@ -94,10 +96,10 @@ export function GroupDetailScreen() {
     isRefetching: requestsRefetching,
     refetch: refetchRequests
   } = useCommunityJoinRequests(route.params.communityId, canManageMembers);
+  const queryClient = useQueryClient();
   const joinCommunity = useJoinCommunity(route.params.communityId);
   const leaveCommunity = useLeaveCommunity(route.params.communityId);
   const respondInvite = useRespondCommunityInvite();
-  const inviteMember = useInviteCommunityMember(route.params.communityId);
   const respondJoinRequest = useRespondCommunityJoinRequest(route.params.communityId);
   const updateMemberRole = useUpdateCommunityMemberRole(route.params.communityId);
   const removeMember = useRemoveCommunityMember(route.params.communityId);
@@ -107,6 +109,8 @@ export function GroupDetailScreen() {
   const [memberToRemove, setMemberToRemove] = useState<CommunityMember | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(new Set());
+  const [sendingInvites, setSendingInvites] = useState(false);
   const memberIds = useMemo(
     () => new Set(members.map((member) => member.profile?.id).filter((id): id is string => Boolean(id))),
     [members]
@@ -162,15 +166,56 @@ export function GroupDetailScreen() {
     ]);
   };
 
-  const invitePlayer = (player: UserProfile) => {
-    inviteMember.mutate(player.id, {
-      onSuccess: () => {
-        Alert.alert('Invite sent', `${player.displayName} will get a community invite.`);
-      },
-      onError: (error) => {
-        Alert.alert('Invite failed', error instanceof Error ? error.message : 'Please try again.');
+  const toggleInviteSelection = (player: UserProfile) => {
+    setSelectedInviteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(player.id)) {
+        next.delete(player.id);
+      } else {
+        next.add(player.id);
       }
+      return next;
     });
+  };
+
+  const sendInvites = async () => {
+    if (selectedInviteIds.size === 0) {
+      setInviteOpen(false);
+      return;
+    }
+    setSendingInvites(true);
+    const communityId = route.params.communityId;
+    const playerMap = new Map(inviteSearch.results.map((p) => [p.id, p]));
+    const selected = [...selectedInviteIds]
+      .map((id) => playerMap.get(id))
+      .filter((p): p is UserProfile => Boolean(p));
+    // Call the service directly — routing through a single useMutation instance
+    // in parallel causes React Query to drop earlier callbacks, hanging the Promise.
+    const results = await Promise.allSettled(
+      selected.map((player) => communityService.inviteMember(communityId, player.id))
+    );
+    // Invalidate relevant queries once now that all calls have settled
+    void queryClient.invalidateQueries({ queryKey: communityKeys.all });
+    void queryClient.invalidateQueries({ queryKey: communityKeys.detail(communityId) });
+    void queryClient.invalidateQueries({ queryKey: communityKeys.members(communityId) });
+    setSendingInvites(false);
+    const failures = results.filter((r) => r.status === 'rejected').length;
+    const successes = results.length - failures;
+    setSelectedInviteIds(new Set());
+    setInviteOpen(false);
+    if (failures === 0) {
+      Alert.alert(
+        successes === 1 ? 'Invite sent' : `${successes} invites sent`,
+        successes === 1
+          ? `${selected[0]?.displayName ?? 'Player'} will get a community invite.`
+          : 'All selected players will receive a community invite.'
+      );
+    } else {
+      Alert.alert(
+        'Some invites failed',
+        `${successes} sent, ${failures} failed. Please check your connection and try again.`
+      );
+    }
   };
 
   if (isLoading) {
@@ -459,10 +504,15 @@ export function GroupDetailScreen() {
         entityId={community.id}
         onClose={() => setReportSheetOpen(false)}
       />
-      <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => setInviteOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setInviteOpen(false)}>
+      <Modal visible={inviteOpen} transparent animationType="fade" onRequestClose={() => { if (!sendingInvites) { setInviteOpen(false); setSelectedInviteIds(new Set()); } }}>
+        <Pressable style={styles.modalBackdrop} onPress={() => { if (!sendingInvites) { setInviteOpen(false); setSelectedInviteIds(new Set()); } }}>
           <Pressable style={[styles.inviteCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
-            <AppText variant="h3">Invite players</AppText>
+            <View style={styles.inviteHeader}>
+              <AppText variant="h3">Invite players</AppText>
+              {selectedInviteIds.size > 0 ? (
+                <Badge tone="orange">{selectedInviteIds.size} selected</Badge>
+              ) : null}
+            </View>
             <Input
               value={inviteSearch.query}
               onChangeText={inviteSearch.setQuery}
@@ -483,23 +533,41 @@ export function GroupDetailScreen() {
               <AppText variant="bodyMuted" style={styles.searchError}>No players found.</AppText>
             ) : null}
             <ScrollView style={styles.inviteList}>
-              {inviteSearch.results.map((player) => (
-                <Pressable
-                  key={player.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Invite ${player.displayName}`}
-                  style={styles.inviteRow}
-                  onPress={() => invitePlayer(player)}
-                >
-                  <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
-                  <View style={{ flex: 1 }}>
-                    <VerifiedName profile={player} style={styles.inviteName} numberOfLines={1} />
-                    <AppText variant="small">@{player.username}</AppText>
-                  </View>
-                </Pressable>
-              ))}
+              {inviteSearch.results.map((player) => {
+                const isSelected = selectedInviteIds.has(player.id);
+                return (
+                  <Pressable
+                    key={player.id}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`${isSelected ? 'Deselect' : 'Select'} ${player.displayName}`}
+                    accessibilityState={{ checked: isSelected }}
+                    style={[styles.inviteRow, isSelected ? { backgroundColor: theme.accentSoft, borderRadius: 10 } : null]}
+                    onPress={() => toggleInviteSelection(player)}
+                  >
+                    <Avatar initials={player.initials} uri={player.avatarUrl} size={38} />
+                    <View style={{ flex: 1 }}>
+                      <VerifiedName profile={player} style={styles.inviteName} numberOfLines={1} />
+                      <AppText variant="small">@{player.username}</AppText>
+                    </View>
+                    {isSelected ? (
+                      <View style={[styles.inviteCheckCircle, { backgroundColor: theme.accent }]}>
+                        <Check size={14} color={theme.onAccent} />
+                      </View>
+                    ) : (
+                      <View style={[styles.inviteCheckCircle, { borderWidth: 1.5, borderColor: theme.border }]} />
+                    )}
+                  </Pressable>
+                );
+              })}
             </ScrollView>
-            <Button full variant="ghost" onPress={() => setInviteOpen(false)}>Done</Button>
+            <Button
+              full
+              loading={sendingInvites}
+              disabled={sendingInvites}
+              onPress={() => void sendInvites()}
+            >
+              {selectedInviteIds.size > 0 ? `Send ${selectedInviteIds.size} Invite${selectedInviteIds.size === 1 ? '' : 's'}` : 'Done'}
+            </Button>
           </Pressable>
         </Pressable>
       </Modal>
@@ -853,6 +921,19 @@ const styles = StyleSheet.create({
     borderColor: colors.dark[700],
     padding: spacing.md,
     gap: spacing.md
+  },
+  inviteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm
+  },
+  inviteCheckCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   inviteList: {
     maxHeight: 300
