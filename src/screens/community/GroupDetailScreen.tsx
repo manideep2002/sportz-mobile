@@ -21,6 +21,7 @@ import { useMemo, useState } from 'react';
 
 import { CommunityPostFeed } from '@/components/community/CommunityPostFeed';
 import { GroupSettingsSheet } from '@/components/community/GroupSettingsSheet';
+import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 import { EventCard } from '@/components/events/EventCard';
 import { AppRefreshControl, AppText, Avatar, Badge, Button, IconButton, Input, Screen, VerifiedName } from '@/components/ui';
 import { ReportSheet } from '@/components/moderation/ReportSheet';
@@ -103,6 +104,7 @@ export function GroupDetailScreen() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<CommunityMember | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const memberIds = useMemo(
@@ -364,26 +366,7 @@ export function GroupDetailScreen() {
                       }
                     }
                   )}
-                  onRemove={() => {
-                    Alert.alert('Remove member?', `${member.profile.displayName} will lose access to this group.`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => {
-                          setMemberActionError(null);
-                          setRemovingMemberId(member.userId);
-                          removeMember.mutate(member.userId, {
-                            onSuccess: () => setRemovingMemberId(null),
-                            onError: (error) => {
-                              setRemovingMemberId(null);
-                              setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
-                            }
-                          });
-                        }
-                      }
-                    ]);
-                  }}
+                  onRemove={() => setMemberToRemove(member)}
                 />
                 );
               })}
@@ -444,6 +427,30 @@ export function GroupDetailScreen() {
         onReport={() => setReportSheetOpen(true)}
         onLeave={handleLeave}
         leaveLoading={leaveCommunity.isPending}
+      />
+      <RemoveMemberSheet
+        open={Boolean(memberToRemove)}
+        member={memberToRemove}
+        contextName={community?.name}
+        loading={removeMember.isPending}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={() => {
+          if (!memberToRemove) return;
+          const targetUserId = memberToRemove.userId;
+          setMemberActionError(null);
+          setRemovingMemberId(targetUserId);
+          removeMember.mutate(targetUserId, {
+            onSuccess: () => {
+              setRemovingMemberId(null);
+              setMemberToRemove(null);
+            },
+            onError: (error) => {
+              setRemovingMemberId(null);
+              setMemberToRemove(null);
+              setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
+            }
+          });
+        }}
       />
       <ReportSheet
         open={reportSheetOpen}

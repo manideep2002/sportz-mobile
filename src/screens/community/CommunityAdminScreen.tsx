@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Archive, ChevronLeft, ImagePlus, Search, Shield, Trash2, UserCog } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
+import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 import {
   AppText,
   Avatar,
@@ -83,6 +84,7 @@ export function CommunityAdminScreen() {
   const [memberTotal, setMemberTotal] = useState(0);
   const [memberHasMore, setMemberHasMore] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<CommunityMember | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
 
@@ -195,33 +197,7 @@ export function CommunityAdminScreen() {
   };
 
   const confirmRemoveMember = (member: CommunityMember) => {
-    Alert.alert(
-      'Remove member?',
-      `${member.profile.displayName} will lose access to this community.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            setMemberActionError(null);
-            setRemovingMemberId(member.userId);
-            removeMember.mutate(member.userId, {
-              onSuccess: () => {
-                setMembers((current) => current.filter((item) => item.userId !== member.userId));
-                setMemberTotal((current) => Math.max(0, current - 1));
-                setRemovingMemberId(null);
-                void refetchAudit();
-              },
-              onError: (error) => {
-                setRemovingMemberId(null);
-                setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
-              }
-            });
-          }
-        }
-      ]
-    );
+    setMemberToRemove(member);
   };
 
   const confirmArchive = () => {
@@ -586,6 +562,33 @@ export function CommunityAdminScreen() {
           </Button>
         </Card>
       ) : null}
+      <RemoveMemberSheet
+        open={Boolean(memberToRemove)}
+        member={memberToRemove}
+        contextName={community?.name}
+        loading={removeMember.isPending}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={() => {
+          if (!memberToRemove) return;
+          const target = memberToRemove;
+          setMemberActionError(null);
+          setRemovingMemberId(target.userId);
+          removeMember.mutate(target.userId, {
+            onSuccess: () => {
+              setMembers((current) => current.filter((item) => item.userId !== target.userId));
+              setMemberTotal((current) => Math.max(0, current - 1));
+              setRemovingMemberId(null);
+              setMemberToRemove(null);
+              void refetchAudit();
+            },
+            onError: (error) => {
+              setRemovingMemberId(null);
+              setMemberToRemove(null);
+              setMemberActionError(error instanceof Error ? error.message : 'Please try again.');
+            }
+          });
+        }}
+      />
     </Screen>
   );
 }

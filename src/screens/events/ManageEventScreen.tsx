@@ -6,6 +6,7 @@ import { Calendar, Camera, ChevronLeft, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 
+import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 import { AppRefreshControl, AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
 
 import { eventPaymentNotice, eventTypes, eventVisibilityOptions } from '@/constants/events';
@@ -67,6 +68,14 @@ export function ManageEventScreen() {
   const [entryFee, setEntryFee] = useState(event ? String(event.entryFeeCents / 100) : '0');
   const [coverImage, setCoverImage] = useState<string | null>(event?.coverUrl ?? null);
   const [coverRemoved, setCoverRemoved] = useState(false);
+  const [attendeeToRemove, setAttendeeToRemove] = useState<{
+    id: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    initials?: string;
+    username?: string;
+    isWaitlist?: boolean;
+  } | null>(null);
   const initialForm = useRef<string | null>(null);
   const initializedEventId = useRef<string | null>(null);
   const excludedPlayerIds = useMemo(
@@ -297,22 +306,15 @@ export function ManageEventScreen() {
     ]);
   };
 
-  const confirmRemoveAttendee = (userId: string, displayName: string) => {
-    if (!event) return;
-    Alert.alert('Remove attendee', `Remove ${displayName} from this event?`, [
-      { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeAttendee.mutateAsync({ eventId: event.id, userId });
-          } catch (error) {
-            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
-          }
-        }
-      }
-    ]);
+  const confirmRemoveAttendee = (attendee: NonNullable<typeof event>['attendees'][number]) => {
+    setAttendeeToRemove({
+      id: attendee.id,
+      displayName: attendee.displayName,
+      avatarUrl: attendee.avatarUrl,
+      initials: attendee.initials,
+      username: attendee.username,
+      isWaitlist: false
+    });
   };
 
   const promoteWaitlistedUser = async (userId: string) => {
@@ -325,22 +327,15 @@ export function ManageEventScreen() {
     }
   };
 
-  const confirmRemoveWaitlistedUser = (userId: string, displayName: string) => {
-    if (!event) return;
-    Alert.alert('Remove from waitlist', `Remove ${displayName} from this event's waitlist?`, [
-      { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeWaitlistUser.mutateAsync({ eventId: event.id, userId });
-          } catch (error) {
-            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
-          }
-        }
-      }
-    ]);
+  const confirmRemoveWaitlistedUser = (user: (typeof waitlist)[number]['user']) => {
+    setAttendeeToRemove({
+      id: user.id,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      initials: user.initials,
+      username: user.username,
+      isWaitlist: true
+    });
   };
 
   return (
@@ -486,8 +481,8 @@ export function ManageEventScreen() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    loading={removeAttendee.isPending}
-                    onPress={() => confirmRemoveAttendee(attendee.id, attendee.displayName)}
+                    loading={removeAttendee.isPending && attendeeToRemove?.id === attendee.id}
+                    onPress={() => confirmRemoveAttendee(attendee)}
                   >
                     Remove
                   </Button>
@@ -533,7 +528,7 @@ export function ManageEventScreen() {
                       removeWaitlistUser.isPending
                       && removeWaitlistUser.variables?.userId === entry.user.id
                     }
-                    onPress={() => confirmRemoveWaitlistedUser(entry.user.id, entry.user.displayName)}
+                    onPress={() => confirmRemoveWaitlistedUser(entry.user)}
                   >
                     Remove
                   </Button>
@@ -593,6 +588,33 @@ export function ManageEventScreen() {
           </>
         ) : null}
       </ScrollView>
+      <RemoveMemberSheet
+        open={Boolean(attendeeToRemove)}
+        member={attendeeToRemove}
+        title={attendeeToRemove?.isWaitlist ? 'Remove from waitlist' : 'Remove attendee'}
+        contextName={event?.title}
+        warningMessage={
+          attendeeToRemove?.isWaitlist
+            ? `Remove ${attendeeToRemove.displayName} from this event's waitlist?`
+            : `Remove ${attendeeToRemove?.displayName} from this event?`
+        }
+        loading={removeAttendee.isPending || removeWaitlistUser.isPending}
+        onClose={() => setAttendeeToRemove(null)}
+        onConfirm={async () => {
+          if (!attendeeToRemove || !event) return;
+          const target = attendeeToRemove;
+          try {
+            if (target.isWaitlist) {
+              await removeWaitlistUser.mutateAsync({ eventId: event.id, userId: target.id });
+            } else {
+              await removeAttendee.mutateAsync({ eventId: event.id, userId: target.id });
+            }
+            setAttendeeToRemove(null);
+          } catch (error) {
+            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

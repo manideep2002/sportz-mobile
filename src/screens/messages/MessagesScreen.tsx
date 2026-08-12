@@ -8,6 +8,7 @@ import { useAppTranslation } from '@/i18n';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { ConversationSettingsSheet } from '@/components/messages/ConversationSettingsSheet';
+import { RemoveMemberSheet } from '@/components/community/RemoveMemberSheet';
 
 import { AdaptiveSplitView, AppRefreshControl, AppText, IconButton, Input, Screen, SectionHeader } from '@/components/ui';
 
@@ -35,6 +36,7 @@ export function MessagesScreen() {
   const [query, setQuery] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [settingsConversationId, setSettingsConversationId] = useState<string | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<UserProfile | null>(null);
   const [settingsBusy, setSettingsBusy] = useState<'pin' | 'mute' | 'clear' | 'remove' | 'leave' | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const { data: conversations = [], isLoading, isError, refetch } = useConversations();
@@ -180,32 +182,7 @@ export function MessagesScreen() {
   };
 
   const confirmRemoveMember = (member: UserProfile) => {
-    if (!settingsConversation) return;
-    const roomId = settingsConversation.id;
-    Alert.alert('Remove member?', `${member.displayName} will no longer be able to access this conversation.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setSettingsBusy('remove');
-            try {
-              await messageService.removeGroupMember(roomId, member.id);
-              await Promise.all([
-                queryClient.invalidateQueries({ queryKey: messageKeys.conversation(roomId) }),
-                queryClient.invalidateQueries({ queryKey: messageKeys.conversations }),
-                refetch()
-              ]);
-            } catch (error) {
-              Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
-            } finally {
-              setSettingsBusy(null);
-            }
-          })();
-        }
-      }
-    ]);
+    setMemberToRemove(member);
   };
 
   const confirmLeaveConversation = () => {
@@ -289,26 +266,54 @@ export function MessagesScreen() {
   );
 
   const settingsSheet = (
-    <ConversationSettingsSheet
-      open={Boolean(settingsConversation)}
-      title={settingsTitle}
-      isGroup={Boolean(settingsConversation?.isGroup)}
-      canClearHistory={settingsConversation?.isGroup === false}
-      members={settingsMembers}
-      participantRoles={settingsParticipantRoles}
-      currentUserId={currentUserId}
-      currentUserRole={settingsCurrentUserRole}
-      pinned={Boolean(settingsConversation?.pinned)}
-      muted={Boolean(settingsConversation?.muted)}
-      busyAction={settingsBusy}
-      onClose={() => setSettingsConversationId(null)}
-      onTogglePinned={() => void togglePinned()}
-      onToggleMuted={() => void toggleMuted()}
-      onClearHistory={confirmClearHistory}
-      onAddMembers={handleAddMembers}
-      onRemoveMember={confirmRemoveMember}
-      onLeave={confirmLeaveConversation}
-    />
+    <>
+      <ConversationSettingsSheet
+        open={Boolean(settingsConversation)}
+        title={settingsTitle}
+        isGroup={Boolean(settingsConversation?.isGroup)}
+        canClearHistory={settingsConversation?.isGroup === false}
+        members={settingsMembers}
+        participantRoles={settingsParticipantRoles}
+        currentUserId={currentUserId}
+        currentUserRole={settingsCurrentUserRole}
+        pinned={Boolean(settingsConversation?.pinned)}
+        muted={Boolean(settingsConversation?.muted)}
+        busyAction={settingsBusy}
+        onClose={() => setSettingsConversationId(null)}
+        onTogglePinned={() => void togglePinned()}
+        onToggleMuted={() => void toggleMuted()}
+        onClearHistory={confirmClearHistory}
+        onAddMembers={handleAddMembers}
+        onRemoveMember={confirmRemoveMember}
+        onLeave={confirmLeaveConversation}
+      />
+      <RemoveMemberSheet
+        open={Boolean(memberToRemove)}
+        member={memberToRemove}
+        contextName={settingsTitle}
+        loading={settingsBusy === 'remove'}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={async () => {
+          if (!memberToRemove || !settingsConversation) return;
+          const target = memberToRemove;
+          const roomId = settingsConversation.id;
+          setSettingsBusy('remove');
+          try {
+            await messageService.removeGroupMember(roomId, target.id);
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: messageKeys.conversation(roomId) }),
+              queryClient.invalidateQueries({ queryKey: messageKeys.conversations }),
+              refetch()
+            ]);
+            setMemberToRemove(null);
+          } catch (error) {
+            Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+          } finally {
+            setSettingsBusy(null);
+          }
+        }}
+      />
+    </>
   );
 
   if (responsive.supportsSplitPane) {
