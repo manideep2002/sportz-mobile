@@ -92,6 +92,10 @@ export function NotificationsScreen() {
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
   const flashListRef = useRef<FlashListRef<SportzNotification>>(null);
+  // Track invite IDs that the user has already responded to so the
+  // Accept / Decline buttons disappear immediately without waiting for
+  // the notification list to refetch from the server.
+  const [respondedInviteIds, setRespondedInviteIds] = useState<Set<string>>(new Set());
 
   const {
     data: infiniteData,
@@ -146,10 +150,24 @@ export function NotificationsScreen() {
     if (!notification.read) {
       markAsRead.mutate(notification.id);
     }
+
+    // Optimistically hide the Accept / Decline buttons right away.
+    setRespondedInviteIds((prev) => new Set(prev).add(inviteId));
+
     if (notification.data?.inviteType === 'event') {
       respondEventInvitation.mutate(
         { invitationId: inviteId, accept: approve },
-        { onError: (error) => Alert.alert(approve ? 'Accept failed' : 'Decline failed', error instanceof Error ? error.message : 'Please try again.') }
+        {
+          onError: (error) => {
+            // Undo the optimistic hide so the user can retry.
+            setRespondedInviteIds((prev) => {
+              const next = new Set(prev);
+              next.delete(inviteId);
+              return next;
+            });
+            Alert.alert(approve ? 'Accept failed' : 'Decline failed', error instanceof Error ? error.message : 'Please try again.');
+          }
+        }
       );
       return;
     }
@@ -157,6 +175,12 @@ export function NotificationsScreen() {
       { inviteId, communityId: notification.entityId, approve },
       {
         onError: (error) => {
+          // Undo the optimistic hide so the user can retry.
+          setRespondedInviteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(inviteId);
+            return next;
+          });
           Alert.alert(approve ? 'Accept failed' : 'Decline failed', error instanceof Error ? error.message : 'Please try again.');
         }
       }
@@ -253,16 +277,20 @@ export function NotificationsScreen() {
             </AppText>
           ) : null
         }
-        renderItem={({ item }) => (
-          <NotificationRow
-            notification={item}
-            onPress={() => handleNotificationPress(item)}
-            onCtaPress={() => handleCtaPress(item)}
-            inviteActionLoading={respondInvite.isPending || respondEventInvitation.isPending}
-            onInviteAccept={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, true) : undefined}
-            onInviteDecline={stringValue(item.data?.inviteId) ? () => handleInviteResponse(item, false) : undefined}
-          />
-        )}
+        renderItem={({ item }) => {
+          const inviteId = stringValue(item.data?.inviteId);
+          const isResponded = inviteId ? respondedInviteIds.has(inviteId) : false;
+          return (
+            <NotificationRow
+              notification={item}
+              onPress={() => handleNotificationPress(item)}
+              onCtaPress={() => handleCtaPress(item)}
+              inviteActionLoading={respondInvite.isPending || respondEventInvitation.isPending}
+              onInviteAccept={inviteId && !isResponded ? () => handleInviteResponse(item, true) : undefined}
+              onInviteDecline={inviteId && !isResponded ? () => handleInviteResponse(item, false) : undefined}
+            />
+          );
+        }}
         ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.border }]} />}
       />
     </Screen>
