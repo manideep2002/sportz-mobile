@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { eventService } from '@/services/eventService';
 import { useAuthStore } from '@/store/authStore';
@@ -9,9 +8,8 @@ export const eventMessageThreadKeys = {
 };
 
 export function useEventMessageThreads(enabled = true) {
-  const queryClient = useQueryClient();
   const userId = useAuthStore((state) => state.user?.id);
-  const query = useQuery({
+  return useQuery({
     queryKey: eventMessageThreadKeys.all,
     queryFn: () => eventService.listEventMessageThreads(),
     enabled: enabled && Boolean(userId),
@@ -19,14 +17,4 @@ export function useEventMessageThreads(enabled = true) {
     refetchOnReconnect: true,
     meta: { persist: false }
   });
-
-  useEffect(() => {
-    if (!enabled || !userId) return;
-    const subscription = eventService.subscribeToEventMessageThreads(() => {
-      void queryClient.invalidateQueries({ queryKey: eventMessageThreadKeys.all });
-    });
-    return () => subscription.unsubscribe();
-  }, [enabled, queryClient, userId]);
-
-  return query;
 }
