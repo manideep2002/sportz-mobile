@@ -39,6 +39,8 @@ export interface StoryRow {
   body: string | null;
   created_at: string;
   profiles: StoryProfileRow | StoryProfileRow[] | null;
+  /** Aggregated count of unique story_views rows for this story (author-only context). */
+  views_count?: number | null;
 }
 
 export function mapStoryRow(
@@ -67,7 +69,8 @@ export function mapStoryRow(
     mediaKind: row.media_kind ?? 'image',
     body: row.body,
     seen,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    viewsCount: typeof row.views_count === 'number' ? row.views_count : undefined
   };
 }
 
@@ -86,16 +89,26 @@ export const storyService = {
     assertSupabaseConfigured();
     await loadSeenStories();
 
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData?.user?.id;
+
     const { data, error } = await supabase
       .from('stories')
-      .select('id, media_url, media_kind, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level)')
+      .select('id, media_url, media_kind, body, created_at, profiles:author_id(id, display_name, avatar_url, skill_level), story_views(count)')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return (data ?? []).map((row) => {
-      const storyRow = row as unknown as StoryRow;
+      // PostgREST returns related count as an array of objects: [{ count: N }]
+      const rawRow = row as unknown as StoryRow & { story_views?: { count: number }[] };
+      const isOwnStory = currentUserId !== undefined && rawRow.profiles !== null &&
+        (Array.isArray(rawRow.profiles) ? rawRow.profiles[0]?.id : rawRow.profiles?.id) === currentUserId;
+      const storyRow: StoryRow = {
+        ...rawRow,
+        views_count: isOwnStory ? (rawRow.story_views?.[0]?.count ?? 0) : undefined
+      };
       return mapStoryRow(storyRow, seenStoryIds.has(storyRow.id));
     });
   },

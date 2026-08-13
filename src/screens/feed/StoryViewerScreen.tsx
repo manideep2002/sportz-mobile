@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Trash2, Volume2, VolumeX, X } from 'lucide-react-native';
+import { Eye, Trash2, Volume2, VolumeX, X } from 'lucide-react-native';
 import {
   ActivityIndicator,
   Alert,
@@ -467,12 +467,20 @@ export function StoryViewerScreen() {
             />
           ) : null}
           {isOwnStory ? (
-            <IconButton
-              icon={Trash2}
-              accessibilityLabel="Delete story"
-              onPress={handleDelete}
-              disabled={deleteStory.isPending}
-            />
+            <>
+              {story?.viewsCount !== undefined ? (
+                <View style={styles.viewCount}>
+                  <Eye size={12} color={colors.light[0]} />
+                  <AppText style={styles.viewCountText}>{story.viewsCount}</AppText>
+                </View>
+              ) : null}
+              <IconButton
+                icon={Trash2}
+                accessibilityLabel="Delete story"
+                onPress={handleDelete}
+                disabled={deleteStory.isPending}
+              />
+            </>
           ) : null}
           <IconButton
             icon={X}
@@ -648,6 +656,20 @@ const styles = StyleSheet.create({
     color: colors.light[0],
     fontFamily: typography.bodyBold,
     fontSize: 12
+  },
+  viewCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  viewCountText: {
+    color: colors.light[0],
+    fontSize: 12,
+    fontFamily: typography.bodyBold
   },
   placeholder: {
     ...StyleSheet.absoluteFillObject,

@@ -265,6 +265,8 @@ export interface Story {
   body?: string | null;
   seen: boolean;
   createdAt: string;
+  /** Number of unique viewers. Only populated for the authenticated author's own stories. */
+  viewsCount?: number;
 }
 
 export type PostKind = 'post' | 'thread' | 'stats' | 'highlight';
