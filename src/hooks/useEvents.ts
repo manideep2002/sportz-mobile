@@ -95,7 +95,8 @@ export const useCreateEvent = () => {
   return useMutation({
     mutationFn: (input: CreateEventInput) => eventService.createEvent(input),
     onSuccess: (event) => {
-      queryClient.setQueryData<SportEvent[]>(eventKeys.all, (old = []) => [event, ...old]);
+      // eventKeys.all is an infinite-query cache — invalidate so it refetches correctly
+      void refreshEventQueries(queryClient);
       if (event.communityId) void queryClient.invalidateQueries({ queryKey: eventKeys.community(event.communityId) });
     }
   });
@@ -187,16 +188,16 @@ export const useUpdateEvent = () => {
     mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateEventInput }) =>
       eventService.updateEvent(eventId, updates),
     onSuccess: (event) => {
+      // Update the individual event detail cache
       queryClient.setQueryData<SportEvent>(eventKeys.detail(event.id), event);
-      queryClient.setQueryData<SportEvent[]>(eventKeys.all, (old) =>
-        old?.map((item) => (item.id === event.id ? event : item))
-      );
+      // eventKeys.all is an infinite-query cache — invalidate instead of setQueryData
+      void refreshEventQueries(queryClient);
       if (event.communityId) {
+        // community list is a regular useQuery (flat array) — safe to update in-place
         queryClient.setQueryData<SportEvent[]>(eventKeys.community(event.communityId), (old) =>
           old?.map((item) => (item.id === event.id ? event : item))
         );
       }
-      void refreshEventQueries(queryClient);
     }
   });
 };
