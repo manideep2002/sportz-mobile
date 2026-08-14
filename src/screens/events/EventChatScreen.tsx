@@ -26,6 +26,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { EventMessage } from '@/types/domain';
 import { formatTime } from '@/utils/format';
 import { createUuid } from '@/utils/uuid';
+import { useMarkEventChatRead } from '@/hooks/useEventMessageThreads';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'EventChat'>;
@@ -46,9 +47,13 @@ export function EventChatScreen() {
   const [olderError, setOlderError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<EventMessageCursor | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
-  const [isAtBottom, setIsAtBottom] = useState(true);
   const flatListRef = useRef<FlatList<EventMessage>>(null);
   const olderLoadingRef = useRef(false);
+
+  // Mark the event chat as read immediately when the screen opens.
+  // This zeroes the badge in the React Query cache right away and
+  // then persists the read state to the server in the background.
+  useMarkEventChatRead(eventId);
 
   const loadLatest = useCallback(async (mode: 'initial' | 'refresh' | 'reconnect') => {
     if (mode === 'initial') {
@@ -82,35 +87,19 @@ export function EventChatScreen() {
     void loadLatest('initial');
   }, [eventId, loadLatest]);
 
-  // Mark event chat as read only when the user is at the bottom (viewing newest messages)
-  const markReadIfNeeded = useCallback(() => {
-    if (isAtBottom && currentUserId) {
-      void eventService.markEventChatRead(eventId).catch(() => undefined);
-    }
-  }, [isAtBottom, currentUserId, eventId]);
-
-  // Track scroll position to determine if user is viewing newest messages
+  // Track scroll position
   const handleScroll = useCallback(({ nativeEvent }: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
     const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
     const paddingToBottom = 20;
-    const isBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-    setIsAtBottom(isBottom);
-    
-    // Mark as read when user scrolls to bottom
-    if (isBottom && currentUserId) {
-      void eventService.markEventChatRead(eventId).catch(() => undefined);
-    }
-  }, [currentUserId, eventId]);
+    // Retained for future use (e.g. scroll-to-bottom button)
+    void (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom);
+  }, []);
 
   useEffect(() => {
     const subscription = eventService.subscribeToEventMessages(
       eventId,
       (message) => {
         setMessages((current) => mergeEventMessages(current, message));
-        // Only mark as read if the user is currently viewing the newest messages
-        if (message.sender.id !== currentUserId) {
-          markReadIfNeeded();
-        }
       },
       (connected, reconnected) => {
         setRealtimeConnected(connected);
@@ -118,7 +107,7 @@ export function EventChatScreen() {
       }
     );
     return () => subscription.unsubscribe();
-  }, [currentUserId, eventId, loadLatest, markReadIfNeeded]);
+  }, [eventId, loadLatest]);
 
   const loadOlder = useCallback(async () => {
     if (!nextCursor || olderLoadingRef.current) return;
