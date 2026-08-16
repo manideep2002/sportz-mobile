@@ -4,7 +4,7 @@ import { feedDedupeService } from '@/services/feedDedupeService';
 import { hotCacheService } from '@/services/hotCacheService';
 import { mapProfileRow } from '@/services/profileMapper';
 import { storageService } from '@/services/storageService';
-import type { Comment, Post, UserProfile } from '@/types/domain';
+import type { Comment, Post, TryoutDetails, UserProfile } from '@/types/domain';
 import { createUuid } from '@/utils/uuid';
 import type * as ImagePicker from 'expo-image-picker';
 
@@ -16,13 +16,14 @@ export interface CreatePostInput {
   mediaAsset?: ImagePicker.ImagePickerAsset | null;
   mediaKind?: Post['mediaKind'];
   statsLine?: string;
+  tryout?: TryoutDetails;
   visibility?: 'public' | 'followers' | 'group';
   communityId?: string;
   mentionedUserIds?: string[];
   locationLabel?: string | null;
 }
 
-export type UpdatePostInput = Pick<CreatePostInput, 'body' | 'sport'> & Partial<Pick<CreatePostInput, 'kind' | 'statsLine'>> & {
+export type UpdatePostInput = Pick<CreatePostInput, 'body' | 'sport'> & Partial<Pick<CreatePostInput, 'kind' | 'statsLine' | 'tryout'>> & {
   visibility?: 'public' | 'followers' | 'group';
   communityId?: string | null;
   mediaAsset?: ImagePicker.ImagePickerAsset | null;
@@ -151,6 +152,23 @@ interface PostShareRow {
   post_id: string;
 }
 
+/** Serialize TryoutDetails to JSON string for storage in the stats_line column. */
+const serializeTryout = (details: TryoutDetails): string => JSON.stringify(details);
+
+/** Deserialize TryoutDetails from the stats_line column. Returns undefined on failure. */
+const deserializeTryout = (raw: string | null | undefined): TryoutDetails | undefined => {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as TryoutDetails;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const mapPostRow = (
   row: PostRow,
   engagement: PostEngagement,
@@ -175,7 +193,8 @@ const mapPostRow = (
   mediaStoragePath: row.media_storage_path ?? null,
   mediaWidth: row.media_width ?? null,
   mediaHeight: row.media_height ?? null,
-  statsLine: row.stats_line ?? undefined,
+  statsLine: row.kind === 'tryout' ? undefined : (row.stats_line ?? undefined),
+  tryout: row.kind === 'tryout' ? deserializeTryout(row.stats_line) : undefined,
   visibility: row.visibility ?? 'public',
   locationLabel: row.location_label ?? null,
   mentionedUserIds: mentionedUsers.map((profile) => profile.id),
@@ -528,7 +547,9 @@ export const postService = {
         media_width: mediaWidth,
         media_height: mediaHeight,
         media_processing_status: mediaUpload ? 'processing' : 'ready',
-        stats_line: input.statsLine ?? null,
+        stats_line: (input.kind === 'tryout' && input.tryout)
+          ? serializeTryout(input.tryout)
+          : (input.statsLine ?? null),
         visibility: input.communityId
           ? (input.visibility ?? 'group')
           : (input.visibility ?? 'public'),
@@ -636,7 +657,9 @@ export const postService = {
       target_body: input.body,
       target_sport: input.sport,
       target_kind: input.kind ?? originalRow.kind ?? 'post',
-      target_stats_line: input.statsLine ?? originalRow.stats_line,
+      target_stats_line: (input.kind === 'tryout' && input.tryout)
+        ? serializeTryout(input.tryout)
+        : ((input.kind === 'tryout' ? null : (input.statsLine ?? originalRow.stats_line)) ?? null),
       target_visibility: visibility,
       target_media_url: mediaUrl,
       target_media_kind: mediaKind,

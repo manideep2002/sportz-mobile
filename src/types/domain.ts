@@ -269,7 +269,29 @@ export interface Story {
   viewsCount?: number;
 }
 
-export type PostKind = 'post' | 'thread' | 'stats' | 'highlight';
+export type PostKind = 'post' | 'thread' | 'stats' | 'highlight' | 'tryout';
+
+export type TryoutCommitment = 'full_time' | 'part_time' | 'seasonal' | 'trial';
+
+/** Structured recruiting details attached to a `tryout` post. */
+export interface TryoutDetails {
+  /** Team or club name posting the tryout. */
+  teamName: string;
+  /** Position or role being recruited (e.g. "Point Guard", "Striker"). */
+  position: string;
+  /** Physical location of training / matches (city / venue). */
+  location: string;
+  /** Time commitment expected from the athlete. */
+  commitment: TryoutCommitment;
+  /** Free-text compensation description ("Paid", "₹5k/month", "Unpaid"). */
+  compensation?: string;
+  /** Age range, skill level, or experience prerequisites. */
+  requirements?: string;
+  /** Human-readable tryout / application deadline. */
+  applicationDeadline?: string;
+  /** How to apply — email, DM, WhatsApp etc. */
+  contactInfo?: string;
+}
 
 export interface Post {
   id: ID;
@@ -285,6 +307,8 @@ export interface Post {
   mediaWidth?: number | null;
   mediaHeight?: number | null;
   statsLine?: string;
+  /** Populated only when `kind === 'tryout'`. */
+  tryout?: TryoutDetails;
   visibility?: 'public' | 'followers' | 'group';
   locationLabel?: string | null;
   mentionedUserIds?: ID[];

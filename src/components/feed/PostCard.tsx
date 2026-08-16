@@ -1,14 +1,14 @@
 import { memo, useEffect, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Bookmark, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
+import { Bookmark, Briefcase, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
 import { Avatar, Badge, Card, AppText, MediaViewerModal, SportIcon, VerifiedName, VideoPlayer } from '@/components/ui';
 import { LikeButton } from '@/components/social/LikeButton';
 import { CourtArt } from './CourtArt';
 import { useAppTheme } from '@/design/ThemeProvider';
-import { colors, spacing, typography } from '@/design/tokens';
-import type { Post } from '@/types/domain';
+import { colors, radii, spacing, typography } from '@/design/tokens';
+import type { Post, TryoutCommitment, TryoutDetails } from '@/types/domain';
 import { timeAgo } from '@/utils/format';
 import { mediaVariants } from '@/utils/mediaOptimization';
 import { clampedMediaAspectRatio, mediaPlaceholderSource } from '@/utils/mediaPlaceholder';
@@ -101,6 +101,8 @@ function PostCardComponent({
             </Pressable>
             <View style={styles.headerActions}>
               {post.kind === 'stats' ? <Badge tone="orange">Stats</Badge> : null}
+              {post.kind === 'highlight' ? <Badge tone="orange">Highlight</Badge> : null}
+              {post.kind === 'tryout' ? <Badge tone="teal">Open Spot</Badge> : null}
               {onMore ? (
                 <Pressable
                   accessibilityRole="button"
@@ -245,6 +247,9 @@ function PostCardComponent({
               <CourtArt statLine={post.statsLine} />
             </View>
           ) : null}
+          {post.kind === 'tryout' && post.tryout ? (
+            <TryoutCard tryout={post.tryout} />
+          ) : null}
           {post.eventTeaser ? (
             <View style={styles.teaser}>
               <View style={[styles.teaserCell, { backgroundColor: theme.surfaceMuted }]}>
@@ -306,6 +311,178 @@ function PostCardComponent({
 }
 
 export const PostCard = memo(PostCardComponent);
+
+/** Maps a commitment key to a human-friendly label. */
+const COMMITMENT_LABELS: Record<TryoutCommitment, string> = {
+  full_time: 'Full-time',
+  part_time: 'Part-time',
+  seasonal: 'Seasonal',
+  trial: 'Trial'
+};
+
+const TRYOUT_TEAL = '#14B8A6';
+const TRYOUT_TEAL_SOFT = 'rgba(20,184,166,0.10)';
+const TRYOUT_TEAL_BORDER = 'rgba(20,184,166,0.30)';
+const TRYOUT_TEAL_DIM = 'rgba(20,184,166,0.55)';
+
+function TryoutCard({ tryout }: { tryout: TryoutDetails }) {
+  const extras = [
+    tryout.compensation ? `💰 ${tryout.compensation}` : null,
+    tryout.requirements ? `📋 ${tryout.requirements}` : null,
+    tryout.applicationDeadline ? `📅 Deadline: ${tryout.applicationDeadline}` : null
+  ].filter(Boolean) as string[];
+
+  return (
+    <View style={pcTryoutStyles.card}>
+      {/* Top teal accent bar */}
+      <View style={pcTryoutStyles.accentBar} />
+
+      <View style={pcTryoutStyles.inner}>
+        {/* Position headline */}
+        <View style={pcTryoutStyles.headlineRow}>
+          <View style={pcTryoutStyles.iconBubble}>
+            <Briefcase size={15} color={TRYOUT_TEAL} />
+          </View>
+          <View style={pcTryoutStyles.headlineText}>
+            <AppText style={pcTryoutStyles.positionText} numberOfLines={1}>{tryout.position}</AppText>
+            <AppText style={pcTryoutStyles.teamText} numberOfLines={1}>{tryout.teamName}</AppText>
+          </View>
+          <View style={pcTryoutStyles.commitmentChip}>
+            <AppText style={pcTryoutStyles.commitmentText}>{COMMITMENT_LABELS[tryout.commitment]}</AppText>
+          </View>
+        </View>
+
+        {/* Divider */}
+        <View style={pcTryoutStyles.divider} />
+
+        {/* Location row */}
+        <View style={pcTryoutStyles.infoRow}>
+          <MapPin size={13} color={TRYOUT_TEAL_DIM} />
+          <AppText style={pcTryoutStyles.infoText} numberOfLines={1}>{tryout.location}</AppText>
+        </View>
+
+        {/* Optional extras */}
+        {extras.length > 0 ? (
+          <View style={pcTryoutStyles.extrasWrap}>
+            {extras.map((line, i) => (
+              <AppText key={i} style={pcTryoutStyles.extraText} numberOfLines={2}>{line}</AppText>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Contact row */}
+        {tryout.contactInfo ? (
+          <View style={pcTryoutStyles.contactRow}>
+            <AppText style={pcTryoutStyles.contactLabel}>How to apply</AppText>
+            <AppText style={pcTryoutStyles.contactValue} numberOfLines={1}>{tryout.contactInfo}</AppText>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const pcTryoutStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    borderRadius: radii.md,
+    backgroundColor: TRYOUT_TEAL_SOFT,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: TRYOUT_TEAL_BORDER,
+    overflow: 'hidden'
+  },
+  accentBar: {
+    height: 3,
+    backgroundColor: TRYOUT_TEAL
+  },
+  inner: {
+    padding: 12,
+    gap: 8
+  },
+  headlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  iconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: TRYOUT_TEAL_BORDER,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headlineText: {
+    flex: 1
+  },
+  positionText: {
+    color: TRYOUT_TEAL,
+    fontFamily: typography.headingBold,
+    fontSize: 16,
+    letterSpacing: 0.3
+  },
+  teamText: {
+    color: colors.text.secondary,
+    fontFamily: typography.bodyMedium,
+    fontSize: 12,
+    marginTop: 1
+  },
+  commitmentChip: {
+    backgroundColor: TRYOUT_TEAL_BORDER,
+    borderRadius: radii.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 3
+  },
+  commitmentText: {
+    color: TRYOUT_TEAL,
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.3
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: TRYOUT_TEAL_BORDER
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5
+  },
+  infoText: {
+    color: colors.text.secondary,
+    fontSize: 12,
+    fontFamily: typography.bodyFamily,
+    flex: 1
+  },
+  extrasWrap: {
+    gap: 3
+  },
+  extraText: {
+    color: colors.text.secondary,
+    fontSize: 12,
+    fontFamily: typography.bodyFamily
+  },
+  contactRow: {
+    backgroundColor: TRYOUT_TEAL_BORDER,
+    borderRadius: radii.xs,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 2
+  },
+  contactLabel: {
+    color: TRYOUT_TEAL,
+    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase'
+  },
+  contactValue: {
+    color: colors.text.primary,
+    fontFamily: typography.bodyMedium,
+    fontSize: 12
+  }
+});
 
 const styles = StyleSheet.create({
   card: {

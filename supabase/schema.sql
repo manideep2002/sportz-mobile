@@ -6,7 +6,7 @@ create extension if not exists "pgcrypto";
 create extension if not exists "postgis";
 
 create type public.sportz_skill_level as enum ('Beginner', 'Intermediate', 'Advanced', 'Pro');
-create type public.sportz_post_kind as enum ('post', 'thread', 'stats', 'highlight');
+create type public.sportz_post_kind as enum ('post', 'thread', 'stats', 'highlight', 'tryout');
 create type public.sportz_visibility as enum ('public', 'followers', 'group', 'invite');
 create type public.sportz_event_status as enum ('open', 'full', 'live', 'cancelled', 'completed');
 create type public.sportz_rsvp_status as enum ('going', 'interested', 'declined');

@@ -3,7 +3,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import type * as ImagePicker from 'expo-image-picker';
-import { BarChart3, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
+import { BarChart3, Briefcase, ChevronLeft, Image as ImageIcon, MapPin, Play, Users, X, type LucideIcon } from 'lucide-react-native';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText, Avatar, Button, Chip, IconButton, Input, VerifiedName } from '@/components/ui';
@@ -15,7 +15,7 @@ import { usePlayerSearch } from '@/hooks/usePlayerSearch';
 import type { AppStackParamList } from '@/navigation/routes';
 import { storageService } from '@/services/storageService';
 import { useAuthStore } from '@/store/authStore';
-import type { Post, Sport, UserProfile } from '@/types/domain';
+import type { Post, Sport, TryoutCommitment, TryoutDetails, UserProfile } from '@/types/domain';
 import { mediaVariants } from '@/utils/mediaOptimization';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -58,6 +58,15 @@ export function CreatePostScreen() {
   const [taggedUsers, setTaggedUsers] = useState<UserProfile[]>([]);
   const [hydratedEditPost, setHydratedEditPost] = useState(false);
   const [mediaRemoved, setMediaRemoved] = useState(false);
+  // Tryout fields
+  const [tryoutTeamName, setTryoutTeamName] = useState('');
+  const [tryoutPosition, setTryoutPosition] = useState('');
+  const [tryoutLocation, setTryoutLocation] = useState('');
+  const [tryoutCommitment, setTryoutCommitment] = useState<TryoutCommitment>('seasonal');
+  const [tryoutCompensation, setTryoutCompensation] = useState('');
+  const [tryoutRequirements, setTryoutRequirements] = useState('');
+  const [tryoutDeadline, setTryoutDeadline] = useState('');
+  const [tryoutContact, setTryoutContact] = useState('');
   const {
     data: editPost,
     isLoading: editPostLoading,
@@ -84,6 +93,12 @@ export function CreatePostScreen() {
     (kind === 'stats' && statsLine.trim()) ||
     taggedUsers.length ||
     locationLabel
+  ) && (
+    kind !== 'tryout' || (
+      tryoutTeamName.trim() !== '' &&
+      tryoutPosition.trim() !== '' &&
+      tryoutLocation.trim() !== ''
+    )
   );
 
   useEffect(() => {
@@ -98,6 +113,17 @@ export function CreatePostScreen() {
     setMediaRemoved(false);
     setLocationLabel(editPost.locationLabel ?? '');
     setTaggedUsers(editPost.mentionedUsers ?? []);
+    // Hydrate tryout fields if editing a tryout post.
+    if (editPost.kind === 'tryout' && editPost.tryout) {
+      setTryoutTeamName(editPost.tryout.teamName);
+      setTryoutPosition(editPost.tryout.position);
+      setTryoutLocation(editPost.tryout.location);
+      setTryoutCommitment(editPost.tryout.commitment);
+      setTryoutCompensation(editPost.tryout.compensation ?? '');
+      setTryoutRequirements(editPost.tryout.requirements ?? '');
+      setTryoutDeadline(editPost.tryout.applicationDeadline ?? '');
+      setTryoutContact(editPost.tryout.contactInfo ?? '');
+    }
     // Hydrate the visibility label from the stored value.
     setVisibility(
       editPost.visibility === 'followers' ? 'Followers'
@@ -147,10 +173,23 @@ export function CreatePostScreen() {
     if (!canPublish) {
       Alert.alert(
         isEditing ? 'Add something to save' : 'Add something to share',
-        'Write an update or choose a photo or video.'
+        kind === 'tryout'
+          ? 'Fill in the team name, position, and location to post an open spot.'
+          : 'Write an update or choose a photo or video.'
       );
       return;
     }
+
+    const tryoutDetails: TryoutDetails | undefined = kind === 'tryout' ? {
+      teamName: tryoutTeamName.trim(),
+      position: tryoutPosition.trim(),
+      location: tryoutLocation.trim(),
+      commitment: tryoutCommitment,
+      compensation: tryoutCompensation.trim() || undefined,
+      requirements: tryoutRequirements.trim() || undefined,
+      applicationDeadline: tryoutDeadline.trim() || undefined,
+      contactInfo: tryoutContact.trim() || undefined
+    } : undefined;
 
     try {
       if (editPostId) {
@@ -161,6 +200,7 @@ export function CreatePostScreen() {
             sport,
             kind,
             statsLine: kind === 'stats' ? statsLine.trim() : '',
+            tryout: tryoutDetails,
             visibility: visibility === COMMUNITY_LABEL
               ? 'group'
               : visibility.toLowerCase() as 'public' | 'followers',
@@ -184,6 +224,7 @@ export function CreatePostScreen() {
         mediaAsset,
         mediaKind,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
+        tryout: tryoutDetails,
         visibility: visibility === COMMUNITY_LABEL
           ? 'group'
           : visibility.toLowerCase() as 'public' | 'followers',
@@ -278,6 +319,26 @@ export function CreatePostScreen() {
             autoCapitalize="characters"
           />
         ) : null}
+        {kind === 'tryout' ? (
+          <TryoutForm
+            teamName={tryoutTeamName}
+            onTeamNameChange={setTryoutTeamName}
+            position={tryoutPosition}
+            onPositionChange={setTryoutPosition}
+            location={tryoutLocation}
+            onLocationChange={setTryoutLocation}
+            commitment={tryoutCommitment}
+            onCommitmentChange={setTryoutCommitment}
+            compensation={tryoutCompensation}
+            onCompensationChange={setTryoutCompensation}
+            requirements={tryoutRequirements}
+            onRequirementsChange={setTryoutRequirements}
+            deadline={tryoutDeadline}
+            onDeadlineChange={setTryoutDeadline}
+            contact={tryoutContact}
+            onContactChange={setTryoutContact}
+          />
+        ) : null}
         {mediaUri ? (
           <View style={[styles.mediaPreview, { backgroundColor: theme.surfaceMuted }]}>
             {mediaKind === 'image' || thumbnailUri ? (
@@ -310,6 +371,7 @@ export function CreatePostScreen() {
           <ComposerAction icon={ImageIcon} label={mediaUri ? 'Change media' : 'Photo/Video'} selected={Boolean(mediaUri)} onPress={handlePickMedia} />
           <ComposerAction icon={BarChart3} label="Stats" selected={kind === 'stats'} onPress={() => setKind(kind === 'stats' ? 'post' : 'stats')} />
           <ComposerAction icon={BarChart3} label="Highlight" selected={kind === 'highlight'} onPress={() => setKind(kind === 'highlight' ? 'post' : 'highlight')} />
+          <ComposerAction icon={Briefcase} label="Open Spot" selected={kind === 'tryout'} onPress={() => setKind(kind === 'tryout' ? 'post' : 'tryout')} />
           <ComposerAction
             icon={MapPin}
             label={detectingLocation ? 'Locating...' : locationLabel || 'Location'}
@@ -429,6 +491,161 @@ function ComposerAction({ icon: Icon, label, selected, onPress }: { icon: Lucide
     </Pressable>
   );
 }
+
+interface TryoutFormProps {
+  teamName: string;
+  onTeamNameChange: (v: string) => void;
+  position: string;
+  onPositionChange: (v: string) => void;
+  location: string;
+  onLocationChange: (v: string) => void;
+  commitment: TryoutCommitment;
+  onCommitmentChange: (v: TryoutCommitment) => void;
+  compensation: string;
+  onCompensationChange: (v: string) => void;
+  requirements: string;
+  onRequirementsChange: (v: string) => void;
+  deadline: string;
+  onDeadlineChange: (v: string) => void;
+  contact: string;
+  onContactChange: (v: string) => void;
+}
+
+const COMMITMENT_OPTIONS: { value: TryoutCommitment; label: string }[] = [
+  { value: 'trial', label: 'Trial' },
+  { value: 'seasonal', label: 'Seasonal' },
+  { value: 'part_time', label: 'Part-time' },
+  { value: 'full_time', label: 'Full-time' }
+];
+
+function TryoutForm({
+  teamName, onTeamNameChange,
+  position, onPositionChange,
+  location, onLocationChange,
+  commitment, onCommitmentChange,
+  compensation, onCompensationChange,
+  requirements, onRequirementsChange,
+  deadline, onDeadlineChange,
+  contact, onContactChange
+}: TryoutFormProps) {
+  const { colors: theme } = useAppTheme();
+  return (
+    <View style={tryoutStyles.container}>
+      {/* Header banner */}
+      <View style={tryoutStyles.banner}>
+        <Briefcase size={14} color="#14B8A6" />
+        <AppText style={tryoutStyles.bannerText}>OPEN SPOT</AppText>
+        <AppText style={tryoutStyles.bannerSub}>Required fields are marked *</AppText>
+      </View>
+
+      {/* Required fields */}
+      <Input
+        label="Team / Club Name *"
+        value={teamName}
+        onChangeText={onTeamNameChange}
+        placeholder="e.g. Mumbai Blazers FC"
+      />
+      <Input
+        label="Position / Role *"
+        value={position}
+        onChangeText={onPositionChange}
+        placeholder="e.g. Point Guard, Striker, Setter…"
+      />
+      <Input
+        label="Training Location *"
+        value={location}
+        onChangeText={onLocationChange}
+        placeholder="e.g. Andheri Sports Complex, Mumbai"
+      />
+
+      {/* Commitment chips */}
+      <AppText style={[tryoutStyles.fieldLabel, { color: theme.textSubtle }]}>Commitment</AppText>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tryoutStyles.chipRow} contentContainerStyle={tryoutStyles.chipRowContent}>
+        {COMMITMENT_OPTIONS.map((opt) => (
+          <Chip key={opt.value} selected={commitment === opt.value} onPress={() => onCommitmentChange(opt.value)}>
+            {opt.label}
+          </Chip>
+        ))}
+      </ScrollView>
+
+      {/* Optional fields */}
+      <Input
+        label="Compensation (optional)"
+        value={compensation}
+        onChangeText={onCompensationChange}
+        placeholder="e.g. Paid · ₹5,000/month · Unpaid"
+      />
+      <Input
+        label="Requirements (optional)"
+        value={requirements}
+        onChangeText={onRequirementsChange}
+        placeholder="Age, skill level, experience…"
+        multiline
+      />
+      <Input
+        label="Open Spot Deadline (optional)"
+        value={deadline}
+        onChangeText={onDeadlineChange}
+        placeholder="e.g. 31 Aug 2026"
+      />
+      <Input
+        label="How to Apply / Contact (optional)"
+        value={contact}
+        onChangeText={onContactChange}
+        placeholder="Email, DM, WhatsApp number…"
+      />
+    </View>
+  );
+}
+
+const TRYOUT_TEAL = '#14B8A6';
+const TRYOUT_TEAL_SOFT = 'rgba(20,184,166,0.12)';
+const TRYOUT_TEAL_BORDER = 'rgba(20,184,166,0.35)';
+
+const tryoutStyles = StyleSheet.create({
+  container: {
+    gap: spacing.sm,
+    marginBottom: spacing.md
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: TRYOUT_TEAL_SOFT,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: TRYOUT_TEAL_BORDER,
+    borderRadius: radii.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    marginBottom: spacing.xs
+  },
+  bannerText: {
+    color: TRYOUT_TEAL,
+    fontFamily: typography.headingBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    flex: 0
+  },
+  bannerSub: {
+    color: TRYOUT_TEAL,
+    fontFamily: typography.bodyFamily,
+    fontSize: 11,
+    opacity: 0.7,
+    marginLeft: 'auto'
+  },
+  fieldLabel: {
+    fontFamily: typography.bodyBold,
+    fontSize: 12,
+    marginBottom: 4
+  },
+  chipRow: {
+    flexGrow: 0,
+    marginBottom: 4
+  },
+  chipRowContent: {
+    gap: spacing.xs
+  }
+});
 
 const styles = StyleSheet.create({
   root: {
