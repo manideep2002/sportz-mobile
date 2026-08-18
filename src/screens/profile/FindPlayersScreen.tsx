@@ -5,7 +5,7 @@ import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react-native';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 
-import { AppRefreshControl, AppText, Avatar, Badge, Button, Chip, IconButton, Input, Screen, SportIcon, VerifiedName } from '@/components/ui';
+import { AppRefreshControl, AppText, Avatar, Badge, BottomSheet, Button, Chip, IconButton, Input, Screen, SportIcon, VerifiedName } from '@/components/ui';
 
 import { allSports } from '@/constants/sports';
 import { useAppTheme } from '@/design/ThemeProvider';
@@ -27,6 +27,7 @@ export function FindPlayersScreen() {
   const [sport, setSport] = useState<'All Sports' | Sport>('All Sports');
   const [refreshing, setRefreshing] = useState(false);
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const {
     query,
     setQuery,
@@ -54,6 +55,12 @@ export function FindPlayersScreen() {
   const resetFilters = () => {
     setQuery('');
     setSport('All Sports');
+    setFilterSheetOpen(false);
+  };
+
+  const applyFilter = (selected: 'All Sports' | Sport) => {
+    setSport(selected);
+    setFilterSheetOpen(false);
   };
 
   const openMessage = async (player: UserProfile) => {
@@ -81,7 +88,7 @@ export function FindPlayersScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Find Players</AppText>
-        <IconButton icon={SlidersHorizontal} accessibilityLabel="Reset player filters" onPress={resetFilters} />
+        <IconButton icon={SlidersHorizontal} accessibilityLabel="Open player filters" onPress={() => setFilterSheetOpen(true)} filled={sport !== 'All Sports' || query.length > 0} />
       </View>
       <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search by name, sport..." />
       <ScrollView
@@ -179,6 +186,23 @@ export function FindPlayersScreen() {
           Load more
         </Button>
       ) : null}
+      <BottomSheet open={filterSheetOpen} title="Filter Players" onClose={() => setFilterSheetOpen(false)}>
+        <View style={styles.sheetContent}>
+          <AppText variant="bodyMuted" style={styles.sheetLabel}>Sport</AppText>
+          <View style={styles.sheetChips}>
+            {playerSportFilters.map((item) => (
+              <Chip
+                key={item}
+                selected={item === sport}
+                onPress={() => applyFilter(item)}
+              >
+                {item}
+              </Chip>
+            ))}
+          </View>
+          <Button variant="dark" onPress={resetFilters}>Reset Filters</Button>
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
@@ -270,5 +294,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm
+  },
+  sheetContent: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md
+  },
+  sheetLabel: {
+    marginBottom: spacing.xs
+  },
+  sheetChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs
   }
 });
