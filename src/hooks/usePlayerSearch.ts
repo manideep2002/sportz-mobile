@@ -34,8 +34,8 @@ export const PLAYER_SEARCH_MIN_QUERY_LENGTH = 1;
 
 export const playerSearchKeys = {
   all: ['player-search'] as const,
-  list: (sport: Sport | undefined, query: string, page: number) =>
-    ['player-search', 'list', sport ?? 'all', query, page] as const
+  list: (sports: Sport[] | undefined, query: string, page: number) =>
+    ['player-search', 'list', sports && sports.length > 0 ? [...sports].sort().join(',') : 'all', query, page] as const
 };
 
 export interface UsePlayerSearchOptions {
@@ -45,8 +45,8 @@ export interface UsePlayerSearchOptions {
   debounceMs?: number;
   /** Page size for paginated browsing; omit for single-shot searches. */
   pageSize?: number;
-  /** Sport filter (undefined = all sports). */
-  sport?: Sport | undefined;
+  /** Sport filter — pass one or more sports to restrict results (empty/undefined = all sports). */
+  sports?: Sport[];
   /** IDs to exclude from results (already selected/tagged/invited players). */
   excludeIds?: ReadonlySet<string> | null;
 }
@@ -56,7 +56,7 @@ export function usePlayerSearch(options: UsePlayerSearchOptions = {}) {
     minQueryLength = PLAYER_SEARCH_MIN_QUERY_LENGTH,
     debounceMs = PLAYER_SEARCH_DEBOUNCE_MS,
     pageSize,
-    sport,
+    sports,
     excludeIds
   } = options;
 
@@ -77,25 +77,29 @@ export function usePlayerSearch(options: UsePlayerSearchOptions = {}) {
     return () => clearTimeout(timer);
   }, [debounceMs, minQueryLength, query]);
 
-  // A new effective query or sport starts a fresh search at page 0.
+  // Stable key so a new array reference with the same sports doesn't trigger a reset.
+  const sportsKey = sports && sports.length > 0 ? [...sports].sort().join(',') : '';
+
+  // A new effective query or sports selection starts a fresh search at page 0.
   useEffect(() => {
     setPage(0);
     setItems([]);
-  }, [debouncedQuery, sport]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, sportsKey]);
 
   const enabled = debouncedQuery.length >= minQueryLength;
 
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
-    queryKey: playerSearchKeys.list(sport, debouncedQuery, page),
+    queryKey: playerSearchKeys.list(sports, debouncedQuery, page),
     queryFn: ({ signal }: { signal?: AbortSignal } = {}) =>
-      profileService.listPlayers(debouncedQuery, sport, page, pageSize, signal),
+      profileService.listPlayers(debouncedQuery, sports, page, pageSize, signal),
     enabled,
     retry: false,
     // Keep the previous page of the SAME sport+query visible while the next
     // page loads, but never reuse data from a different query.
     placeholderData: (previousData, previousQuery) => {
       if (page === 0 || !previousData || !previousQuery) return undefined;
-      const expected = playerSearchKeys.list(sport, debouncedQuery, page - 1);
+      const expected = playerSearchKeys.list(sports, debouncedQuery, page - 1);
       const previous = previousQuery.queryKey as readonly (string | number)[];
       const sameQuery =
         previous.length === expected.length &&

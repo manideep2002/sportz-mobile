@@ -199,8 +199,8 @@ describe('usePlayerSearch', () => {
   it('refetches with the sport filter when it changes', async () => {
     mockListPlayers.mockResolvedValue([makePlayer('p-1')]);
     const { result, rerender } = await renderHook(
-      (props: { sport?: Sport }) => usePlayerSearch({ sport: props?.sport }),
-      { wrapper, initialProps: { sport: undefined } }
+      (props: { sports?: Sport[] }) => usePlayerSearch({ sports: props?.sports }),
+      { wrapper, initialProps: { sports: undefined } }
     );
 
     await act(() => result.current.setQuery('vin'));
@@ -208,8 +208,8 @@ describe('usePlayerSearch', () => {
     await flush();
     expect(mockListPlayers).toHaveBeenLastCalledWith('vin', undefined, 0, undefined, expect.any(AbortSignal));
 
-    await rerender({ sport: 'Basketball' });
-    expect(mockListPlayers).toHaveBeenLastCalledWith('vin', 'Basketball', 0, undefined, expect.any(AbortSignal));
+    await rerender({ sports: ['Basketball'] });
+    expect(mockListPlayers).toHaveBeenLastCalledWith('vin', ['Basketball'], 0, undefined, expect.any(AbortSignal));
   });
 
   it('accumulates pages and reports hasMore from the page size', async () => {

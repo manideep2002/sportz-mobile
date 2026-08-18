@@ -17,17 +17,17 @@ import type { Sport, UserProfile } from '@/types/domain';
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
-export const playerSportFilters: readonly ('All Sports' | Sport)[] = ['All Sports', ...allSports];
-export const playerSportQueryValue = (sport: 'All Sports' | Sport) => sport === 'All Sports' ? undefined : sport;
+export const playerSportFilters: readonly Sport[] = [...allSports];
 const PAGE_SIZE = 30;
 
 export function FindPlayersScreen() {
   const navigation = useNavigation<Navigation>();
   const { colors: theme } = useAppTheme();
-  const [sport, setSport] = useState<'All Sports' | Sport>('All Sports');
+  const [sports, setSports] = useState<Set<Sport>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const sportsArray = sports.size > 0 ? ([...sports] as Sport[]) : undefined;
   const {
     query,
     setQuery,
@@ -38,7 +38,7 @@ export function FindPlayersScreen() {
     hasMore,
     loadMore
   } = usePlayerSearch({
-    sport: playerSportQueryValue(sport),
+    sports: sportsArray,
     pageSize: PAGE_SIZE,
     minQueryLength: 0
   });
@@ -54,13 +54,20 @@ export function FindPlayersScreen() {
 
   const resetFilters = () => {
     setQuery('');
-    setSport('All Sports');
+    setSports(new Set());
     setFilterSheetOpen(false);
   };
 
-  const applyFilter = (selected: 'All Sports' | Sport) => {
-    setSport(selected);
-    setFilterSheetOpen(false);
+  const toggleSport = (s: Sport) => {
+    setSports((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) {
+        next.delete(s);
+      } else {
+        next.add(s);
+      }
+      return next;
+    });
   };
 
   const openMessage = async (player: UserProfile) => {
@@ -88,7 +95,7 @@ export function FindPlayersScreen() {
       <View style={styles.header}>
         <IconButton icon={ChevronLeft} onPress={() => navigation.goBack()} />
         <AppText variant="h3">Find Players</AppText>
-        <IconButton icon={SlidersHorizontal} accessibilityLabel="Open player filters" onPress={() => setFilterSheetOpen(true)} filled={sport !== 'All Sports' || query.length > 0} />
+        <IconButton icon={SlidersHorizontal} accessibilityLabel="Open player filters" onPress={() => setFilterSheetOpen(true)} filled={sports.size > 0 || query.length > 0} />
       </View>
       <Input icon={Search} value={query} onChangeText={setQuery} placeholder="Search by name, sport..." />
       <ScrollView
@@ -97,11 +104,18 @@ export function FindPlayersScreen() {
         contentContainerStyle={styles.filterContent}
         style={styles.filterScroller}
       >
-        {playerSportFilters.map((item) => (
+        <Chip
+            key="all"
+            selected={sports.size === 0}
+            onPress={() => setSports(new Set())}
+          >
+            All Sports
+          </Chip>
+          {playerSportFilters.map((item) => (
           <Chip
             key={item}
-            selected={item === sport}
-            onPress={() => setSport(item)}
+            selected={sports.has(item)}
+            onPress={() => toggleSport(item)}
           >
             {item}
           </Chip>
@@ -188,18 +202,23 @@ export function FindPlayersScreen() {
       ) : null}
       <BottomSheet open={filterSheetOpen} title="Filter Players" onClose={() => setFilterSheetOpen(false)}>
         <View style={styles.sheetContent}>
-          <AppText variant="bodyMuted" style={styles.sheetLabel}>Sport</AppText>
+          <AppText variant="bodyMuted" style={styles.sheetLabel}>Sport — tap to toggle</AppText>
           <View style={styles.sheetChips}>
             {playerSportFilters.map((item) => (
               <Chip
                 key={item}
-                selected={item === sport}
-                onPress={() => applyFilter(item)}
+                selected={sports.has(item)}
+                onPress={() => toggleSport(item)}
               >
                 {item}
               </Chip>
             ))}
           </View>
+          {sports.size > 0 ? (
+            <AppText variant="small" style={styles.sheetCount}>
+              {sports.size} sport{sports.size > 1 ? 's' : ''} selected
+            </AppText>
+          ) : null}
           <Button variant="dark" onPress={resetFilters}>Reset Filters</Button>
         </View>
       </BottomSheet>
@@ -306,5 +325,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs
+  },
+  sheetCount: {
+    opacity: 0.6,
+    textAlign: 'center'
   }
 });

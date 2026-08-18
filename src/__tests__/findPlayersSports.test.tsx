@@ -19,7 +19,7 @@ jest.mock('@/services/profileService', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { FindPlayersScreen, playerSportFilters, playerSportQueryValue } from '@/screens/profile/FindPlayersScreen';
+import { FindPlayersScreen, playerSportFilters } from '@/screens/profile/FindPlayersScreen';
 
 describe('Find Players canonical sports', () => {
   let queryClient: QueryClient;
@@ -40,20 +40,22 @@ describe('Find Players canonical sports', () => {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  it('exposes every canonical sport and preserves its database query value', async () => {
-    expect(playerSportFilters).toEqual(['All Sports', ...allSports]);
+  it('exposes every canonical sport and can toggle each as a filter', async () => {
+    expect(playerSportFilters).toEqual(allSports);
     expect(allSports).toEqual(expect.arrayContaining([
       'Kabaddi', 'Hockey', 'Athletics', 'Swimming', 'Table Tennis', 'Volleyball', 'Boxing', 'Other'
     ]));
-    expect(playerSportQueryValue('All Sports')).toBeUndefined();
 
     await render(<FindPlayersScreen />, { wrapper });
     await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', undefined, 0, 30, expect.any(AbortSignal)));
 
     for (const sport of allSports) {
-      expect(playerSportQueryValue(sport)).toBe(sport);
       await fireEvent.press(screen.getByRole('button', { name: sport }));
-      await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith('', sport, 0, 30, expect.any(AbortSignal)));
+      await waitFor(() => expect(mockListPlayers).toHaveBeenCalledWith(
+        '', expect.arrayContaining([sport]), 0, 30, expect.any(AbortSignal)
+      ));
+      // Toggle back off
+      await fireEvent.press(screen.getByRole('button', { name: sport }));
     }
   });
 });
