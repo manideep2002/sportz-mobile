@@ -140,9 +140,28 @@ export function CreatePostScreen() {
       storageService.validateMediaAsset(media);
       setMediaUri(media.uri);
       setMediaAsset(media);
-      setThumbnailUri((media as { thumbnail?: string; thumbnailUri?: string } | null)?.thumbnail ?? (media as { thumbnailUri?: string } | null)?.thumbnailUri ?? null);
       setMediaKind(media.type === 'video' ? 'video' : 'image');
       setMediaRemoved(false);
+
+      if (media.type === 'video') {
+        // Attempt to grab a thumbnail 2 s into the video (falls back to 0 ms).
+        // We try 2 s first; if that's past the video end the library returns the
+        // last frame, which is fine. The picker may already expose a thumbnail
+        // via a non-standard property — prefer that if present.
+        const pickerThumb =
+          (media as { thumbnail?: string; thumbnailUri?: string } | null)?.thumbnail ??
+          (media as { thumbnailUri?: string } | null)?.thumbnailUri ?? null;
+        if (pickerThumb) {
+          setThumbnailUri(pickerThumb);
+        } else {
+          const durationMs = (media as { duration?: number | null }).duration ?? 0;
+          const seekMs = durationMs >= 4000 ? 2000 : 0;
+          const generated = await storageService.generateVideoThumbnail(media.uri, seekMs);
+          setThumbnailUri(generated);
+        }
+      } else {
+        setThumbnailUri(null);
+      }
     } catch (error) {
       Alert.alert('Media picker failed', error instanceof Error ? error.message : 'Please try again.');
     }
@@ -223,6 +242,7 @@ export function CreatePostScreen() {
         mediaUrl: mediaUri,
         mediaAsset,
         mediaKind,
+        mediaPlaceholder: thumbnailUri ?? undefined,
         statsLine: kind === 'stats' ? statsLine.trim() || undefined : undefined,
         tryout: tryoutDetails,
         visibility: visibility === COMMUNITY_LABEL
@@ -341,17 +361,22 @@ export function CreatePostScreen() {
         ) : null}
         {mediaUri ? (
           <View style={[styles.mediaPreview, { backgroundColor: theme.surfaceMuted }]}>
-            {mediaKind === 'image' || thumbnailUri ? (
+            {/* Show thumbnail for both images and videos (once generated) */}
+            {(mediaKind === 'image' || thumbnailUri) ? (
               <Image source={{ uri: previewImageUri ?? mediaUri }} style={styles.previewImage} />
             ) : (
+              // Video picked but thumbnail not yet generated — show spinner
               <View style={styles.videoPreview}>
-                <View style={[styles.videoIcon, { backgroundColor: theme.accent }]}>
-                  <Play size={22} color={theme.onAccent} fill={theme.onAccent} />
-                </View>
-                <AppText variant="h4">Video ready</AppText>
-                <AppText variant="small">A preview will appear after upload.</AppText>
+                <ActivityIndicator color={theme.accent} size="large" />
+                <AppText variant="h4">Generating preview…</AppText>
               </View>
             )}
+            {/* Play badge overlay for videos */}
+            {mediaKind === 'video' && thumbnailUri ? (
+              <View style={styles.videoThumbBadge} pointerEvents="none">
+                <Play size={20} color={colors.light[0]} fill={colors.light[0]} />
+              </View>
+            ) : null}
             <IconButton
               icon={X}
               accessibilityLabel="Remove media"
@@ -736,6 +761,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs
+  },
+  videoThumbBadge: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   videoIcon: {
     width: 48,

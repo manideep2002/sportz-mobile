@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
@@ -434,6 +435,29 @@ export const storageService = {
       if (!isAllowed) {
         throw new Error(`File type "${mime}" is not supported. Please choose an image or video.`);
       }
+    }
+  },
+
+  /**
+   * Generate a thumbnail from a local video URI.
+   * Returns a base64 data URI string (image/jpeg) or null on failure.
+   *
+   * @param uri - Local file URI of the video.
+   * @param timeMs - Time offset in milliseconds to grab the frame (default 0).
+   */
+  async generateVideoThumbnail(uri: string, timeMs = 0): Promise<string | null> {
+    try {
+      const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(uri, {
+        time: timeMs,
+        quality: 0.7
+      });
+      // Read back as base64 so the thumbnail can be stored as media_placeholder
+      const base64 = await FileSystem.readAsStringAsync(thumbUri, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      return `data:image/jpeg;base64,${base64}`;
+    } catch {
+      return null;
     }
   }
 };

@@ -1,5 +1,6 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Image as ExpoImage } from 'expo-image';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { ActivityIndicator, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { Bookmark, Briefcase, ExternalLink, MapPin, MessageCircle, MoreHorizontal, Play, Share2 } from 'lucide-react-native';
 
@@ -52,12 +53,30 @@ function PostCardComponent({
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [useRawMedia, setUseRawMedia] = useState(false);
   const [localVideoActive, setLocalVideoActive] = useState(false);
+  // Lazily-generated thumbnail for videos without a mediaPlaceholder
+  const [lazyVideoThumb, setLazyVideoThumb] = useState<string | null>(null);
+  const lazyThumbFetched = useRef(false);
   const feedImageUrl = mediaVariants.feedImage(post.mediaUrl);
   const mediaImageUrl = (useRawMedia ? post.mediaUrl : feedImageUrl) ?? post.mediaUrl ?? '';
   const mediaPlaceholder = mediaPlaceholderSource(post.mediaPlaceholder);
   const mediaAspectRatio = clampedMediaAspectRatio(post.mediaWidth, post.mediaHeight);
   const canPlayVideoInApp = supportsInAppVideoUrl(post.mediaUrl);
   const videoActive = isVideoActive ?? localVideoActive;
+
+  // For video posts with no stored placeholder: generate a thumbnail lazily
+  // from the remote URL so the poster looks good without a DB migration.
+  useEffect(() => {
+    if (
+      post.mediaKind !== 'video' ||
+      post.mediaPlaceholder ||
+      !post.mediaUrl ||
+      lazyThumbFetched.current
+    ) return;
+    lazyThumbFetched.current = true;
+    VideoThumbnails.getThumbnailAsync(post.mediaUrl, { time: 2000, quality: 0.6 })
+      .then(({ uri }) => setLazyVideoThumb(uri))
+      .catch(() => { /* silently ignore — generic fallback will be shown */ });
+  }, [post.mediaKind, post.mediaPlaceholder, post.mediaUrl]);
 
   useEffect(() => {
     setMediaLoading(Boolean(post.mediaUrl));
@@ -208,20 +227,23 @@ function PostCardComponent({
                 })}
               >
                 <View style={styles.mediaVideoContainer}>
+                  {/* Prefer stored placeholder → lazily-fetched thumb → generic fallback */}
                   {mediaPlaceholder ? (
                     <ExpoImage
                       source={mediaPlaceholder}
                       contentFit="cover"
                       style={styles.videoPoster}
                     />
+                  ) : lazyVideoThumb ? (
+                    <ExpoImage
+                      source={{ uri: lazyVideoThumb }}
+                      contentFit="cover"
+                      style={styles.videoPoster}
+                    />
                   ) : (
                     <View style={[styles.videoFallback, { backgroundColor: theme.surfaceMuted }]}>
-                      <View style={styles.videoFallbackIconWrap}>
-                        <Play size={26} color={colors.light[0]} fill={colors.light[0]} />
-                      </View>
-                      <AppText style={styles.videoLabel}>
-                        {canPlayVideoInApp ? 'Video' : 'Unsupported'}
-                      </AppText>
+                      {/* Show spinner while lazy thumb is loading */}
+                      <ActivityIndicator color={theme.textSubtle} size="small" />
                     </View>
                   )}
                   {/* Gradient scrim over the poster */}

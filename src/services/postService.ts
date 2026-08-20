@@ -15,6 +15,8 @@ export interface CreatePostInput {
   mediaUrl?: string | null;
   mediaAsset?: ImagePicker.ImagePickerAsset | null;
   mediaKind?: Post['mediaKind'];
+  /** Base64 data URI or URL to use as the video/image poster thumbnail. */
+  mediaPlaceholder?: string | null;
   statsLine?: string;
   tryout?: TryoutDetails;
   visibility?: 'public' | 'followers' | 'group';
@@ -543,6 +545,7 @@ export const postService = {
         body: input.body,
         media_url: mediaUrl,
         media_kind: input.mediaKind ?? (mediaUrl ? 'image' : 'none'),
+        media_placeholder: input.mediaPlaceholder ?? null,
         media_storage_path: mediaStoragePath,
         media_width: mediaWidth,
         media_height: mediaHeight,
