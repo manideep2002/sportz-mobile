@@ -290,6 +290,12 @@ export async function registerForPushNotificationsAsync() {
     return null;
   }
 
+  // Remote push notifications on Android are no longer supported in Expo Go with SDK 53+.
+  // Use a development build (npx expo run:android) for remote notifications.
+  if (Platform.OS === 'android' && Constants.appOwnership === 'expo') {
+    return null;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications?.setNotificationChannelAsync('default', {
       name: 'default',

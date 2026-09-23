@@ -197,7 +197,7 @@ function NativeGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps
       ]}
     >
       <BlurView
-        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+        blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
         intensity={Platform.OS === 'android' ? 38 : 55}
         tint={theme.isDark ? 'dark' : 'light'}
         pointerEvents="none"
