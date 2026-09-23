@@ -113,7 +113,7 @@ type HomeFeedContextRow = Pick<
 >;
 
 const POST_CACHE_TTL_MS = 1000 * 45;
-const ACTIVE_TIMELINE_RETENTION_MS = 1000 * 60 * 60 * 24 * 30;
+const ACTIVE_TIMELINE_RETENTION_MS = 1000 * 60 * 60 * 24 * 365;
 const profileCacheKey = (profileId: string) => `profile:v1:${profileId}`;
 const postCachePrefix = (postId: string) => `post:v1:${postId}:`;
 const postCacheKey = (postId: string, viewerId: string) => `${postCachePrefix(postId)}${viewerId}`;
