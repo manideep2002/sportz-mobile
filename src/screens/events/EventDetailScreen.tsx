@@ -612,7 +612,7 @@ export function EventDetailScreen() {
               <Users size={16} color={colors.text.secondary} />
               <View>
                 <AppText variant="small" style={{ color: colors.text.tertiary }}>From group</AppText>
-                <AppText variant="bodyBold" style={styles.groupLinkName} numberOfLines={1}>
+                <AppText variant="body" style={styles.groupLinkName} numberOfLines={1}>
                   {event.sourceGroup.name}
                 </AppText>
               </View>

@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[950]
   },
   navigationZones: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: 'row'
   },
   navigationZone: {
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold
   },
   placeholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md

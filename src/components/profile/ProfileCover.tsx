@@ -83,13 +83,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden'
   },
   loading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     backgroundColor: 'rgba(5, 8, 18, 0.3)',
     justifyContent: 'center'
   },
   border: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderColor: 'rgba(255,90,31,0.25)',
     borderWidth: StyleSheet.hairlineWidth
   }

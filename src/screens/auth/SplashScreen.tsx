@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40
   },
   pattern: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   hero: {
     marginBottom: 48

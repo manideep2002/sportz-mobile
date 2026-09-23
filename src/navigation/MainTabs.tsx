@@ -337,18 +337,18 @@ const styles = StyleSheet.create({
     })
   },
   barHighlight: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: TAB_BAR_RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.12)'
   },
   barBlur: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: TAB_BAR_RADIUS,
     overflow: 'hidden'
   },
   barTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: TAB_BAR_RADIUS
   },
   activeIndicator: {
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)'
   },
   tabItems: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: 'row',
     paddingHorizontal: TAB_BAR_CONTENT_INSET
   },

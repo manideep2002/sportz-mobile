@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   coverImage: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   changeCover: {
     backgroundColor: 'rgba(0,0,0,0.58)',

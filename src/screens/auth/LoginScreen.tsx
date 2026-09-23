@@ -43,7 +43,7 @@ export function LoginScreen({ navigation }: Props) {
         Alert.alert('Google login failed', 'Google did not return a valid identity token. Please check your OAuth Client configuration.');
       }
     } else if (response?.type === 'error') {
-      const errorMsg = response.error?.message ?? 'An unknown Google authentication error occurred.';
+      const errorMsg = (response.error as { message?: string } | undefined)?.message ?? response.error?.description ?? 'An unknown Google authentication error occurred.';
       Alert.alert('Google login error', errorMsg);
     }
   }, [response, signInWithIdToken]);

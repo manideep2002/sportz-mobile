@@ -175,7 +175,7 @@ StoryReactionOverlay.displayName = 'StoryReactionOverlay';
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'flex-end',
     zIndex: 999,

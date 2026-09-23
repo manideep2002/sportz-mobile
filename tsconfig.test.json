@@ -4,6 +4,6 @@
     "types": ["jest", "node"],
     "typeRoots": ["./node_modules/@types"]
   },
-  "include": ["src/__tests__"],
+  "include": ["src/__tests__", "src/test"],
   "exclude": []
 }

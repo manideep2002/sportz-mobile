@@ -1779,7 +1779,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark[700]
   },
   storyReactionVignette: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // Radial-style gradient achieved with a semi-transparent overlay.
     // Darkens edges just enough for the emoji to pop without hiding the image.
     backgroundColor: 'rgba(0,0,0,0.20)'

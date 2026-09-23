@@ -339,7 +339,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           style={StyleSheet.absoluteFill}
           contentFit={contentFit}
           nativeControls={controls}
-          allowsFullscreen={controls}
+          fullscreenOptions={{ enable: controls }}
           allowsPictureInPicture={false}
         />
 
@@ -425,17 +425,17 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.35)'
   },
   controlsScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.25)'
   },
   playZone: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center'
   },
