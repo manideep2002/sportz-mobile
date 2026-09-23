@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import { Notifications } from '@/lib/notificationsShim';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
@@ -13,6 +13,15 @@ import { useMessagingStore } from '@/store/messagingStore';
  */
 export const isNativePlatform = (): boolean =>
   Platform.OS === 'ios' || Platform.OS === 'android';
+
+/**
+ * Returns true when the app is running inside the Expo Go client.
+ * expo-notifications Android push functionality was removed from Expo Go in SDK 53;
+ * we use this flag to skip native notification setup so the app still loads.
+ * Development builds and production builds are unaffected.
+ */
+export const isExpoGo = (): boolean =>
+  Constants.appOwnership === 'expo';
 
 export const pushNotificationsEnabledKey = 'sportz.push.enabled';
 export const notificationPreferencesKey = 'sportz.notification.preferences';
@@ -199,22 +208,28 @@ export function subscribeToNotificationSettings(
 }
 
 // Only register the notification handler on native platforms.
-// expo-notifications is unavailable on web and throws UnavailabilityError.
-if (isNativePlatform()) {
-  Notifications.setNotificationHandler({
-    handleNotification: async (notification) => {
-      const shouldPresent = await shouldHandleNotification(
-        notification.request.content.data as Record<string, unknown>
-      );
-      return {
-        shouldShowAlert: shouldPresent,
-        shouldPlaySound: shouldPresent,
-        shouldSetBadge: shouldPresent,
-        shouldShowBanner: shouldPresent,
-        shouldShowList: shouldPresent
-      };
-    }
-  });
+// expo-notifications Android push support was removed from Expo Go in SDK 53,
+// so we also skip setup when running inside Expo Go to prevent a runtime crash.
+// The module itself is guarded by the notificationsShim (null in Expo Go).
+if (isNativePlatform() && !isExpoGo() && Notifications) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async (notification) => {
+        const shouldPresent = await shouldHandleNotification(
+          notification.request.content.data as Record<string, unknown>
+        );
+        return {
+          shouldShowAlert: shouldPresent,
+          shouldPlaySound: shouldPresent,
+          shouldSetBadge: shouldPresent,
+          shouldShowBanner: shouldPresent,
+          shouldShowList: shouldPresent
+        };
+      }
+    });
+  } catch {
+    // Silently swallow in environments where the native module is unavailable.
+  }
 }
 
 async function getOrCreateInstallationId() {
@@ -265,8 +280,8 @@ export async function flushPendingPushRevocations(userId: string): Promise<void>
 }
 
 export async function registerForPushNotificationsAsync() {
-  // Push token registration is a native-only feature.
-  if (!isNativePlatform()) return null;
+  // Push token registration is a native-only feature and unavailable in Expo Go (SDK 53+).
+  if (!isNativePlatform() || isExpoGo()) return null;
 
   const enabled = await AsyncStorage.getItem(pushNotificationsEnabledKey);
   if (enabled === 'false') return null;
@@ -276,20 +291,20 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
+    await Notifications?.setNotificationChannelAsync('default', {
       name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
+      importance: Notifications?.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FF5A1F'
     });
   }
 
-  const existingPermission = await Notifications.getPermissionsAsync();
-  let finalStatus = existingPermission.status;
+  const existingPermission = await Notifications?.getPermissionsAsync();
+  let finalStatus = existingPermission?.status;
 
-  if (existingPermission.status !== 'granted') {
-    const requestedPermission = await Notifications.requestPermissionsAsync();
-    finalStatus = requestedPermission.status;
+  if (existingPermission?.status !== 'granted') {
+    const requestedPermission = await Notifications?.requestPermissionsAsync();
+    finalStatus = requestedPermission?.status;
   }
 
   if (finalStatus !== 'granted') {
@@ -300,7 +315,8 @@ export async function registerForPushNotificationsAsync() {
   const projectId =
     Constants.easConfig?.projectId ??
     (typeof runtimeProjectId === 'string' && runtimeProjectId.trim() ? runtimeProjectId : undefined);
-  const token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+  const token = await Notifications?.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+  if (!token) return null;
 
   const { data: authData } = await supabase.auth.getUser();
   if (authData.user) {

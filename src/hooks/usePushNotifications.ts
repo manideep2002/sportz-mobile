@@ -1,8 +1,9 @@
 import { useCallback, useEffect } from 'react';
-import * as Notifications from 'expo-notifications';
+import { Notifications, type NotificationResponse } from '@/lib/notificationsShim';
 
 import {
   isNativePlatform,
+  isExpoGo,
   registerForPushNotificationsAsync,
   revokePushTokensForCurrentInstallation,
   hydrateNotificationSettings,
@@ -30,7 +31,7 @@ export const usePushNotifications = () => {
   useRealtimeNotifications(handleNewRealtimeNotification);
 
   const handleNotificationResponse = useCallback(
-    (response: Notifications.NotificationResponse) => {
+    (response: NotificationResponse) => {
       const data = response.notification.request.content.data as PushNotificationRouteData;
       void (async () => {
         if (!(await shouldHandleNotification(data as Record<string, unknown>))) return;
@@ -49,7 +50,7 @@ export const usePushNotifications = () => {
 
     // Push token registration is native-only; guarded inside the function as well,
     // but the explicit check here makes the intent clear to future readers.
-    if (isNativePlatform()) {
+    if (isNativePlatform() && !isExpoGo()) {
       void hydrateNotificationSettings(userId)
         .then(async (settings) => {
           if (settings.enabled) await registerForPushNotificationsAsync();
@@ -68,16 +69,17 @@ export const usePushNotifications = () => {
   useEffect(() => {
     // All Expo Notifications listener / last-response APIs are unavailable on web.
     // They throw UnavailabilityError during module evaluation on that platform.
-    if (!isNativePlatform()) return;
+    // expo-notifications Android push support was also removed from Expo Go in SDK 53.
+    if (!isNativePlatform() || isExpoGo()) return;
 
-    const foregroundSubscription = Notifications.addNotificationReceivedListener(() => {});
+    const foregroundSubscription = Notifications?.addNotificationReceivedListener(() => {});
     const responseSubscription =
-      Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+      Notifications?.addNotificationResponseReceivedListener(handleNotificationResponse);
 
     // getLastNotificationResponseAsync handles the cold-start notification tap.
     // We swallow rejections so an unsupported runtime can never produce an
     // unhandled-promise-rejection (belt-and-suspenders on top of the OS guard above).
-    void Notifications.getLastNotificationResponseAsync()
+    void Notifications?.getLastNotificationResponseAsync()
       .then((response) => {
         if (response) {
           handleNotificationResponse(response);
@@ -89,8 +91,8 @@ export const usePushNotifications = () => {
 
     return () => {
       // Both subscriptions were created together; remove them together.
-      foregroundSubscription.remove();
-      responseSubscription.remove();
+      foregroundSubscription?.remove();
+      responseSubscription?.remove();
     };
   }, [handleNotificationResponse]);
 };
